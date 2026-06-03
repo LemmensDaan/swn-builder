@@ -1,4 +1,4 @@
-import type { SkillLevels, Skill } from '../data/skills';
+import type { SkillLevels } from '../data/skills';
 
 export interface SkillSpend {
   skill: string;
@@ -40,7 +40,8 @@ export type AdventurerPartial = 'Partial Expert' | 'Partial Psychic' | 'Partial 
 export interface FocusSelection {
   name: string;
   level: 1 | 2;
-  specialistSkill?: Skill;
+  /** Chosen bonus skill for foci that let you pick (Specialist, Close Combatant, Psychic Training…). May be a psychic skill. */
+  specialistSkill?: string;
 }
 
 export interface PsychicTechniqueSelection {

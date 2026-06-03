@@ -44,16 +44,25 @@ export default function Step3Background({ char, onChange }: Props) {
                   : 'border-gray-700 bg-gray-800 hover:border-gray-500'
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
+              <div className="mb-1">
                 <span className={`font-semibold ${isSelected ? 'text-amber-300' : 'text-gray-200'}`}>
                   {bg.name}
                 </span>
-                <span className="text-xs text-amber-600 font-medium">{bg.freeSkill}-0</span>
               </div>
               <p className="text-xs text-gray-400 leading-relaxed">{bg.description}</p>
+              {/* Quick skills — the free skill is highlighted (it's one of the three) */}
               <div className="mt-2 flex flex-wrap gap-1">
                 {bg.quickSkills.map(s => (
-                  <span key={s} className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">{s}</span>
+                  <span
+                    key={s}
+                    className={`text-xs px-2 py-0.5 rounded ${
+                      s === bg.freeSkill
+                        ? 'bg-green-900/40 text-green-300 border border-green-700/50'
+                        : 'bg-gray-700 text-gray-300'
+                    }`}
+                  >
+                    {s}{s === bg.freeSkill ? ' · free' : ''}
+                  </span>
                 ))}
               </div>
             </button>
@@ -93,10 +102,16 @@ export default function Step3Background({ char, onChange }: Props) {
 
           <div className="text-sm text-gray-400">
             <span className="text-gray-300 font-medium">Free Skill: </span>
-            <span className="text-amber-300">{selected.freeSkill}-0</span>
-            &nbsp;&nbsp;
-            <span className="text-gray-300 font-medium">Quick Skills: </span>
-            <span className="text-amber-300">{selected.quickSkills.join(', ')}</span>
+            <span className="text-green-300">{selected.freeSkill}-0</span>
+            {selected.quickSkills.filter(s => s !== selected.freeSkill).length > 0 && (
+              <>
+                &nbsp;&nbsp;
+                <span className="text-gray-300 font-medium">Other Quick Skills: </span>
+                <span className="text-amber-300">
+                  {selected.quickSkills.filter(s => s !== selected.freeSkill).join(', ')}
+                </span>
+              </>
+            )}
           </div>
         </div>
       )}

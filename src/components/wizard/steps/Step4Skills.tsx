@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Character, AttributeName } from '../../../types/character';
 import { BACKGROUNDS } from '../../../data/backgrounds';
 import { SKILLS } from '../../../data/skills';
 import type { Skill, SkillLevels } from '../../../data/skills';
+import { SKILL_INFO } from '../../../data/skillInfo';
 import PageRef from '../../ui/PageRef';
 
 type SkillMode = 'quick' | 'pick' | 'roll';
@@ -28,6 +29,7 @@ interface RollEntry {
   statBoost?: StatBoost;         // set when entry is a stat boost
   resolvedSkill?: Skill;         // set when entry is a skill (auto or user-chosen)
   needsChoice: boolean;          // true when user still needs to pick
+  altSkill?: Skill;              // replacement skill when this roll overflowed (3rd acquisition rule)
 }
 
 // One pick in Pick mode
@@ -35,19 +37,13 @@ interface PickEntry {
   id: number;
   rawEntry: string;              // learning table entry text
   resolvedSkill: Skill | null;   // null until user resolves "Any Combat"
+  altSkill?: Skill;              // replacement skill when this pick overflowed
 }
 
 interface Props {
   char: Character;
   onChange: (patch: Partial<Character>) => void;
   onComplete: (done: boolean) => void;
-}
-
-function addSkill(skills: SkillLevels, skill: Skill): SkillLevels {
-  const cur = skills[skill] ?? -1;
-  if (cur < 0) return { ...skills, [skill]: 0 };
-  if (cur === 0) return { ...skills, [skill]: 1 };
-  return skills; // already level-1, max at creation
 }
 
 function makeStat(raw: string): StatBoost {
@@ -58,10 +54,6 @@ function makeStat(raw: string): StatBoost {
 
 function isStatEntry(entry: string) {
   return entry === '+1 Any Stat' || entry === '+2 Physical' || entry === '+2 Mental';
-}
-
-function isSkillEntry(entry: string) {
-  return !isStatEntry(entry);
 }
 
 function parseRollEntry(entry: string, id: number, table: 'growth' | 'learning', rollValue: number): RollEntry {
@@ -98,7 +90,7 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
   const [bonusSkill, setBonusSkill] = useState<Skill | null>(() => {
     if (!bg || Object.keys(char.skills).length === 0) return null;
     const bgSourceSkills = new Set<string>([
-      ...(bg.freeSkill !== 'Any Combat' ? [bg.freeSkill] : []),
+      ...((bg.freeSkill as string) !== 'Any Combat' ? [bg.freeSkill as string] : []),
       ...bg.quickSkills.filter(s => s !== 'Any Combat'),
     ]);
     // A skill not from background sources is likely the bonus pick
@@ -106,68 +98,65 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
     return (extra as Skill) ?? null;
   });
 
+  // For a brand-new character (no skills yet), apply the default Quick-mode skills on mount
+  // so the single "Current Skills" list is populated without a manual "apply" step.
+  useEffect(() => {
+    if (Object.keys(char.skills).length === 0) {
+      applyAll('quick', freeCombat, quickCombat, [], [], bonusSkill);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Compute completion ───────────────────────────────────────────────────────
 
-  function checkComplete(
+  // Pure builder: produces the final skill map + attrs, and flags any pick/roll that
+  // overflowed (its target was already at level-1, so per p.9 it becomes a free pick of
+  // any other non-psychic skill, captured in the entry's altSkill).
+  function buildSkills(
     m: SkillMode, fc: Skill | null, qc: Skill | null,
     p: PickEntry[], r: RollEntry[], b: Skill | null,
-  ): boolean {
-    if (!b) return false;
-    if (hasFreeAnyCombat && !fc) return false;
+  ): { skills: SkillLevels; attrs: Record<AttributeName, number>; overflowPickIds: Set<number>; overflowRollIds: Set<number> } {
+    const skills: Record<string, number> = {};
+    const overflowPickIds = new Set<number>();
+    const overflowRollIds = new Set<number>();
 
-    if (m === 'quick') {
-      if (hasQuickAnyCombat && !qc) return false;
-      return true;
+    // returns true if this grant actually raised the skill (false = already at level-1 cap)
+    const add = (sk: string): boolean => {
+      const cur = skills[sk] ?? -1;
+      if (cur < 0) { skills[sk] = 0; return true; }
+      if (cur === 0) { skills[sk] = 1; return true; }
+      return false;
+    };
+
+    // Free skill — pick/roll modes only (quick list already includes it)
+    if (m !== 'quick') {
+      const freeSkill = hasFreeAnyCombat ? fc : (bg ? (bg.freeSkill as string) : null);
+      if (freeSkill && SKILLS.includes(freeSkill as Skill)) add(freeSkill);
     }
-    if (m === 'pick') {
-      if (p.length < 2) return false;
-      if (p.some(x => x.resolvedSkill === null)) return false;
-      return true;
-    }
-    // roll
-    if (r.length === 0) return false;
-    for (const entry of r) {
-      if (entry.needsChoice) {
-        if (entry.statBoost) {
-          const spent = Object.values(entry.statBoost.allocs).reduce((s, v) => s + (v ?? 0), 0);
-          if (spent < entry.statBoost.total) return false;
-        } else if (!entry.resolvedSkill) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  // ── Build final skills + attrs and push to parent ────────────────────────────
-
-  function applyAll(
-    m: SkillMode, fc: Skill | null, qc: Skill | null,
-    p: PickEntry[], r: RollEntry[], b: Skill | null,
-  ) {
-    let skills: SkillLevels = {};
-
-    // Free skill
-    const freeSkill = hasFreeAnyCombat ? fc : (bg ? bg.freeSkill as Skill : null);
-    if (freeSkill && SKILLS.includes(freeSkill as Skill)) skills = addSkill(skills, freeSkill);
 
     if (m === 'quick' && bg) {
       bg.quickSkills.forEach(qs => {
-        if (qs === 'Any Combat') {
-          if (qc) skills = addSkill(skills, qc);
-        } else {
-          skills = addSkill(skills, qs as Skill);
-        }
+        if (qs === 'Any Combat') { if (qc) add(qc); }
+        else add(qs as string);
       });
     } else if (m === 'pick') {
-      p.forEach(x => { if (x.resolvedSkill) skills = addSkill(skills, x.resolvedSkill); });
-    } else {
-      r.forEach(x => { if (x.resolvedSkill) skills = addSkill(skills, x.resolvedSkill); });
+      p.forEach(x => {
+        if (!x.resolvedSkill) return;
+        const raised = add(x.resolvedSkill);
+        if (!raised) { overflowPickIds.add(x.id); if (x.altSkill) add(x.altSkill); }
+      });
+    } else if (m === 'roll') {
+      r.forEach(x => {
+        if (x.statBoost || !x.resolvedSkill) return;
+        const raised = add(x.resolvedSkill);
+        if (!raised) { overflowRollIds.add(x.id); if (x.altSkill) add(x.altSkill); }
+      });
     }
 
-    if (b) skills = addSkill(skills, b);
+    // Bonus skill (step 9) is applied last
+    if (b) add(b);
 
-    // Attribute bonuses from Growth table (roll mode only)
+    // Growth-table attribute bonuses (roll mode only)
     const attrs = { ...baseAttrs.current };
     if (m === 'roll') {
       r.forEach(x => {
@@ -179,6 +168,54 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
       });
     }
 
+    return { skills: skills as SkillLevels, attrs, overflowPickIds, overflowRollIds };
+  }
+
+  function checkComplete(
+    m: SkillMode, fc: Skill | null, qc: Skill | null,
+    p: PickEntry[], r: RollEntry[], b: Skill | null,
+  ): boolean {
+    if (!b) return false;
+
+    if (m === 'quick') {
+      if (hasQuickAnyCombat && !qc) return false;
+      return true;
+    }
+
+    if (hasFreeAnyCombat && !fc) return false;
+
+    const { overflowPickIds, overflowRollIds } = buildSkills(m, fc, qc, p, r, b);
+
+    if (m === 'pick') {
+      if (p.length < 2) return false;
+      if (p.some(x => x.resolvedSkill === null)) return false;
+      // an overflowed pick must have an alternate skill chosen
+      if (p.some(x => overflowPickIds.has(x.id) && !x.altSkill)) return false;
+      return true;
+    }
+    // roll — the book has you roll exactly three times (p.9)
+    if (r.length < 3) return false;
+    for (const entry of r) {
+      if (entry.needsChoice) {
+        if (entry.statBoost) {
+          const spent = Object.values(entry.statBoost.allocs).reduce((s, v) => s + (v ?? 0), 0);
+          if (spent < entry.statBoost.total) return false;
+        } else if (!entry.resolvedSkill) {
+          return false;
+        }
+      }
+      if (overflowRollIds.has(entry.id) && !entry.altSkill) return false;
+    }
+    return true;
+  }
+
+  // ── Build final skills + attrs and push to parent ────────────────────────────
+
+  function applyAll(
+    m: SkillMode, fc: Skill | null, qc: Skill | null,
+    p: PickEntry[], r: RollEntry[], b: Skill | null,
+  ) {
+    const { skills, attrs } = buildSkills(m, fc, qc, p, r, b);
     onChange({ skills, attributes: attrs });
     onComplete(checkComplete(m, fc, qc, p, r, b));
   }
@@ -189,21 +226,9 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
     setMode(newMode);
     setPicks([]);
     setRolls([]);
-    // Restore base attributes (undo growth bonuses from previous roll mode)
-    const attrs = { ...baseAttrs.current };
-    // Build minimal skills (free + bonus) so the sheet stays responsive
-    let skills: SkillLevels = {};
-    const freeSkill = hasFreeAnyCombat ? freeCombat : (bg ? bg.freeSkill as Skill : null);
-    if (freeSkill && SKILLS.includes(freeSkill as Skill)) skills = addSkill(skills, freeSkill);
-    if (bonusSkill) skills = addSkill(skills, bonusSkill);
-    onChange({ skills, attributes: attrs });
-    onComplete(false);
-  }
-
-  // ── Quick mode ───────────────────────────────────────────────────────────────
-
-  function applyQuick(qc: Skill | null) {
-    applyAll('quick', freeCombat, qc, [], [], bonusSkill);
+    // Re-apply through the canonical builder (which correctly avoids double-counting
+    // the free skill in quick mode and resets growth-table attribute bonuses).
+    applyAll(newMode, freeCombat, quickCombat, [], [], bonusSkill);
   }
 
   // ── Pick mode ────────────────────────────────────────────────────────────────
@@ -230,6 +255,18 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
     const next = picks.map(p => p.id === id ? { ...p, resolvedSkill: skill } : p);
     setPicks(next);
     applyAll('pick', freeCombat, quickCombat, next, rolls, bonusSkill);
+  }
+
+  function resolvePickAlt(id: number, skill: Skill) {
+    const next = picks.map(p => p.id === id ? { ...p, altSkill: skill } : p);
+    setPicks(next);
+    applyAll('pick', freeCombat, quickCombat, next, rolls, bonusSkill);
+  }
+
+  function resolveRollAlt(id: number, skill: Skill) {
+    const next = rolls.map(r => r.id === id ? { ...r, altSkill: skill } : r);
+    setRolls(next);
+    applyAll('roll', freeCombat, quickCombat, picks, next, bonusSkill);
   }
 
   // ── Roll mode ────────────────────────────────────────────────────────────────
@@ -300,6 +337,9 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
 
   const complete = checkComplete(mode, freeCombat, quickCombat, picks, rolls, bonusSkill);
 
+  // Overflow detection — picks/rolls whose target was already at level-1 (p.9 "pick any other skill")
+  const { overflowPickIds, overflowRollIds } = buildSkills(mode, freeCombat, quickCombat, picks, rolls, bonusSkill);
+
   // Skills already on char (from current picks/quick/rolls)
   const currentSkills = char.skills;
 
@@ -317,14 +357,16 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
           <span className="text-amber-300 font-medium">{bg.name}</span>
         </div>
         <div>
-          <span className="text-gray-500">Free skill: </span>
-          <span className="text-green-400 font-medium">{bg.freeSkill}-0</span>
+          <span className="text-gray-500">Grants </span>
+          <span className="text-green-400 font-medium">{bg.freeSkill}</span>
+          <span className="text-gray-500"> automatically</span>
         </div>
-        <PageRef page={9} note="Step 3 — You always get the background's free skill at level-0 automatically, regardless of which method you choose below." />
+        <PageRef page={9} note="Step 3 — You always get the background's free skill at level-0 automatically, regardless of which method you choose below. It's included in the skill list below." />
       </div>
 
-      {/* Free combat choice for Soldier / Thug */}
-      {hasFreeAnyCombat && (
+      {/* Free combat choice for Soldier / Thug — only relevant in pick/roll modes,
+          since in quick mode the free skill is part of the Quick Skills list. */}
+      {hasFreeAnyCombat && mode !== 'quick' && (
         <div className="bg-gray-800 border border-amber-700/40 rounded-lg p-4">
           <p className="text-sm font-medium text-amber-300 mb-2">
             Free Skill: Choose a Combat Skill
@@ -375,15 +417,9 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
       {mode === 'quick' && (
         <div className="space-y-3">
           <p className="text-sm text-gray-400">
-            Take the pre-selected skills for your background. All received at level-0; duplicates (including the free skill) go to level-1.
+            The three pre-selected skills for your background (including the free skill) are granted
+            automatically at level-0 — see the <span className="text-gray-300">Current Skills</span> list below.
           </p>
-          <div className="flex flex-wrap gap-2">
-            {bg.quickSkills.map((s, i) => (
-              <span key={i} className="px-3 py-1 rounded-full bg-green-900/40 border border-green-700 text-green-300 text-sm">
-                {s}-0
-              </span>
-            ))}
-          </div>
           {/* Quick combat choice if needed */}
           {hasQuickAnyCombat && (
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
@@ -410,14 +446,6 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
                 ))}
               </div>
             </div>
-          )}
-          {!hasQuickAnyCombat && !hasFreeAnyCombat && (
-            <button
-              onClick={() => applyQuick(quickCombat)}
-              className="px-4 py-2 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium"
-            >
-              Apply Quick Skills
-            </button>
           )}
         </div>
       )}
@@ -456,6 +484,30 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
                     key={s}
                     onClick={() => resolvePickCombat(p.id, s)}
                     className="px-3 py-1.5 rounded border border-gray-600 bg-gray-700 text-gray-300 hover:border-amber-500 hover:text-amber-300 text-sm transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Overflow picks — target already at level-1, choose any other non-psychic skill (p.9) */}
+          {picks.filter(p => overflowPickIds.has(p.id)).map(p => (
+            <div key={`alt-${p.id}`} className="bg-amber-900/10 border border-amber-700/60 rounded-lg p-3">
+              <p className="text-sm text-amber-300 mb-2">
+                <strong>{p.resolvedSkill}</strong> is already at level-1 — choose any other non-psychic skill instead:
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1">
+                {SKILLS.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => resolvePickAlt(p.id, s)}
+                    className={`px-2 py-1 rounded text-xs border transition-colors ${
+                      p.altSkill === s
+                        ? 'border-amber-500 bg-amber-900/30 text-amber-300'
+                        : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-500'
+                    }`}
                   >
                     {s}
                   </button>
@@ -611,6 +663,30 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
                     )}
                   </div>
                 )}
+
+                {/* Overflow — rolled skill already at level-1, choose any other (p.9) */}
+                {overflowRollIds.has(r.id) && (
+                  <div className="mt-2">
+                    <p className="text-xs text-amber-300 mb-1">
+                      <strong>{r.resolvedSkill}</strong> is already at level-1 — choose any other non-psychic skill:
+                    </p>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1">
+                      {SKILLS.map(s => (
+                        <button
+                          key={s}
+                          onClick={() => resolveRollAlt(r.id, s)}
+                          className={`px-2 py-1 rounded text-xs border transition-colors ${
+                            r.altSkill === s
+                              ? 'border-amber-500 bg-amber-900/30 text-amber-300'
+                              : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-500'
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -633,6 +709,7 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
             <button
               key={s}
               onClick={() => handleBonusSkill(s)}
+              title={SKILL_INFO[s] ? `${s}: ${SKILL_INFO[s]}` : s}
               className={`px-2 py-1.5 rounded text-xs border transition-colors ${
                 bonusSkill === s
                   ? 'border-amber-500 bg-amber-900/30 text-amber-300'
@@ -655,9 +732,13 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
           </p>
           <div className="flex flex-wrap gap-2">
             {Object.entries(currentSkills).sort(([a], [b]) => a.localeCompare(b)).map(([s, lvl]) => (
-              <span key={s} className="px-2 py-1 rounded bg-gray-700 text-sm">
-                <span className="text-gray-200">{s}</span>
-                <span className="text-amber-400 ml-1">-{lvl}</span>
+              <span
+                key={s}
+                className="px-2 py-1 rounded bg-gray-700 text-sm cursor-help"
+                title={SKILL_INFO[s] ? `${s}: ${SKILL_INFO[s]}` : s}
+              >
+                <span className="text-gray-200">{s}-</span>
+                <span className="text-amber-400 font-semibold">{lvl}</span>
               </span>
             ))}
           </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Character } from '../../types/character';
-import { emptyCharacter, calcSaves, calcAttackBonus, calcEffort, attrMod, recomputeSkills } from '../../types/character';
+import { emptyCharacter, calcSaves, calcAttackBonus, attrMod } from '../../types/character';
+import { deriveEffort, dieHardBonus } from '../../data/derivation';
 import WizardLayout from './WizardLayout';
 import Step1Concept from './steps/Step1Concept';
 import Step2Attributes from './steps/Step2Attributes';
@@ -17,6 +18,7 @@ interface Props {
   onSave: (char: Character) => void;
   onCancel: () => void;
   onOpenRules: () => void;
+  onOpenHelp: () => void;
 }
 
 const TOTAL_STEPS = 9;
@@ -39,7 +41,7 @@ export interface ValidationError {
   message: string;
 }
 
-export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules }: Props) {
+export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules, onOpenHelp }: Props) {
   const isEditing = !!initial;
 
   const [step, setStep] = useState(1);
@@ -55,9 +57,7 @@ export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules
       const next = { ...prev, ...updates };
       next.saves = calcSaves(next.attributes, next.level);
       next.baseAttackBonus = calcAttackBonus(next.class, next.adventurerPartials, next.level);
-      if (next.class === 'Psychic' || next.adventurerPartials?.includes('Partial Psychic')) {
-        next.effort.max = calcEffort(next.skills, next.attributes);
-      }
+      next.effort = { ...next.effort, max: deriveEffort(next) };
       next.systemStrain.max = next.attributes.CON;
       return next;
     });
@@ -129,22 +129,22 @@ export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules
     if (!canFinish) return;
     const finalChar = { ...char };
 
-    // Roll HP for new characters
+    // Roll level-1 HP for new characters (p.9 step 11):
+    //   max(1, 1d6 + CON mod) + Warrior +2 + Die Hard +2
     if (!isEditing || finalChar.hitPoints.max <= 1) {
       const conMod = attrMod(finalChar.attributes.CON);
       const isWarrior = finalChar.class === 'Warrior' || finalChar.adventurerPartials?.includes('Partial Warrior');
       const roll = Math.ceil(Math.random() * 6);
-      finalChar.hitPoints.max = Math.max(1, roll + conMod + (isWarrior ? 2 : 0));
+      const base = Math.max(1, roll + conMod);
+      finalChar.hitPoints.max = base + (isWarrior ? 2 : 0) + dieHardBonus(finalChar);
       finalChar.hitPoints.current = finalChar.hitPoints.max;
     }
 
-    // Snapshot creation skills so level-history recompute works later
+    // creationSkills = the raw Step-4 skill picks (free + background + bonus).
+    // Foci / psychic / level-up skills are layered on at read time by the derivation module,
+    // so char.skills stays as the raw creation set.
     finalChar.creationSkills = { ...finalChar.skills };
-
-    // If re-saving a leveled character: recompute skills = new base + history
-    if (finalChar.levelHistory.length > 0) {
-      finalChar.skills = recomputeSkills(finalChar);
-    }
+    finalChar.effort = { ...finalChar.effort, max: deriveEffort(finalChar) };
 
     onSave(finalChar);
   }
@@ -155,6 +155,11 @@ export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules
     <>
     <WizardLayout
       onOpenRules={onOpenRules}
+      onOpenHelp={onOpenHelp}
+      onExit={() => setConfirmCancel(true)}
+      onSave={finalize}
+      canSave={canFinish}
+      isEditing={isEditing}
       step={step}
       totalSteps={TOTAL_STEPS}
       title={meta.title}

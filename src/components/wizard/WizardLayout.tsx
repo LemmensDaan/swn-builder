@@ -16,6 +16,11 @@ interface Props {
   onStepClick: (s: number) => void;
   stepValidity: boolean[];
   onOpenRules: () => void;
+  onOpenHelp: () => void;
+  onExit: () => void;
+  onSave: () => void;
+  canSave: boolean;
+  isEditing: boolean;
 }
 
 const STEP_NAMES = [
@@ -25,7 +30,8 @@ const STEP_NAMES = [
 export default function WizardLayout({
   step, totalSteps, title, subtitle, children,
   onBack, onNext, onFinish, finishDisabled, nextLabel, nextDisabled,
-  maxVisited, onStepClick, stepValidity, onOpenRules,
+  maxVisited, onStepClick, stepValidity, onOpenRules, onOpenHelp,
+  onExit, onSave, canSave, isEditing,
 }: Props) {
   const pct = Math.round((step / totalSteps) * 100);
 
@@ -52,6 +58,13 @@ export default function WizardLayout({
           </div>
           <span className="text-xs text-gray-400">Step {step} of {totalSteps}</span>
           <button
+            onClick={onOpenHelp}
+            title="Rules reference & FAQ"
+            className="w-8 h-8 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors font-bold"
+          >
+            ?
+          </button>
+          <button
             onClick={onOpenRules}
             title="Open SWN Revised Deluxe Edition rulebook"
             className="p-1.5 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors"
@@ -61,6 +74,21 @@ export default function WizardLayout({
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
+          </button>
+          <button
+            onClick={onSave}
+            disabled={!canSave}
+            title={canSave ? 'Save and view sheet' : 'Resolve validation errors first (see Review step)'}
+            className="px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors"
+          >
+            {isEditing ? 'Save' : 'Save & View'}
+          </button>
+          <button
+            onClick={onExit}
+            title="Exit the wizard"
+            className="px-3 py-1.5 rounded bg-gray-700 hover:bg-red-900/60 text-gray-300 hover:text-red-300 text-xs font-medium transition-colors"
+          >
+            Exit
           </button>
         </div>
 

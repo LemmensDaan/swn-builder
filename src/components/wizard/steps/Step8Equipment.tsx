@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Character } from '../../../types/character';
 import { EQUIPMENT_PACKAGES, ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../../../data/equipment';
 import type { EquipCategory } from '../../../data/equipment';
+import { computeEncumbrance } from '../../../data/derivation';
 import PageRef from '../../ui/PageRef';
 
 interface Props {
@@ -31,21 +32,24 @@ function computeSpent(char: Character): number {
   let total = 0;
   for (const a of char.armor) total += itemCost(a.name);
   for (const w of char.weapons) total += itemCost(w.name);
+  for (const e of char.equipment) total += itemCost(e); // general items (package strings that don't match cost 0)
   return total;
 }
 
 // ── Credit bar component ──────────────────────────────────────────────────────
 
 function CreditBar({ char, onChange }: { char: Character; onChange: (patch: Partial<Character>) => void }) {
+  // char.credits = total BUDGET. Spent is computed from bought armor/weapons. Remaining = budget − spent.
+  const budget = char.credits;
   const spent = computeSpent(char);
-  const remaining = char.credits - spent;
+  const remaining = budget - spent;
   const overBudget = remaining < 0;
-  const pctUsed = char.credits > 0 ? Math.min(100, (spent / char.credits) * 100) : 0;
+  const pctUsed = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        {/* Editable starting budget */}
+        {/* Editable budget */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500 uppercase tracking-wide">Budget</span>
           <input
@@ -57,6 +61,11 @@ function CreditBar({ char, onChange }: { char: Character; onChange: (patch: Part
             className="input w-28 text-right py-1 text-sm font-mono"
           />
           <span className="text-gray-500 text-sm">cr</span>
+        </div>
+
+        <div className="text-sm">
+          <span className="text-gray-500">Spent: </span>
+          <span className="font-mono text-orange-300">{spent.toLocaleString()} cr</span>
         </div>
 
         {/* Remaining */}
@@ -104,6 +113,42 @@ function CreditBar({ char, onChange }: { char: Character; onChange: (patch: Part
   );
 }
 
+// ── Encumbrance bar ───────────────────────────────────────────────────────────
+
+function EncumbranceBar({ char }: { char: Character }) {
+  const enc = computeEncumbrance(char);
+  const LABEL: Record<string, { text: string; cls: string }> = {
+    none: { text: 'Unencumbered', cls: 'text-green-400' },
+    light: { text: 'Lightly Encumbered', cls: 'text-amber-400' },
+    heavy: { text: 'Heavily Encumbered', cls: 'text-orange-400' },
+    overloaded: { text: 'Overloaded', cls: 'text-red-400' },
+  };
+  const status = LABEL[enc.level];
+  const readiedOver = enc.readied > enc.readiedMax;
+  const stowedOver = enc.stowed > enc.stowedMax;
+
+  return (
+    <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-center gap-6 flex-wrap text-sm">
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-gray-500 uppercase tracking-wide">Encumbrance</span>
+        <PageRef page={65} note="Readied (worn/in-hand/holstered, incl. armor): max = STR ÷ 2 rounded down. Stowed (in pack): max = STR. +2 readied or +4 stowed over the limit = Lightly Encumbered (move 7m); again = Heavily Encumbered (5m)." />
+      </div>
+      <div>
+        <span className="text-gray-500">Readied: </span>
+        <span className={`font-mono ${readiedOver ? 'text-red-400' : 'text-gray-200'}`}>{enc.readied} / {enc.readiedMax}</span>
+      </div>
+      <div>
+        <span className="text-gray-500">Stowed: </span>
+        <span className={`font-mono ${stowedOver ? 'text-red-400' : 'text-gray-200'}`}>{enc.stowed} / {enc.stowedMax}</span>
+      </div>
+      <div className="ml-auto">
+        <span className={`font-semibold ${status.cls}`}>{status.text}</span>
+        {enc.level !== 'none' && <span className="text-gray-500 text-xs ml-2">move {enc.move}m/round</span>}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Step8Equipment({ char, onChange }: Props) {
@@ -111,36 +156,39 @@ export default function Step8Equipment({ char, onChange }: Props) {
 
   function rollCredits() {
     const r = (Math.ceil(Math.random() * 6) + Math.ceil(Math.random() * 6)) * 100;
-    // Reset any individually-bought gear when re-rolling credits
-    onChange({ credits: r });
+    // Rolling is the alternative to taking a package, so clear any package loadout.
+    // (à-la-carte armor/weapons in their own lists are kept.)
+    onChange({ credits: r, equipment: [] });
   }
 
   function selectPackage(name: string) {
     const pkg = EQUIPMENT_PACKAGES.find(p => p.name === name);
     if (!pkg) return;
-    // Package sets budget to leftover credits; individual gear (armor/weapons) persists
-    onChange({ equipment: pkg.items, credits: pkg.credits });
+    // Budget = leftover credits + cost of any package items the cost-table recognises, so the
+    // package gear nets to zero in "spent" and the remaining shows the package's leftover credits.
+    const itemsCost = pkg.items.reduce((s, it) => s + itemCost(it), 0);
+    onChange({ equipment: pkg.items, credits: pkg.credits + itemsCost });
   }
 
-  function addArmor(name: string, ac: number, cost: number) {
-    const next = [...char.armor, { name, ac }];
-    // Deduct cost — allow going negative (show warning in bar)
-    onChange({ armor: next, credits: char.credits - cost });
+  // Budget model: char.credits is the fixed budget; buying gear does NOT change it.
+  // "Spent" and "remaining" are derived. Going over budget is allowed (shown in red).
+  const spent = computeSpent(char);
+  const remaining = char.credits - spent;
+
+  function addArmor(name: string, ac: number) {
+    onChange({ armor: [...char.armor, { name, ac }] });
   }
 
-  function removeArmor(name: string, cost: number) {
-    const next = char.armor.filter(a => a.name !== name);
-    onChange({ armor: next, credits: char.credits + cost });
+  function removeArmor(name: string) {
+    onChange({ armor: char.armor.filter(a => a.name !== name) });
   }
 
-  function addWeapon(entry: Character['weapons'][number], cost: number) {
-    const next = [...char.weapons, entry];
-    onChange({ weapons: next, credits: char.credits - cost });
+  function addWeapon(entry: Character['weapons'][number]) {
+    onChange({ weapons: [...char.weapons, entry] });
   }
 
-  function removeWeapon(name: string, cost: number) {
-    const next = char.weapons.filter(w => w.name !== name);
-    onChange({ weapons: next, credits: char.credits + cost });
+  function removeWeapon(name: string) {
+    onChange({ weapons: char.weapons.filter(w => w.name !== name) });
   }
 
   const [itemCategory, setItemCategory] = useState<EquipCategory>('Ammo & Power');
@@ -158,6 +206,9 @@ export default function Step8Equipment({ char, onChange }: Props) {
 
       {/* Credit tracker — always visible */}
       <CreditBar char={char} onChange={onChange} />
+
+      {/* Encumbrance readout */}
+      <EncumbranceBar char={char} />
 
       {/* Tab bar */}
       <div className="flex gap-2 flex-wrap">
@@ -179,14 +230,23 @@ export default function Step8Equipment({ char, onChange }: Props) {
       {/* ── Packages ───────────────────────────────────────────────── */}
       {tab === 'packages' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <p className="text-sm text-gray-400">
-              Choose a premade package (sets remaining credits to the listed amount), or roll 2d6 × 100 and buy gear individually.
-              <PageRef page={25} note="Step 13 — Either pick a package or roll 2d6×100 for starting credits. Package credits shown are what's left after buying the included gear." />
+          <div className="glass-card rounded-lg p-4 space-y-2">
+            <p className="text-sm text-gray-300 font-medium">
+              Choose ONE starting method
+              <PageRef page={25} note="Step 13 — Either take a premade equipment package, OR roll 2d6×100 for starting credits and buy your own gear. You can't do both." />
             </p>
-            <button onClick={rollCredits} className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium">
-              🎲 Roll 2d6×100 cr
-            </button>
+            <p className="text-xs text-gray-500">
+              Either take a package below, <strong>or</strong> roll credits and buy your own gear. After either choice you can
+              add any extra credits your GM grants (edit the Budget) and buy more gear from the other tabs.
+            </p>
+            <div className="flex items-center gap-3 flex-wrap pt-1">
+              <button onClick={rollCredits} className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium">
+                🎲 Roll 2d6×100 credits
+              </button>
+              {char.credits > 0 && char.equipment.length === 0 && (
+                <span className="text-xs text-green-400">Rolled / custom start — {char.credits} cr budget</span>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -239,7 +299,7 @@ export default function Step8Equipment({ char, onChange }: Props) {
             <tbody>
               {ARMOR_TABLE.map(a => {
                 const isSelected = char.armor.some(ar => ar.name === a.name);
-                const canAfford = char.credits >= a.cost;
+                const canAfford = remaining >= a.cost;
                 return (
                   <tr key={a.name} className={`border-b border-gray-800 hover:bg-gray-800/50 ${isSelected ? 'bg-amber-900/10' : ''}`}>
                     <td className="py-2 pr-4">
@@ -255,7 +315,7 @@ export default function Step8Equipment({ char, onChange }: Props) {
                     <td className="py-2 pr-3 text-right text-gray-600 text-xs">TL{a.tl}</td>
                     <td className="py-2">
                       <button
-                        onClick={() => isSelected ? removeArmor(a.name, a.cost) : addArmor(a.name, a.ac, a.cost)}
+                        onClick={() => isSelected ? removeArmor(a.name) : addArmor(a.name, a.ac)}
                         className={`text-xs px-2 py-1 rounded w-full ${
                           isSelected
                             ? 'bg-red-900/40 text-red-400 hover:bg-red-900'
@@ -294,7 +354,7 @@ export default function Step8Equipment({ char, onChange }: Props) {
             <tbody>
               {RANGED_WEAPONS.map(w => {
                 const isSelected = char.weapons.some(x => x.name === w.name);
-                const canAfford = char.credits >= w.cost;
+                const canAfford = remaining >= w.cost;
                 return (
                   <tr key={w.name} className={`border-b border-gray-800 hover:bg-gray-800/50 ${isSelected ? 'bg-amber-900/10' : ''}`}>
                     <td className="py-2 pr-4">
@@ -316,9 +376,9 @@ export default function Step8Equipment({ char, onChange }: Props) {
                       <button
                         onClick={() => {
                           if (isSelected) {
-                            removeWeapon(w.name, w.cost);
+                            removeWeapon(w.name);
                           } else {
-                            addWeapon({ name: w.name, damage: w.damage, range: w.range + 'm', attackBonus: 0 }, w.cost);
+                            addWeapon({ name: w.name, damage: w.damage, range: w.range + 'm', attackBonus: 0 });
                           }
                         }}
                         className={`text-xs px-2 py-1 rounded w-full ${
@@ -358,7 +418,7 @@ export default function Step8Equipment({ char, onChange }: Props) {
             <tbody>
               {MELEE_WEAPONS.map(w => {
                 const isSelected = char.weapons.some(x => x.name === w.name);
-                const canAfford = w.cost > 0 ? char.credits >= w.cost : true;
+                const canAfford = w.cost > 0 ? remaining >= w.cost : true;
                 return (
                   <tr key={w.name} className={`border-b border-gray-800 hover:bg-gray-800/50 ${isSelected ? 'bg-amber-900/10' : ''}`}>
                     <td className="py-2 pr-4">
@@ -376,9 +436,9 @@ export default function Step8Equipment({ char, onChange }: Props) {
                       <button
                         onClick={() => {
                           if (isSelected) {
-                            removeWeapon(w.name, w.cost);
+                            removeWeapon(w.name);
                           } else {
-                            addWeapon({ name: w.name, damage: w.damage, shock: w.shock, attackBonus: 0 }, w.cost);
+                            addWeapon({ name: w.name, damage: w.damage, shock: w.shock, attackBonus: 0 });
                           }
                         }}
                         className={`text-xs px-2 py-1 rounded w-full ${
@@ -435,7 +495,7 @@ export default function Step8Equipment({ char, onChange }: Props) {
               <tbody>
                 {GENERAL_EQUIPMENT.filter(g => g.category === itemCategory).map(g => {
                   const qty = char.equipment.filter(e => e === g.name).length;
-                  const canAfford = char.credits >= g.cost || g.cost === 0;
+                  const canAfford = remaining >= g.cost || g.cost === 0;
                   return (
                     <tr key={g.name} className={`border-b border-gray-800 hover:bg-gray-800/50 ${qty > 0 ? 'bg-amber-900/10' : ''}`}>
                       <td className="py-2 pr-4">
@@ -458,22 +518,19 @@ export default function Step8Equipment({ char, onChange }: Props) {
                               const idx = char.equipment.lastIndexOf(g.name);
                               const next = [...char.equipment];
                               next.splice(idx, 1);
-                              onChange({ equipment: next, credits: char.credits + g.cost });
+                              onChange({ equipment: next });
                             }}
                             className="w-7 h-7 rounded bg-gray-700 hover:bg-red-900/40 disabled:opacity-20 text-gray-300 text-sm flex items-center justify-center"
                           >−</button>
                           <span className="w-5 text-center text-xs text-gray-400">{qty}</span>
                           <button
-                            onClick={() => onChange({
-                              equipment: [...char.equipment, g.name],
-                              credits: char.credits - g.cost,
-                            })}
+                            onClick={() => onChange({ equipment: [...char.equipment, g.name] })}
                             className={`w-7 h-7 rounded text-sm flex items-center justify-center ${
                               canAfford
                                 ? 'bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300'
                                 : 'bg-gray-800 text-red-500/60 hover:bg-red-900/20'
                             }`}
-                            title={!canAfford ? `Need ${(g.cost - char.credits).toLocaleString()} more cr` : undefined}
+                            title={!canAfford ? `Over budget by ${(g.cost - remaining).toLocaleString()} cr` : undefined}
                           >+</button>
                         </div>
                       </td>

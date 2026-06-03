@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import type { Character, FocusSelection, LevelRecord } from '../types/character';
-import { attrMod, calcSaves, calcAttackBonus, calcEffort } from '../types/character';
+import { attrMod, calcSaves, calcAttackBonus } from '../types/character';
 import { FOCI } from '../data/foci';
-import { PSYCHIC_DISCIPLINES } from '../data/psychics';
 import { SKILLS } from '../data/skills';
-import type { Skill } from '../data/skills';
+import { effectiveSkills, deriveEffort } from '../data/derivation';
+import { SKILL_INFO } from '../data/skillInfo';
 import {
   spPerLevel, skillRaiseCost, maxSkillLevel,
   FOCUS_LEVELS, ATTR_BOOST_COSTS, attrBoostRequiredLevel,
@@ -24,20 +24,25 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
   const newLevel = char.level + 1;
   const isWarrior = char.class === 'Warrior' || char.adventurerPartials?.includes('Partial Warrior');
   const isExpert = char.class === 'Expert' || char.adventurerPartials?.includes('Partial Expert');
-  const isPsychic = char.class === 'Psychic' || char.adventurerPartials?.includes('Partial Psychic');
   const gainsFocus = FOCUS_LEVELS.has(newLevel);
   const spTotal = spPerLevel(char.class, char.adventurerPartials);
   const maxSkill = maxSkillLevel(newLevel);
 
+  const conMod = attrMod(char.attributes.CON);
+  const hasDieHard = char.foci.some(f => f.name === 'Die Hard');
+  // Current effective skill levels (incl. foci/psychic/prior levels) form the floor for raising.
+  const baseLevels = effectiveSkills(char);
+
   const [uiStep, setUiStep] = useState<Step>('hp');
-  const [hpRolled, setHpRolled] = useState<number | null>(null);
+  // The book rerolls the WHOLE hit-die pool each level (p.56): newLevel d6, +CON per die (min 1 each),
+  // plus +2/level for Warriors and +2/level for Die Hard. Take the new total if higher, else +1.
+  const [hpPool, setHpPool] = useState<number | null>(null);
   const [rerolled, setRerolled] = useState(false);
 
   // SP spending
   const [spSpent, setSpSpent] = useState(0);
   const [skillSpends, setSkillSpends] = useState<Record<string, number>>(
-    // Start from current skill levels
-    Object.fromEntries(Object.entries(char.skills).map(([k, v]) => [k, v]))
+    Object.fromEntries(Object.entries(baseLevels))
   );
   const [attrBoostsUsed, setAttrBoostsUsed] = useState(0);
   const [attrBoostAllocs, setAttrBoostAllocs] = useState<Record<string, number>>(
@@ -48,21 +53,29 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
   const [pickedFocus, setPickedFocus] = useState<FocusSelection | null>(null);
   const [focusFilter, setFocusFilter] = useState<'all' | 'combat' | 'noncombat'>('all');
 
-  const conMod = attrMod(char.attributes.CON);
-  const hpGained = hpRolled !== null
-    ? Math.max(1, hpRolled + conMod + (isWarrior ? 2 : 0))
-    : null;
+  const warriorTotal = isWarrior ? 2 * newLevel : 0;
+  const dieHardTotal = hasDieHard ? 2 * newLevel : 0;
+  const rolledMax = hpPool !== null ? hpPool + warriorTotal + dieHardTotal : null;
+  // New maximum HP: the rerolled total if it beats current, otherwise current + 1.
+  const newMaxHP = rolledMax !== null ? Math.max(rolledMax, char.hitPoints.max + 1) : null;
+  const hpGained = newMaxHP !== null ? newMaxHP - char.hitPoints.max : null;
   const spRemaining = spTotal - spSpent;
 
   // ── HP step ──────────────────────────────────────────────────────────────────
 
+  function rollPool(): number {
+    let sum = 0;
+    for (let i = 0; i < newLevel; i++) sum += Math.max(1, Math.ceil(Math.random() * 6) + conMod);
+    return sum;
+  }
+
   function rollHP() {
-    setHpRolled(Math.ceil(Math.random() * 6));
+    setHpPool(rollPool());
   }
 
   function rerollHP() {
     if (!rerolled) {
-      setHpRolled(Math.ceil(Math.random() * 6));
+      setHpPool(rollPool());
       setRerolled(true);
     }
   }
@@ -93,8 +106,8 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
 
   function lowerSkill(skill: string) {
     const cur = currentLevel(skill);
-    const base = (char.skills as Record<string, number>)[skill] ?? -1;
-    if (cur <= base) return; // can't go below creation level
+    const base = baseLevels[skill] ?? -1;
+    if (cur <= base) return; // can't go below the pre-level-up level
     const refund = skillRaiseCost(cur);
     setSkillSpends(prev => ({ ...prev, [skill]: cur - 1 }));
     setSpSpent(s => s - refund);
@@ -121,11 +134,6 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
     setSpSpent(s => s + cost);
   }
 
-  // Psychic techniques available to learn
-  const psychicDisciplines = char.class === 'Psychic' || char.adventurerPartials?.includes('Partial Psychic')
-    ? [...new Set(char.psychicDisciplines)]
-    : [];
-
   // ── Focus step ───────────────────────────────────────────────────────────────
 
   const filteredFoci = FOCI.filter(f => {
@@ -149,18 +157,13 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
   // ── Confirm ──────────────────────────────────────────────────────────────────
 
   function confirm() {
-    if (hpGained === null) return;
+    if (hpGained === null || newMaxHP === null) return;
 
-    // Build skill spends list (only things that changed from char.skills)
+    // Skill spends — anything raised above its pre-level-up level. These live ONLY in
+    // levelHistory; char.skills stays the raw creation set and the derivation layers them on.
     const skillSpendsArr = Object.entries(skillSpends)
-      .filter(([skill, to]) => {
-        const from = (char.skills as Record<string, number>)[skill] ?? -1;
-        return to > from;
-      })
-      .map(([skill, to]) => {
-        const from = (char.skills as Record<string, number>)[skill] ?? -1;
-        return { skill, from, to, cost: skillRaiseCost(to) };
-      });
+      .filter(([skill, to]) => to > (baseLevels[skill] ?? -1))
+      .map(([skill, to]) => ({ skill, from: baseLevels[skill] ?? -1, to, cost: skillRaiseCost(to) }));
 
     // Attr boosts
     const attrBoostsArr = Object.entries(attrBoostAllocs)
@@ -174,7 +177,7 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
 
     const record: LevelRecord = {
       level: newLevel,
-      hpRolled: hpRolled!,
+      hpRolled: hpPool!,
       hpGained,
       spTotal,
       skillSpends: skillSpendsArr,
@@ -186,27 +189,21 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
     const updatedChar = { ...char };
     updatedChar.level = newLevel;
     updatedChar.hitPoints = {
-      max: char.hitPoints.max + hpGained,
+      max: newMaxHP,
+      // keep the same fraction of damage taken: current rises by the same gain
       current: char.hitPoints.current + hpGained,
     };
 
-    // Apply skill changes
-    const newSkills = { ...char.skills };
-    for (const spend of skillSpendsArr) {
-      (newSkills as Record<string, number>)[spend.skill] = spend.to;
-    }
-    updatedChar.skills = newSkills;
-
-    // Apply attr changes
+    // Attribute boosts apply directly to stored attributes.
     const newAttrs = { ...char.attributes };
     for (const boost of attrBoostsArr) {
-      (newAttrs as Record<string, typeof char.attributes.STR>)[boost.attr as keyof typeof char.attributes] = boost.to as typeof char.attributes.STR;
+      (newAttrs as Record<string, number>)[boost.attr] = boost.to;
     }
     updatedChar.attributes = newAttrs;
 
-    // Apply focus
+    // Apply focus (new instance, or upgrade existing to level 2)
     if (pickedFocus) {
-      const existing = updatedChar.foci.findIndex(f => f.name === pickedFocus.name);
+      const existing = updatedChar.foci.findIndex(f => f.name === pickedFocus.name && (f.specialistSkill ?? '') === (pickedFocus.specialistSkill ?? ''));
       if (existing >= 0) {
         const foci = [...updatedChar.foci];
         foci[existing] = pickedFocus;
@@ -216,14 +213,14 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
       }
     }
 
+    // Record history BEFORE recomputing derived stats (derivation reads levelHistory)
+    updatedChar.levelHistory = [...char.levelHistory, record];
+
     // Recalculate derived stats
     updatedChar.saves = calcSaves(updatedChar.attributes, newLevel);
     updatedChar.baseAttackBonus = calcAttackBonus(updatedChar.class, updatedChar.adventurerPartials, newLevel);
-    if (isPsychic) updatedChar.effort.max = calcEffort(updatedChar.skills, updatedChar.attributes);
+    updatedChar.effort = { ...updatedChar.effort, max: deriveEffort(updatedChar) };
     updatedChar.systemStrain.max = updatedChar.attributes.CON;
-
-    // Record history
-    updatedChar.levelHistory = [...char.levelHistory, record];
 
     onConfirm(updatedChar);
   }
@@ -259,32 +256,26 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
           {uiStep === 'hp' && (
             <div className="space-y-4">
               <p className="text-sm text-gray-400">
-                Roll 1d6 and add your CON modifier{isWarrior ? ' plus 2 (Warrior)' : ''}. Minimum 1.
+                Reroll your whole hit-die pool: <strong>{newLevel}d6</strong>, +CON per die (min 1 each)
+                {isWarrior ? `, +${warriorTotal} Warrior` : ''}{hasDieHard ? `, +${dieHardTotal} Die Hard` : ''}.
+                Keep the new total if it beats your current max, otherwise your max just rises by 1 (p.56).
               </p>
               <div className="flex items-center gap-4 flex-wrap">
-                {hpRolled === null ? (
+                {hpPool === null ? (
                   <button onClick={rollHP} className="px-5 py-2.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-semibold">
-                    🎲 Roll HP
+                    🎲 Roll {newLevel}d6 pool
                   </button>
                 ) : (
                   <>
-                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl px-5 py-3">
-                      <span className="text-3xl font-bold text-amber-300">{hpRolled}</span>
-                      <span className="text-gray-500">rolled</span>
-                      {conMod !== 0 && (
-                        <>
-                          <span className="text-gray-600">+</span>
-                          <span className={conMod > 0 ? 'text-green-400' : 'text-red-400'}>{conMod} CON</span>
-                        </>
-                      )}
-                      {isWarrior && (
-                        <>
-                          <span className="text-gray-600">+</span>
-                          <span className="text-amber-400">2 Warrior</span>
-                        </>
-                      )}
-                      <span className="text-gray-600">=</span>
-                      <span className="text-2xl font-bold text-green-400">+{hpGained} HP</span>
+                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl px-5 py-3 flex-wrap">
+                      <span className="text-gray-500 text-sm">pool</span>
+                      <span className="text-2xl font-bold text-amber-300">{hpPool}</span>
+                      {warriorTotal > 0 && <span className="text-amber-400 text-sm">+{warriorTotal} War</span>}
+                      {dieHardTotal > 0 && <span className="text-amber-400 text-sm">+{dieHardTotal} DH</span>}
+                      <span className="text-gray-600">→</span>
+                      <span className="text-sm text-gray-400">new max</span>
+                      <span className="text-2xl font-bold text-green-400">{newMaxHP}</span>
+                      <span className="text-xs text-gray-500">(+{hpGained})</span>
                     </div>
                     {!rerolled && (
                       <button onClick={rerollHP} className="text-xs text-gray-500 hover:text-amber-300 underline">
@@ -294,9 +285,9 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
                   </>
                 )}
               </div>
-              {hpRolled !== null && (
-                <p className="text-xs text-gray-500">
-                  New max HP: {char.hitPoints.max} + {hpGained} = <span className="text-green-400 font-semibold">{char.hitPoints.max + hpGained!}</span>
+              {rolledMax !== null && rolledMax <= char.hitPoints.max && (
+                <p className="text-xs text-amber-400">
+                  Rolled total ({rolledMax}) didn't beat your current max ({char.hitPoints.max}) — max rises by 1 instead.
                 </p>
               )}
             </div>
@@ -335,7 +326,7 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
                   const atMax = cur >= maxSkill;
                   return (
                     <div key={skill} className={`flex items-center gap-2 rounded-lg px-3 py-2 ${raised ? 'bg-amber-900/20 border border-amber-700/40' : 'bg-gray-800/60'}`}>
-                      <span className="flex-1 text-sm text-gray-200">{skill}</span>
+                      <span className="flex-1 text-sm text-gray-200 cursor-help" title={SKILL_INFO[skill] ? `${skill}: ${SKILL_INFO[skill]}` : skill}>{skill}</span>
                       <span className={`text-xs font-mono w-6 text-center ${raised ? 'text-amber-300 font-bold' : 'text-gray-500'}`}>
                         {cur === -1 ? '—' : `-${cur}`}
                       </span>
@@ -447,15 +438,15 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
           {uiStep === 'confirm' && (
             <div className="space-y-3">
               <p className="text-sm font-semibold text-amber-300">Summary — Level {newLevel}</p>
-              <Row label="Hit Points" value={`+${hpGained} (rolled ${hpRolled})`} />
-              <Row label="New max HP" value={`${char.hitPoints.max + hpGained!}`} />
+              <Row label="Hit Points" value={`+${hpGained} (pool ${hpPool})`} />
+              <Row label="New max HP" value={`${newMaxHP}`} />
               <Row label="Attack Bonus" value={`+${calcAttackBonus(char.class, char.adventurerPartials, newLevel)}`} />
               <Row label="Saves" value={(() => {
                 const s = calcSaves(char.attributes, newLevel);
                 return `Phys ${s.physical} / Eva ${s.evasion} / Men ${s.mental}`;
               })()} />
-              {Object.entries(skillSpends).filter(([skill, lvl]) => lvl > ((char.skills as Record<string, number>)[skill] ?? -1)).map(([skill, lvl]) => (
-                <Row key={skill} label={`${skill}`} value={`-${(char.skills as Record<string, number>)[skill] ?? 'untrained'} → -${lvl}`} />
+              {Object.entries(skillSpends).filter(([skill, lvl]) => lvl > (baseLevels[skill] ?? -1)).map(([skill, lvl]) => (
+                <Row key={skill} label={`${skill}`} value={`${(baseLevels[skill] ?? -1) < 0 ? 'untrained' : `-${baseLevels[skill]}`} → -${lvl}`} />
               ))}
               {Object.entries(attrBoostAllocs).filter(([attr, val]) => val > char.attributes[attr as keyof typeof char.attributes]).map(([attr, val]) => (
                 <Row key={attr} label={`${attr} boost`} value={`${char.attributes[attr as keyof typeof char.attributes]} → ${val}`} />
@@ -482,7 +473,7 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
           </button>
           {uiStep !== 'confirm' ? (
             <button
-              disabled={uiStep === 'hp' && hpRolled === null}
+              disabled={uiStep === 'hp' && hpPool === null}
               onClick={() => setUiStep(steps[stepIndex + 1])}
               className="px-5 py-2 rounded bg-amber-700 hover:bg-amber-600 disabled:opacity-30 text-white text-sm font-medium"
             >

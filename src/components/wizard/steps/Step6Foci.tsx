@@ -2,8 +2,9 @@ import { useState } from 'react';
 import type { Character } from '../../../types/character';
 import type { FocusSelection } from '../../../types/character';
 import { FOCI } from '../../../data/foci';
-import { SKILLS } from '../../../data/skills';
+import { SKILLS, PSYCHIC_SKILLS } from '../../../data/skills';
 import type { Skill } from '../../../data/skills';
+import { focusNeedsSkillChoice } from '../../../data/derivation';
 import PageRef from '../../ui/PageRef';
 
 interface Props {
@@ -11,115 +12,106 @@ interface Props {
   onChange: (patch: Partial<Character>) => void;
 }
 
+const COMBAT_SKILLS: Skill[] = ['Stab', 'Shoot', 'Punch'];
+const NONCOMBAT_SKILLS = SKILLS.filter(s => !COMBAT_SKILLS.includes(s));
+
 export default function Step6Foci({ char, onChange }: Props) {
   const [filter, setFilter] = useState<'all' | 'combat' | 'noncombat'>('all');
   const [search, setSearch] = useState('');
-  const [specialistSkill, setSpecialistSkill] = useState<Skill>('Administer');
 
   const isExpert = char.class === 'Expert' || char.adventurerPartials?.includes('Partial Expert');
   const isWarrior = char.class === 'Warrior' || char.adventurerPartials?.includes('Partial Warrior');
   const isPsychic = char.class === 'Psychic' || char.adventurerPartials?.includes('Partial Psychic');
 
-  // Per p.19 step 7: all PCs get 1 pick. Expert/Partial Expert adds 1 non-combat pick.
-  // Warrior/Partial Warrior adds 1 combat pick. These stack for Adventurer with both.
+  // p.19 step 7: all PCs get 1 pick; Expert/Partial Expert add 1; Warrior/Partial Warrior add 1.
   const totalPicks = 1 + (isExpert ? 1 : 0) + (isWarrior ? 1 : 0);
+  const picksUsed = char.foci.length;
 
   const filtered = FOCI.filter(f => {
     if (filter === 'combat' && !f.isCombat) return false;
     if (filter === 'noncombat' && f.isCombat) return false;
     if (f.isPsychicOnly && !isPsychic) return false;
+    // Wild Psychic Talent cannot be taken by Psychics or Partial Psychics (p.24)
+    if (f.name === 'Wild Psychic Talent' && isPsychic) return false;
     if (search && !f.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  function getSelected(name: string): FocusSelection | undefined {
-    return char.foci.find(f => f.name === name);
+  // Default bonus skill for a choice-focus
+  function defaultChoice(name: string): Skill | undefined {
+    const kind = focusNeedsSkillChoice(name);
+    if (kind === 'noncombat') return 'Administer';
+    if (kind === 'combat') return name === 'Shocking Assault' ? 'Punch' : 'Stab';
+    if (kind === 'psychic') return (PSYCHIC_SKILLS[0] as unknown as Skill);
+    return undefined;
   }
 
-  function toggleFocus(focusName: string) {
-    const focus = FOCI.find(f => f.name === focusName);
+  function choicesFor(name: string): readonly string[] {
+    const kind = focusNeedsSkillChoice(name);
+    if (kind === 'noncombat') return NONCOMBAT_SKILLS;
+    if (kind === 'combat') return name === 'Shocking Assault' ? ['Punch', 'Stab'] : COMBAT_SKILLS;
+    if (kind === 'psychic') return PSYCHIC_SKILLS;
+    return [];
+  }
+
+  const instancesOf = (name: string) => char.foci.filter(f => f.name === name);
+  const isSelected = (name: string) => char.foci.some(f => f.name === name);
+
+  function addFocus(name: string) {
+    const focus = FOCI.find(f => f.name === name);
+    if (!focus || picksUsed >= totalPicks) return;
+    const choice = defaultChoice(name);
+    const sel: FocusSelection = {
+      name,
+      level: 1,
+      specialistSkill: choice as Skill | undefined,
+    };
+    onChange({ foci: [...char.foci, sel] });
+  }
+
+  function removeFocusAt(index: number) {
+    onChange({ foci: char.foci.filter((_, i) => i !== index) });
+  }
+
+  function toggleFocus(name: string) {
+    const focus = FOCI.find(f => f.name === name);
     if (!focus) return;
-
-    const existing = char.foci.find(f => f.name === focusName);
-    let next: FocusSelection[];
-
-    if (existing) {
-      // Remove
-      next = char.foci.filter(f => f.name !== focusName);
-    } else if (char.foci.length < totalPicks) {
-      // Add at level 1
-      next = [
-        ...char.foci,
-        {
-          name: focusName,
-          level: 1,
-          specialistSkill: focusName === 'Specialist' ? specialistSkill : undefined,
-        },
-      ];
-    } else {
-      return; // No more picks available
+    if (focus.repeatable) {
+      // Repeatable (Specialist): each click adds another instance
+      addFocus(name);
+      return;
     }
+    const idx = char.foci.findIndex(f => f.name === name);
+    if (idx >= 0) removeFocusAt(idx);
+    else addFocus(name);
+  }
 
+  function setInstanceSkill(index: number, skill: string) {
+    const next = char.foci.map((f, i) => i === index ? { ...f, specialistSkill: skill as Skill } : f);
     onChange({ foci: next });
   }
 
-  function upgradeToLevel2(focusName: string) {
-    const next = char.foci.map(f =>
-      f.name === focusName ? { ...f, level: 2 as const } : f
-    );
+  function upgradeToLevel2(index: number) {
+    const next = char.foci.map((f, i) => i === index ? { ...f, level: 2 as const } : f);
     onChange({ foci: next });
   }
+
+  const picksLeft = totalPicks - picksUsed;
 
   return (
     <div className="space-y-5">
       <div className="glass-card rounded-lg p-4 text-sm text-gray-400">
         <p>
-          You have <span className="text-amber-300 font-bold">{totalPicks}</span> focus pick{totalPicks > 1 ? 's' : ''}.
+          You have <span className="text-amber-300 font-bold">{totalPicks}</span> focus pick{totalPicks > 1 ? 's' : ''}
+          {picksLeft > 0
+            ? <span className="text-gray-500"> — <span className="text-amber-400">{picksLeft}</span> remaining</span>
+            : <span className="text-green-400"> — all used</span>}.
           {isExpert && ' Experts get 1 extra non-combat focus.'}
           {isWarrior && ' Warriors get 1 extra combat focus.'}
           <PageRef page={19} note="Step 7 — All PCs get 1 focus level. Experts/Partial Experts get a free additional non-combat focus; Warriors/Partial Warriors get a free additional combat focus. Both extra picks can be spent on the same focus to start at level 2." />
         </p>
-        <p className="text-xs mt-1">You can take level 2 of a focus you already have instead of picking a new one. A bonus skill from a focus: if you don't have it → level-0; if level-0 → level-1; if already level-1 → pick any other non-psychic skill.</p>
+        <p className="text-xs mt-1">Foci that grant a bonus skill add it to your skill list (level-0, or level-1 if you already have it). Specialist may be taken more than once for different skills.</p>
       </div>
-
-      {/* Selected */}
-      {char.foci.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {char.foci.map(f => (
-            <div key={f.name} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-900/30 border border-amber-700 text-amber-300 text-sm">
-              <span>{f.name} {f.level > 1 ? `(Lvl ${f.level})` : ''}</span>
-              {f.specialistSkill && <span className="text-amber-500 text-xs">/{f.specialistSkill}</span>}
-              <button
-                onClick={() => upgradeToLevel2(f.name)}
-                disabled={f.level === 2}
-                className="ml-1 text-xs text-amber-500 hover:text-green-400 disabled:opacity-30"
-                title="Upgrade to Level 2"
-              >↑</button>
-              <button
-                onClick={() => toggleFocus(f.name)}
-                className="ml-1 text-amber-500 hover:text-red-400"
-              >×</button>
-            </div>
-          ))}
-          <span className="text-xs text-gray-500 self-center">{totalPicks - char.foci.length} pick{totalPicks - char.foci.length !== 1 ? 's' : ''} remaining</span>
-        </div>
-      )}
-
-      {/* Specialist skill selector */}
-      {(char.foci.some(f => f.name === 'Specialist') || filter === 'all') && (
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-gray-400">Specialist skill:</span>
-          <select
-            className="input py-1 text-sm"
-            value={specialistSkill}
-            onChange={e => setSpecialistSkill(e.target.value as Skill)}
-          >
-            {SKILLS.filter(s => !['Stab', 'Shoot', 'Punch'].includes(s)).map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {/* Filter / search */}
       <div className="flex gap-3 flex-wrap items-center">
@@ -144,20 +136,20 @@ export default function Step6Foci({ char, onChange }: Props) {
         />
       </div>
 
-      {/* Focus list — entire card is clickable */}
+      {/* Focus list */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {filtered.map(focus => {
-          const sel = getSelected(focus.name);
-          const canPick = !sel && char.foci.length < totalPicks;
-          const clickable = sel || canPick;
+          const selected = isSelected(focus.name);
+          const count = instancesOf(focus.name).length;
+          const canPick = picksUsed < totalPicks && (focus.repeatable || !selected);
+          const clickable = canPick || selected;
           return (
-            <button
+            <div
               key={focus.name}
               onClick={() => clickable && toggleFocus(focus.name)}
-              disabled={!clickable}
               className={`text-left rounded-lg border p-4 transition-colors w-full ${
-                sel
-                  ? 'border-amber-500 bg-amber-900/10 hover:border-amber-400'
+                selected
+                  ? 'border-amber-500 bg-amber-900/10 hover:border-amber-400 cursor-pointer'
                   : canPick
                   ? 'border-gray-700 bg-gray-800 hover:border-amber-600 hover:bg-gray-700/80 cursor-pointer'
                   : 'border-gray-800 bg-gray-900/50 opacity-50 cursor-not-allowed'
@@ -165,12 +157,30 @@ export default function Step6Foci({ char, onChange }: Props) {
             >
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
-                  <span className={`font-semibold ${sel ? 'text-amber-300' : 'text-gray-200'}`}>{focus.name}</span>
+                  <span className={`font-semibold ${selected ? 'text-amber-300' : 'text-gray-200'}`}>{focus.name}</span>
                   {focus.isCombat && <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800">Combat</span>}
                   {focus.repeatable && <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-800">Repeatable</span>}
                 </div>
-                {sel && <span className="text-amber-400 text-lg flex-shrink-0">✓</span>}
-                {!sel && canPick && <span className="text-gray-600 text-xs flex-shrink-0">click to pick</span>}
+                {/* Repeatable: add/remove stepper. Others: ✓ / hint */}
+                {focus.repeatable ? (
+                  <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => { const idx = char.foci.map(f => f.name).lastIndexOf(focus.name); if (idx >= 0) removeFocusAt(idx); }}
+                      disabled={count === 0}
+                      className="w-6 h-6 rounded bg-gray-700 hover:bg-red-900/40 disabled:opacity-30 text-gray-300 text-sm flex items-center justify-center"
+                    >−</button>
+                    <span className="w-5 text-center text-sm text-amber-300">{count}</span>
+                    <button
+                      onClick={() => addFocus(focus.name)}
+                      disabled={picksUsed >= totalPicks}
+                      className="w-6 h-6 rounded bg-gray-700 hover:bg-amber-900/40 disabled:opacity-30 text-gray-300 text-sm flex items-center justify-center"
+                    >+</button>
+                  </div>
+                ) : selected ? (
+                  <span className="text-amber-400 text-lg flex-shrink-0">✓</span>
+                ) : canPick ? (
+                  <span className="text-gray-600 text-xs flex-shrink-0">click to pick</span>
+                ) : null}
               </div>
               <p className="text-xs text-gray-500 mb-3">{focus.description}</p>
               {focus.levels.map((lvl, i) => (
@@ -179,10 +189,44 @@ export default function Step6Foci({ char, onChange }: Props) {
                   <span className="text-gray-300">{lvl.description}</span>
                 </div>
               ))}
-            </button>
+            </div>
           );
         })}
       </div>
+
+      {/* Selected foci — summary at the bottom (consistent with other steps) */}
+      {char.foci.length > 0 && (
+        <div className="border-t border-gray-700 pt-4 space-y-2">
+          <p className="text-sm font-medium text-gray-400">Selected Foci</p>
+          {char.foci.map((f, i) => {
+            const kind = focusNeedsSkillChoice(f.name);
+            return (
+              <div key={i} className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-700/50">
+                <span className="text-amber-300 font-medium text-sm">{f.name}</span>
+                <span className="text-amber-500 text-xs">Lvl {f.level}</span>
+                {kind && (
+                  <select
+                    value={f.specialistSkill ?? ''}
+                    onChange={e => setInstanceSkill(i, e.target.value)}
+                    className="input py-0.5 text-xs w-auto"
+                  >
+                    {choicesFor(f.name).map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                )}
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={() => upgradeToLevel2(i)}
+                    disabled={f.level === 2}
+                    className="text-xs text-amber-500 hover:text-green-400 disabled:opacity-30"
+                    title="Upgrade to Level 2 (uses a second pick)"
+                  >↑ Lvl 2</button>
+                  <button onClick={() => removeFocusAt(i)} className="text-amber-500 hover:text-red-400 text-sm">×</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

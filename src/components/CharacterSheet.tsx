@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import type { Character } from '../types/character';
 import { attrMod } from '../types/character';
-import { ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS } from '../data/equipment';
+import { ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../data/equipment';
 import { xpForLevel } from '../data/leveling';
+import { effectiveSkills, psychicSkillLevels, deriveAC, deriveEffort, computeEncumbrance } from '../data/derivation';
 import LevelUp from './LevelUp';
+import AuditOverview from './wizard/AuditOverview';
 
 function gearCost(name: string): number {
   return (
     ARMOR_TABLE.find(a => a.name === name)?.cost ??
     RANGED_WEAPONS.find(w => w.name === name)?.cost ??
     MELEE_WEAPONS.find(w => w.name === name)?.cost ??
+    GENERAL_EQUIPMENT.find(g => g.name === name)?.cost ??
     0
   );
 }
@@ -18,6 +21,7 @@ function computeGearSpent(char: Character): number {
   let total = 0;
   for (const a of char.armor) total += gearCost(a.name);
   for (const w of char.weapons) total += gearCost(w.name);
+  for (const e of char.equipment) total += gearCost(e);
   return total;
 }
 
@@ -26,17 +30,22 @@ interface Props {
   onEdit: () => void;
   onBack: () => void;
   onOpenRules: () => void;
+  onOpenHelp: () => void;
   onUpdate: (char: Character) => void;
 }
 
 const ATTR_ORDER = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 
-export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onUpdate }: Props) {
+export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOpenHelp, onUpdate }: Props) {
   const attrs = char.attributes;
   const isPsychic = char.class === 'Psychic' || char.adventurerPartials?.includes('Partial Psychic');
-  const highestAC = char.armor.reduce((max, a) => Math.max(max, a.ac), 10);
-  const totalAC = highestAC + attrMod(attrs.DEX);
+  const totalAC = deriveAC(char).ac;
+  const effortMax = deriveEffort(char);
+  const skills = effectiveSkills(char);
+  const psychic = psychicSkillLevels(char);
+  const enc = computeEncumbrance(char);
   const [showLevelUp, setShowLevelUp] = useState(false);
+  const [detailed, setDetailed] = useState(false);
 
   const nextLevelXp = xpForLevel(char.level + 1);
   const canLevelUp = char.xp >= nextLevelXp && char.level < 20;
@@ -54,6 +63,13 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onUp
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={onOpenHelp}
+            title="Rules reference & FAQ"
+            className="w-8 h-8 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors font-bold"
+          >
+            ?
+          </button>
+          <button
             onClick={onOpenRules}
             title="Open SWN Revised Deluxe Edition rulebook"
             className="p-1.5 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors"
@@ -64,6 +80,21 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onUp
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
           </button>
+          {/* Simple / Detailed view toggle */}
+          <div className="flex rounded overflow-hidden border border-gray-700 text-xs">
+            <button
+              onClick={() => setDetailed(false)}
+              className={`px-2.5 py-1.5 font-medium transition-colors ${!detailed ? 'bg-amber-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+            >
+              Simple
+            </button>
+            <button
+              onClick={() => setDetailed(true)}
+              className={`px-2.5 py-1.5 font-medium transition-colors ${detailed ? 'bg-amber-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+            >
+              Detailed
+            </button>
+          </div>
           {canLevelUp && (
             <button
               onClick={() => setShowLevelUp(true)}
@@ -81,6 +112,11 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onUp
         </div>
       </div>
 
+      {detailed ? (
+        <div className="flex-1 overflow-y-auto px-4 py-6 max-w-5xl mx-auto w-full">
+          <AuditOverview char={char} />
+        </div>
+      ) : (
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         {/* Header row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -138,7 +174,17 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onUp
               <StatRow label="Armor Class" value={`${totalAC}`} big />
               <StatRow label="Base Attack Bonus" value={`+${char.baseAttackBonus}`} />
               <StatRow label="System Strain" value={`${char.systemStrain.current} / ${char.systemStrain.max}`} />
-              {isPsychic && <StatRow label="Psionic Effort" value={`${char.effort.committed} / ${char.effort.max}`} />}
+              {isPsychic && <StatRow label="Psionic Effort" value={`${char.effort.committed} / ${effortMax}`} />}
+              <StatRow
+                label="Move"
+                value={enc.level === 'none' ? '10m' : `${enc.move}m`}
+              />
+              {enc.level !== 'none' && (
+                <div className="text-xs text-amber-400 -mt-1">
+                  {enc.level === 'light' ? 'Lightly' : enc.level === 'heavy' ? 'Heavily' : 'Over-'}encumbered
+                  <span className="text-gray-600"> (Readied {enc.readied}/{enc.readiedMax}, Stowed {enc.stowed}/{enc.stowedMax})</span>
+                </div>
+              )}
             </div>
             <div className="mt-4 pt-4 border-t border-gray-700">
               <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Saving Throws</p>
@@ -152,16 +198,18 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onUp
 
           {/* Skills */}
           <SheetSection title="Skills">
-            {Object.keys(char.skills).length === 0 ? (
+            {Object.keys(skills).length === 0 ? (
               <p className="text-gray-600 text-sm italic">No skills recorded.</p>
             ) : (
               <div className="grid grid-cols-2 gap-1.5">
-                {Object.entries(char.skills)
+                {Object.entries(skills)
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([skill, level]) => (
-                    <div key={skill} className="flex items-center justify-between bg-gray-900/60 rounded px-2 py-1">
-                      <span className="text-sm text-gray-300">{skill}</span>
-                      <span className="text-amber-400 font-bold text-sm">-{level}</span>
+                    <div
+                      key={skill}
+                      className="flex items-center justify-between bg-gray-900/60 rounded px-2 py-1"
+                    >
+                      <span className="text-sm text-gray-300">{skill}-{level}</span>
                     </div>
                   ))}
               </div>
@@ -188,17 +236,16 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onUp
               )}
             </SheetSection>
 
-            {isPsychic && char.psychicDisciplines.length > 0 && (
+            {isPsychic && Object.keys(psychic).length > 0 && (
               <SheetSection title="Psychic Disciplines">
                 <div className="space-y-2">
-                  {[...new Set(char.psychicDisciplines)].map(d => {
-                    const count = char.psychicDisciplines.filter(x => x === d).length;
+                  {Object.keys(psychic).map(d => {
                     const techs = char.psychicTechniques.filter(t => t.discipline === d);
                     return (
                       <div key={d} className="bg-indigo-900/20 rounded px-3 py-2 border border-indigo-900/40">
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-sm text-indigo-300">{d}</span>
-                          <span className="text-xs text-indigo-500">Level {count - 1}</span>
+                          <span className="text-xs text-indigo-500">Level {psychic[d]}</span>
                         </div>
                         {techs.map(t => (
                           <div key={t.techniqueName} className="text-xs text-gray-400 mt-0.5">• {t.techniqueName}</div>
@@ -261,37 +308,17 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onUp
 
           {(char.equipment.length > 0 || char.credits > 0) && (
             <SheetSection title="Equipment & Credits">
-              {char.credits >= 0 && (() => {
-                const spent = computeGearSpent(char);
-                const remaining = char.credits;
-                const budget = char.credits + spent;
-                const hasSpent = spent > 0;
+              {/* Simple view shows just the remaining credits (budget − spent), which may be negative. */}
+              {(() => {
+                const remaining = char.credits - computeGearSpent(char);
                 return (
-                  <div className="mb-3 pb-2 border-b border-gray-700 space-y-1">
-                    {hasSpent ? (
-                      <>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-500">Budget</span>
-                          <span className="font-mono text-gray-400">{budget.toLocaleString()} cr</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-500">Spent on gear</span>
-                          <span className="font-mono text-orange-400">−{spent.toLocaleString()} cr</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm font-semibold">
-                          <span className="text-gray-400">Remaining</span>
-                          <span className={`font-mono text-lg ${remaining < 0 ? 'text-red-400' : 'text-amber-400'}`}>
-                            {remaining.toLocaleString()} cr
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-amber-400 font-bold text-lg">{remaining.toLocaleString()}</span>
-                        <span className="text-gray-500 text-sm">credits</span>
-                      </div>
-                    )}
-                    {char.debts > 0 && <span className="text-red-400 text-sm">Debts: {char.debts.toLocaleString()} cr</span>}
+                  <div className="mb-3 pb-2 border-b border-gray-700 flex items-center gap-2">
+                    <span className={`font-bold text-lg ${remaining < 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                      {remaining.toLocaleString()}
+                    </span>
+                    <span className="text-gray-500 text-sm">credits remaining</span>
+                    {remaining < 0 && <span className="text-red-500 text-xs">(over budget)</span>}
+                    {char.debts > 0 && <span className="text-red-400 text-sm ml-auto">Debts: {char.debts.toLocaleString()} cr</span>}
                   </div>
                 );
               })()}
@@ -344,13 +371,17 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onUp
           </SheetSection>
         )}
 
-        {/* Notes */}
+        {/* Notes — editable, saved immediately */}
         <SheetSection title="Notes">
-          <p className="text-gray-500 text-sm italic">
-            {char.notes || 'No notes. Edit the character to add notes.'}
-          </p>
+          <textarea
+            value={char.notes}
+            onChange={e => onUpdate({ ...char, notes: e.target.value })}
+            placeholder="Track goals, contacts, debts owed, plot threads…"
+            className="w-full h-28 bg-gray-900/60 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-amber-500 resize-y"
+          />
         </SheetSection>
       </div>
+      )}
       </div>
       {showLevelUp && (
         <LevelUp

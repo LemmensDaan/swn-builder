@@ -77,14 +77,13 @@ describe('skill stacking rule', () => {
     expect(s.Pilot).toBe(1);
   });
 
-  it('free skill + same in quick skills → level-1', () => {
-    // Barbarian free skill is Survive; quick skills also include Survive
+  it('quick mode: free skill is part of the quick list, so it stays level-0', () => {
+    // Barbarian Quick Skills (p.30): Survive-0, Notice-0, Any Combat-0.
+    // The free skill (Survive) is ONE OF the three, not an extra grant on top.
     let s: Record<string, number> = {};
-    s = addSkill(s, 'Survive'); // free skill
-    // applying quick skills: Survive, Notice, combat
-    s = addSkill(s, 'Survive'); // second pick → level-1
-    s = addSkill(s, 'Notice');
-    expect(s.Survive).toBe(1);
+    ['Survive', 'Notice', 'Stab'].forEach(sk => { s = addSkill(s, sk); });
+    expect(s.Survive).toBe(0);
     expect(s.Notice).toBe(0);
+    expect(s.Stab).toBe(0);
   });
 });

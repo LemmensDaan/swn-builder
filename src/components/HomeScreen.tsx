@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Character } from '../types/character';
+import { effectiveSkills, deriveAC } from '../data/derivation';
 
 interface Props {
   characters: Character[];
@@ -7,9 +8,10 @@ interface Props {
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
   onOpenRules: () => void;
+  onOpenHelp: () => void;
 }
 
-export default function HomeScreen({ characters, onNew, onOpen, onDelete, onOpenRules }: Props) {
+export default function HomeScreen({ characters, onNew, onOpen, onDelete, onOpenRules, onOpenHelp }: Props) {
   return (
     <div className="min-h-screen bg-gray-950/50 text-gray-100 flex flex-col">
       {/* Header */}
@@ -20,6 +22,13 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onOpen
             <p className="text-xs text-gray-500">Revised Deluxe Edition — Character & Ship Builder</p>
           </div>
           <div className="flex gap-3 items-center">
+            <button
+              onClick={onOpenHelp}
+              title="Rules reference & FAQ"
+              className="w-9 h-9 rounded text-gray-400 hover:text-amber-300 hover:bg-gray-700 transition-colors font-bold"
+            >
+              ?
+            </button>
             <button
               onClick={onOpenRules}
               title="Open SWN Revised Deluxe Edition rulebook"
@@ -89,6 +98,7 @@ function CharacterCard({ char, onOpen, onDelete }: { char: Character; onOpen: ()
   const classLabel = char.class === 'Adventurer' && char.adventurerPartials
     ? `Adventurer (${char.adventurerPartials.map(p => p.replace('Partial ', '')).join('/')})`
     : char.class;
+  const cardSkills = Object.entries(effectiveSkills(char));
 
   return (
     <div className="glass-card rounded-xl p-5 hover:border-amber-700/50 transition-colors relative">
@@ -105,7 +115,7 @@ function CharacterCard({ char, onOpen, onDelete }: { char: Character; onOpen: ()
 
       <div className="grid grid-cols-3 gap-2 mb-4 text-xs text-center">
         <Pill label="HP" value={`${char.hitPoints.max}`} color="red" />
-        <Pill label="AC" value={`${char.armor.reduce((m, a) => Math.max(m, a.ac), 10)}`} color="green" />
+        <Pill label="AC" value={`${deriveAC(char).ac}`} color="green" />
         {isPsychic
           ? <Pill label="Effort" value={`${char.effort.max}`} color="indigo" />
           : <Pill label="ATK" value={`+${char.baseAttackBonus}`} color="amber" />
@@ -116,15 +126,15 @@ function CharacterCard({ char, onOpen, onDelete }: { char: Character; onOpen: ()
         {char.background ? `${char.background} · ` : ''}{char.homeworld || 'Unknown Homeworld'}
       </div>
 
-      {Object.keys(char.skills).length > 0 && (
+      {cardSkills.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-4">
-          {Object.entries(char.skills).slice(0, 5).map(([skill, lvl]) => (
+          {cardSkills.slice(0, 5).map(([skill, lvl]) => (
             <span key={skill} className="text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
               {skill.slice(0, 3)}-{lvl}
             </span>
           ))}
-          {Object.keys(char.skills).length > 5 && (
-            <span className="text-xs text-gray-600">+{Object.keys(char.skills).length - 5} more</span>
+          {cardSkills.length > 5 && (
+            <span className="text-xs text-gray-600">+{cardSkills.length - 5} more</span>
           )}
         </div>
       )}

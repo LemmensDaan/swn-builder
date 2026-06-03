@@ -4,6 +4,7 @@ import HomeScreen from './components/HomeScreen';
 import CharacterWizard from './components/wizard/CharacterWizard';
 import CharacterSheet from './components/CharacterSheet';
 import PDFViewer from './components/PDFViewer';
+import HelpPage from './components/HelpPage';
 import type { Character } from './types/character';
 
 type View =
@@ -15,6 +16,7 @@ export default function App() {
   const { characters, upsert, remove } = useCharacters();
   const [view, setView] = useState<View>({ type: 'home' });
   const [showRules, setShowRules] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const editingChar = view.type === 'wizard' && view.editId
     ? characters.find(c => c.id === view.editId)
@@ -38,6 +40,7 @@ export default function App() {
           onOpen={id => setView({ type: 'sheet', id })}
           onDelete={id => remove(id)}
           onOpenRules={() => setShowRules(true)}
+          onOpenHelp={() => setShowHelp(true)}
         />
       )}
 
@@ -47,6 +50,7 @@ export default function App() {
           onSave={handleSave}
           onCancel={() => setView({ type: 'home' })}
           onOpenRules={() => setShowRules(true)}
+          onOpenHelp={() => setShowHelp(true)}
         />
       )}
 
@@ -56,11 +60,13 @@ export default function App() {
           onEdit={() => setView({ type: 'wizard', editId: viewingChar.id })}
           onBack={() => setView({ type: 'home' })}
           onOpenRules={() => setShowRules(true)}
+          onOpenHelp={() => setShowHelp(true)}
           onUpdate={upsert}
         />
       )}
 
       {showRules && <PDFViewer onClose={() => setShowRules(false)} />}
+      {showHelp && <HelpPage onClose={() => setShowHelp(false)} />}
     </>
   );
 }

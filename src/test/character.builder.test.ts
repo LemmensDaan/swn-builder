@@ -56,11 +56,13 @@ function addSkill(skills: SkillLevels, skill: string): SkillLevels {
   return skills;
 }
 
-/** Build quick skills for a background onto a fresh skills object */
+/**
+ * Build quick skills for a background. The Quick Skills list already INCLUDES the
+ * free skill (p.9, p.30), so we iterate it once and do NOT add the free skill again.
+ */
 function applyQuickSkills(bgName: string): SkillLevels {
   const bg = BACKGROUNDS.find(b => b.name === bgName)!;
   let s: SkillLevels = {};
-  if (bg.freeSkill !== 'Any Combat') s = addSkill(s, bg.freeSkill);
   bg.quickSkills.forEach(qs => {
     if (qs !== 'Any Combat') s = addSkill(s, qs);
   });

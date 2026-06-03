@@ -4,10 +4,13 @@
  * similar to the SWN Freebooter reference tool.
  */
 import type { Character, AttributeName } from '../../types/character';
-import { attrMod, calcSaves, calcAttackBonus, calcEffort } from '../../types/character';
+import { attrMod, calcSaves, calcAttackBonus } from '../../types/character';
 import { BACKGROUNDS } from '../../data/backgrounds';
 import { FOCI } from '../../data/foci';
 import { PSYCHIC_DISCIPLINES } from '../../data/psychics';
+import { effectiveSkills, psychicSkillLevels, deriveEffort, deriveAC, dieHardBonus, focusBonusSkill, computeEncumbrance } from '../../data/derivation';
+import { ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../../data/equipment';
+import { SKILL_INFO } from '../../data/skillInfo';
 
 interface Props {
   char: Character;
@@ -43,7 +46,7 @@ function inferSkillSource(
 
   if (bg) {
     // Free skill
-    if ((bg.freeSkill as string) === skillName || (bg.freeSkill === 'Any Combat' && ['Stab','Shoot','Punch'].includes(skillName))) {
+    if ((bg.freeSkill as string) === skillName || ((bg.freeSkill as string) === 'Any Combat' && ['Stab','Shoot','Punch'].includes(skillName))) {
       sources.push(`Free skill from ${bg.name} background`);
     }
     // Quick skills / learning table
@@ -52,13 +55,10 @@ function inferSkillSource(
     }
   }
 
-  // Focus bonus skills
+  // Focus bonus skills (resolves Specialist / combat-choice picks)
   for (const sel of char.foci) {
-    const def = FOCI.find(f => f.name === sel.name);
-    if (!def) continue;
-    const bonuses = def.levels.slice(0, sel.level).map(l => l.bonusSkill).filter(Boolean);
-    if (bonuses.includes(skillName as any)) {
-      sources.push(`${sel.name} focus (bonus)`);
+    if (focusBonusSkill(sel) === skillName) {
+      sources.push(`${sel.name} focus (bonus skill)`);
     }
   }
 
@@ -67,7 +67,7 @@ function inferSkillSource(
   }
 
   const primary = sources[0];
-  const secondary = level === 1 ? 'Received twice → raised to level-1' : undefined;
+  const secondary = level === 1 && sources.length > 1 ? 'Gained more than once → raised to level-1' : undefined;
   return { primary, secondary };
 }
 
@@ -109,20 +109,36 @@ function Row({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AuditOverview({ char }: Props) {
-  const bg = BACKGROUNDS.find(b => b.name === char.background);
   const saves = calcSaves(char.attributes, char.level);
   const attackBonus = calcAttackBonus(char.class, char.adventurerPartials, char.level);
-  const effort = calcEffort(char.skills, char.attributes);
+  const effort = deriveEffort(char);
   const isPsychic = char.class === 'Psychic' || char.adventurerPartials?.includes('Partial Psychic');
   const isWarrior = char.class === 'Warrior' || char.adventurerPartials?.includes('Partial Warrior');
   const isExpert = char.class === 'Expert' || char.adventurerPartials?.includes('Partial Expert');
+  const hasWildPsychic = char.foci.some(f => f.name === 'Wild Psychic Talent');
 
   const classLabel = char.class === 'Adventurer' && char.adventurerPartials
     ? `Adventurer (${char.adventurerPartials.map(p => p.replace('Partial ', '')).join(' / ')})`
     : char.class;
 
-  const highestAC = char.armor.reduce((m, a) => Math.max(m, a.ac), 10);
-  const totalAC = highestAC + attrMod(char.attributes.DEX);
+  // Final skills incl. foci bonus skills and psychic disciplines
+  const regularSkills = effectiveSkills(char);
+  const psychicSkills = psychicSkillLevels(char);
+
+  const ac = deriveAC(char);
+  const totalAC = ac.ac;
+  const dhBonus = dieHardBonus(char);
+  const enc = computeEncumbrance(char);
+
+  const gearCost = (name: string): number =>
+    ARMOR_TABLE.find(a => a.name === name)?.cost
+    ?? RANGED_WEAPONS.find(w => w.name === name)?.cost
+    ?? MELEE_WEAPONS.find(w => w.name === name)?.cost
+    ?? GENERAL_EQUIPMENT.find(g => g.name === name)?.cost
+    ?? 0;
+  const spent = [...char.armor.map(a => a.name), ...char.weapons.map(w => w.name), ...char.equipment]
+    .reduce((s, n) => s + gearCost(n), 0);
+  const remainingCr = char.credits - spent;
 
   // Focus total picks expected
   const totalFociPicks = 1 + (isExpert ? 1 : 0) + (isWarrior ? 1 : 0);
@@ -165,17 +181,20 @@ export default function AuditOverview({ char }: Props) {
 
       {/* ── Skills ─────────────────────────────────────────────────── */}
       <Section title="Skills">
-        {Object.keys(char.skills).length === 0 ? (
+        {Object.keys(regularSkills).length === 0 ? (
           <p className="text-red-400 italic text-sm">No skills selected.</p>
         ) : (
-          Object.entries(char.skills)
+          Object.entries(regularSkills)
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([skill, level]) => {
-              const src = inferSkillSource(skill, level, char);
+              const src = inferSkillSource(skill, level as number, char);
               return (
                 <div key={skill} className="py-0.5">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-gray-500 min-w-[120px] flex-shrink-0">{skill}-{level}</span>
+                    <span
+                      className="text-gray-500 min-w-[120px] flex-shrink-0 cursor-help"
+                      title={SKILL_INFO[skill] ? `${skill}: ${SKILL_INFO[skill]}` : skill}
+                    >{skill}-{level}</span>
                     <span className="text-gray-300">{src.primary}</span>
                   </div>
                   {src.secondary && (
@@ -191,18 +210,20 @@ export default function AuditOverview({ char }: Props) {
       <Section title="Class Abilities">
         <Row label="Base Attack" value={`+${attackBonus}`}
           note={char.class === 'Warrior' ? 'Equal to level' : isWarrior ? '+½ level + +1 at 1st/5th' : '+½ level, rounded down'} />
-        <Row label="HP die"
-          value={`1d6${isWarrior ? '+2' : ''} + CON mod (min 1)`}
-          note={isWarrior ? 'Warrior +2 per level' : ''} />
+        <Row label="HP (max)"
+          value={`${char.hitPoints.max}`}
+          note={`max(1, 1d6 + CON) ${isWarrior ? '+2 Warrior ' : ''}${dhBonus ? `+${dhBonus} Die Hard` : ''}`.trim()} />
         {char.class === 'Expert' && (
           <Row label="Expert knack" value="Once per scene: reroll any failed skill check" />
         )}
         {char.class === 'Warrior' && (
           <Row label="Warrior luck" value="Once per scene: negate a hit OR turn a miss into a hit" />
         )}
-        {isPsychic && (
+        {(isPsychic || hasWildPsychic) && (
           <Row label="Psionic Effort" value={`${effort}`}
-            note="1 + highest psychic skill + best of WIS/CON mod" />
+            note={hasWildPsychic && !isPsychic
+              ? 'Wild Psychic Talent'
+              : `1 + highest psychic skill + best of WIS/CON${char.foci.some(f => f.name === 'Psychic Training') ? ' + 1 (Psychic Training)' : ''}`} />
         )}
         {char.class === 'Adventurer' && char.adventurerPartials?.includes('Partial Expert') && (
           <Row indent label="Partial Expert" value="Bonus non-psychic skill point per level" />
@@ -256,12 +277,11 @@ export default function AuditOverview({ char }: Props) {
       {/* ── Psychic disciplines ────────────────────────────────────── */}
       {isPsychic && (
         <Section title="Psychic Disciplines">
-          {char.psychicDisciplines.length === 0 ? (
+          {Object.keys(psychicSkills).length === 0 ? (
             <p className="text-red-400 italic text-sm">No discipline selected.</p>
           ) : (
-            [...new Set(char.psychicDisciplines)].map(discName => {
-              const count = char.psychicDisciplines.filter(d => d === discName).length;
-              const skillLevel = count - 1;
+            Object.keys(psychicSkills).map(discName => {
+              const skillLevel = psychicSkills[discName];
               const def = PSYCHIC_DISCIPLINES.find(d => d.skill === discName);
               const techniques = char.psychicTechniques.filter(t => t.discipline === discName);
               return (
@@ -291,13 +311,16 @@ export default function AuditOverview({ char }: Props) {
       {/* ── Armor ──────────────────────────────────────────────────── */}
       <Section title="Armor">
         <Row label="Total AC" value={`${totalAC}`}
-          note={`base + DEX mod (${attrMod(char.attributes.DEX) >= 0 ? '+' : ''}${attrMod(char.attributes.DEX)})`} />
-        {char.armor.length === 0
+          note={`${ac.label} (${ac.base}) + DEX mod (${attrMod(char.attributes.DEX) >= 0 ? '+' : ''}${attrMod(char.attributes.DEX)})`} />
+        {char.armor.length === 0 && ac.label !== 'Ironhide'
           ? <div className="py-0.5 text-gray-600 text-sm pl-0">Unarmored (AC 10)</div>
           : char.armor.map(a => (
             <Row key={a.name} label={a.name} value={`AC ${a.ac}`} />
           ))
         }
+        {ac.label === 'Ironhide' && (
+          <Row label="Ironhide focus" value={`AC ${ac.base}`} note="innate 15 + ½ level" />
+        )}
       </Section>
 
       {/* ── Weapons ────────────────────────────────────────────────── */}
@@ -311,18 +334,27 @@ export default function AuditOverview({ char }: Props) {
         }
       </Section>
 
+      {/* ── Encumbrance ────────────────────────────────────────────── */}
+      <Section title="Encumbrance">
+        <Row label="Readied" value={`${enc.readied} / ${enc.readiedMax}`} note="worn / in hand / holstered, incl. armor (max STR ÷ 2)" />
+        <Row label="Stowed" value={`${enc.stowed} / ${enc.stowedMax}`} note="packed away (max STR)" />
+        <Row label="Status"
+          value={enc.level === 'none' ? 'Unencumbered (move 10m)' :
+                 enc.level === 'light' ? 'Lightly Encumbered (move 7m)' :
+                 enc.level === 'heavy' ? 'Heavily Encumbered (move 5m)' : 'Overloaded (cannot move)'} />
+      </Section>
+
       {/* ── Equipment & credits ────────────────────────────────────── */}
-      {(char.equipment.length > 0 || char.credits > 0) && (
-        <Section title="Equipment">
-          {char.credits > 0 && (
-            <Row label="Credits" value={`${char.credits.toLocaleString()} cr`} />
-          )}
-          {[...new Set(char.equipment)].map(e => {
-            const qty = char.equipment.filter(x => x === e).length;
-            return <Row key={e} label="" value={qty > 1 ? `${e} ×${qty}` : e} />;
-          })}
-        </Section>
-      )}
+      <Section title="Equipment & Credits">
+        <Row label="Budget" value={`${char.credits.toLocaleString()} cr`} />
+        {spent > 0 && <Row label="Spent on gear" value={`−${spent.toLocaleString()} cr`} />}
+        <Row label="Remaining" value={`${remainingCr.toLocaleString()} cr`} note={remainingCr < 0 ? 'over budget' : undefined} />
+        {char.debts > 0 && <Row label="Debts" value={`${char.debts.toLocaleString()} cr`} />}
+        {[...new Set(char.equipment)].map(e => {
+          const qty = char.equipment.filter(x => x === e).length;
+          return <Row key={e} label="" value={qty > 1 ? `${e} ×${qty}` : e} />;
+        })}
+      </Section>
 
       <p className="text-xs text-gray-700 pt-2">
         All values from SWN Revised Deluxe Edition (Kevin Crawford, Sine Nomine Publishing).

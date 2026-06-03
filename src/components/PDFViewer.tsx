@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import { useLockBodyScroll } from './HelpPage';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function PDFViewer({ onClose }: Props) {
+  useLockBodyScroll();
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1.2);

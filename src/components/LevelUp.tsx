@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import type { Character, FocusSelection, LevelRecord } from '../types/character';
+import type { Character, FocusSelection, LevelRecord, PsychicTechniqueSelection } from '../types/character';
 import { attrMod, calcSaves, calcAttackBonus } from '../types/character';
 import { FOCI } from '../data/foci';
 import { SKILLS } from '../data/skills';
-import { effectiveSkills, deriveEffort } from '../data/derivation';
+import { PSYCHIC_DISCIPLINES } from '../data/psychics';
+import { effectiveSkills, psychicSkillLevels, deriveEffort } from '../data/derivation';
 import { SKILL_INFO } from '../data/skillInfo';
 import {
   spPerLevel, skillRaiseCost, maxSkillLevel,
@@ -30,8 +31,21 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
 
   const conMod = attrMod(char.attributes.CON);
   const hasDieHard = char.foci.some(f => f.name === 'Die Hard');
+  const isPsychic = char.class === 'Psychic';
+  const isPartialPsychic = !!char.adventurerPartials?.includes('Partial Psychic');
+  const anyPsychic = isPsychic || isPartialPsychic;
+
+  // Disciplines this PC may improve: a full Psychic can raise/learn any; a Partial Psychic
+  // is restricted to the one they chose (p.61).
+  const psychicBase = psychicSkillLevels(char);
+  const raisableDisciplines: string[] = isPsychic
+    ? PSYCHIC_DISCIPLINES.map(d => d.skill)
+    : isPartialPsychic
+    ? Object.keys(psychicBase)
+    : [];
+
   // Current effective skill levels (incl. foci/psychic/prior levels) form the floor for raising.
-  const baseLevels = effectiveSkills(char);
+  const baseLevels: Record<string, number> = { ...effectiveSkills(char), ...psychicBase };
 
   const [uiStep, setUiStep] = useState<Step>('hp');
   // The book rerolls the WHOLE hit-die pool each level (p.56): newLevel d6, +CON per die (min 1 each),
@@ -52,6 +66,9 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
   // Focus pick
   const [pickedFocus, setPickedFocus] = useState<FocusSelection | null>(null);
   const [focusFilter, setFocusFilter] = useState<'all' | 'combat' | 'noncombat'>('all');
+
+  // Psychic techniques learned this level-up (local), with whether each was free or SP-bought.
+  const [learnedTechs, setLearnedTechs] = useState<{ discipline: string; techniqueName: string; level: number; free: boolean }[]>([]);
 
   const warriorTotal = isWarrior ? 2 * newLevel : 0;
   const dieHardTotal = hasDieHard ? 2 * newLevel : 0;
@@ -134,6 +151,46 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
     setSpSpent(s => s + cost);
   }
 
+  // ── Psychic techniques ─────────────────────────────────────────────────────
+  // Each psychic-skill level gained this level-up grants ONE free technique of equal/lower
+  // level from that discipline (p.61). Beyond that, a technique costs its level in skill points.
+
+  function levelsRaisedThisTurn(discipline: string): number {
+    return Math.max(0, currentLevel(discipline) - (psychicBase[discipline] ?? -1));
+  }
+  function freeTechsAvailable(discipline: string): number {
+    const used = learnedTechs.filter(t => t.discipline === discipline && t.free).length;
+    return levelsRaisedThisTurn(discipline) - used;
+  }
+  function alreadyKnows(discipline: string, name: string): boolean {
+    return char.psychicTechniques.some(t => t.discipline === discipline && t.techniqueName === name)
+      || learnedTechs.some(t => t.discipline === discipline && t.techniqueName === name);
+  }
+  function learnTech(discipline: string, name: string, level: number) {
+    const free = freeTechsAvailable(discipline) > 0;
+    if (!free && spRemaining < level) return;
+    setLearnedTechs(prev => [...prev, { discipline, techniqueName: name, level, free }]);
+    if (!free) setSpSpent(s => s + level);
+  }
+  function unlearnTech(discipline: string, name: string) {
+    const t = learnedTechs.find(x => x.discipline === discipline && x.techniqueName === name);
+    if (!t) return;
+    setLearnedTechs(prev => prev.filter(x => !(x.discipline === discipline && x.techniqueName === name)));
+    if (!t.free) setSpSpent(s => s - t.level);
+  }
+
+  // SP spent specifically on psychic skills/techniques this level-up (p.61: a psychic must
+  // commit at least one point to psychic advancement, or leave it unspent for later).
+  const psychicSkillSpent = raisableDisciplines.reduce((sum, d) => {
+    let s = 0;
+    for (let lv = (psychicBase[d] ?? -1) + 1; lv <= currentLevel(d); lv++) s += skillRaiseCost(lv);
+    return sum + s;
+  }, 0);
+  const techSpent = learnedTechs.filter(t => !t.free).reduce((s, t) => s + t.level, 0);
+  const psychicSpent = psychicSkillSpent + techSpent;
+  // Violation: a psychic spent ALL points on mundane skills/attrs with nothing left for psychic.
+  const psychicRuleViolation = anyPsychic && psychicSpent === 0 && spRemaining === 0;
+
   // ── Focus step ───────────────────────────────────────────────────────────────
 
   const filteredFoci = FOCI.filter(f => {
@@ -182,12 +239,19 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
       spTotal,
       skillSpends: skillSpendsArr,
       attrBoosts: attrBoostsArr,
-      techniquesLearned: [],
+      techniquesLearned: learnedTechs.map(t => ({ discipline: t.discipline, techniqueName: t.techniqueName, cost: t.free ? 0 : t.level })),
       focusPicked: pickedFocus ?? undefined,
     };
 
     const updatedChar = { ...char };
     updatedChar.level = newLevel;
+    // Newly learned psychic techniques
+    if (learnedTechs.length > 0) {
+      updatedChar.psychicTechniques = [
+        ...char.psychicTechniques,
+        ...learnedTechs.map((t): PsychicTechniqueSelection => ({ discipline: t.discipline, techniqueName: t.techniqueName })),
+      ];
+    }
     updatedChar.hitPoints = {
       max: newMaxHP,
       // keep the same fraction of damage taken: current rises by the same gain
@@ -381,6 +445,103 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
                   </div>
                 </div>
               ) : null}
+
+              {/* Psychic advancement */}
+              {anyPsychic && (
+                <div className="border-t border-gray-700 pt-4 space-y-3">
+                  <p className="text-sm font-medium text-indigo-300">
+                    Psychic Advancement
+                    <span className="text-gray-500 font-normal text-xs ml-2">
+                      raise a discipline (cost = new level + 1) — must spend at least 1 point on psychic here or save it
+                    </span>
+                  </p>
+
+                  {/* Disciplines */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {raisableDisciplines.map(d => {
+                      const cur = currentLevel(d);
+                      const base = psychicBase[d] ?? -1;
+                      const raised = cur > base;
+                      const atMax = cur >= maxSkill;
+                      const nextCost = skillRaiseCost(cur + 1);
+                      return (
+                        <div key={d} className={`flex items-center gap-2 rounded-lg px-3 py-2 ${raised ? 'bg-indigo-900/20 border border-indigo-700/40' : 'bg-gray-800/60'}`}>
+                          <span className="flex-1 text-sm text-indigo-200 cursor-help" title={SKILL_INFO[d] ?? d}>{d}</span>
+                          <span className={`text-xs font-mono w-6 text-center ${raised ? 'text-indigo-300 font-bold' : 'text-gray-500'}`}>
+                            {cur === -1 ? '—' : `-${cur}`}
+                          </span>
+                          <button
+                            onClick={() => lowerSkill(d)}
+                            disabled={cur <= base}
+                            className="w-6 h-6 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-20 text-gray-300 text-sm flex items-center justify-center"
+                          >−</button>
+                          <button
+                            onClick={() => raiseSkill(d)}
+                            disabled={atMax || spRemaining < nextCost}
+                            title={atMax ? `Max level-${maxSkill} at this character level` : `Costs ${nextCost} SP`}
+                            className="w-6 h-6 rounded bg-gray-700 hover:bg-indigo-700 disabled:opacity-20 text-gray-300 text-sm flex items-center justify-center"
+                          >+</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Techniques for disciplines you have at level-0+ */}
+                  {raisableDisciplines.filter(d => currentLevel(d) >= 0).map(d => {
+                    const disc = PSYCHIC_DISCIPLINES.find(x => x.skill === d);
+                    if (!disc) return null;
+                    const lvl = currentLevel(d);
+                    const free = freeTechsAvailable(d);
+                    const available = disc.techniques.filter(t => t.level <= lvl && !alreadyKnows(d, t.name));
+                    if (available.length === 0 && learnedTechs.filter(t => t.discipline === d).length === 0) return null;
+                    return (
+                      <div key={`tech-${d}`} className="bg-gray-900/40 rounded-lg p-3">
+                        <p className="text-xs text-indigo-300 mb-1.5">
+                          {d} techniques
+                          {free > 0 && <span className="text-green-400 ml-2">{free} free pick{free > 1 ? 's' : ''} available</span>}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {learnedTechs.filter(t => t.discipline === d).map(t => (
+                            <button
+                              key={t.techniqueName}
+                              onClick={() => unlearnTech(d, t.techniqueName)}
+                              className="text-xs px-2 py-1 rounded bg-indigo-900/40 border border-indigo-600 text-indigo-200"
+                              title="Click to remove"
+                            >
+                              {t.techniqueName} {t.free ? '(free)' : `(${t.level} SP)`} ✕
+                            </button>
+                          ))}
+                          {available.map(t => {
+                            const willBeFree = free > 0;
+                            const affordable = willBeFree || spRemaining >= t.level;
+                            return (
+                              <button
+                                key={t.name}
+                                onClick={() => learnTech(d, t.name, t.level)}
+                                disabled={!affordable}
+                                title={t.description}
+                                className={`text-xs px-2 py-1 rounded border transition-colors ${
+                                  affordable
+                                    ? 'border-gray-600 bg-gray-800 text-gray-300 hover:border-indigo-500 hover:text-indigo-300'
+                                    : 'border-gray-800 bg-gray-900 text-gray-600 cursor-not-allowed'
+                                }`}
+                              >
+                                + {t.name} <span className="text-gray-500">L{t.level} · {willBeFree ? 'free' : `${t.level} SP`}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {psychicRuleViolation && (
+                    <p className="text-xs text-red-400">
+                      ⚠ Psychics must spend at least one skill point on a psychic skill or technique (or leave a point unspent).
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -451,9 +612,15 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
               {Object.entries(attrBoostAllocs).filter(([attr, val]) => val > char.attributes[attr as keyof typeof char.attributes]).map(([attr, val]) => (
                 <Row key={attr} label={`${attr} boost`} value={`${char.attributes[attr as keyof typeof char.attributes]} → ${val}`} />
               ))}
+              {learnedTechs.map(t => (
+                <Row key={`${t.discipline}-${t.techniqueName}`} label={`${t.discipline} technique`} value={`${t.techniqueName} ${t.free ? '(free)' : `(${t.level} SP)`}`} />
+              ))}
               {pickedFocus && <Row label="New focus" value={`${pickedFocus.name} Level ${pickedFocus.level}`} />}
-              {spRemaining > 0 && (
+              {spRemaining > 0 && !psychicRuleViolation && (
                 <p className="text-xs text-amber-400">⚠ {spRemaining} skill point{spRemaining > 1 ? 's' : ''} unspent — you can go back and spend them.</p>
+              )}
+              {psychicRuleViolation && (
+                <p className="text-xs text-red-400">⚠ A Psychic must spend at least one skill point on psychic advancement (or leave a point unspent). Go back and adjust.</p>
               )}
             </div>
           )}
@@ -482,7 +649,8 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
           ) : (
             <button
               onClick={confirm}
-              className="px-6 py-2 rounded bg-green-700 hover:bg-green-600 text-white text-sm font-bold"
+              disabled={psychicRuleViolation}
+              className="px-6 py-2 rounded bg-green-700 hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold"
             >
               ✓ Confirm Level Up
             </button>

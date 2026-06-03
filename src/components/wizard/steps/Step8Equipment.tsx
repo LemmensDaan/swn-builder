@@ -378,7 +378,11 @@ export default function Step8Equipment({ char, onChange }: Props) {
                           if (isSelected) {
                             removeWeapon(w.name);
                           } else {
-                            addWeapon({ name: w.name, damage: w.damage, range: w.range + 'm', attackBonus: 0 });
+                            const magMax = parseInt(w.magazine, 10);
+                            addWeapon({
+                              name: w.name, damage: w.damage, range: w.range + 'm', attackBonus: 0,
+                              ammo: Number.isFinite(magMax) && magMax > 0 ? { current: magMax, max: magMax } : undefined,
+                            });
                           }
                         }}
                         className={`text-xs px-2 py-1 rounded w-full ${

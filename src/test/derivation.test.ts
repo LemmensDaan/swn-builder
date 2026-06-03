@@ -184,6 +184,59 @@ describe('dieHardBonus', () => {
   });
 });
 
+// ── Leveling: psychic advancement & level-up foci (p.61) ──────────────────────
+
+describe('level-up psychic advancement', () => {
+  it('a psychic-skill spend recorded in levelHistory raises the discipline level', () => {
+    const c = make({
+      class: 'Psychic',
+      psychicDisciplines: ['Telepathy'], // level-0 at creation
+      levelHistory: [{
+        level: 2, hpRolled: 4, hpGained: 4, spTotal: 3,
+        skillSpends: [{ skill: 'Telepathy', from: 0, to: 1, cost: 2 }],
+        attrBoosts: [], techniquesLearned: [],
+      }],
+    });
+    expect(psychicSkillLevels(c).Telepathy).toBe(1);
+  });
+
+  it('Effort rises after a level-up psychic raise', () => {
+    const before = make({ class: 'Psychic', psychicDisciplines: ['Telepathy'] }); // Tele-0 → effort 1
+    expect(deriveEffort(before)).toBe(1);
+    const after = make({
+      class: 'Psychic',
+      psychicDisciplines: ['Telepathy'],
+      levelHistory: [{
+        level: 2, hpRolled: 4, hpGained: 4, spTotal: 3,
+        skillSpends: [{ skill: 'Telepathy', from: 0, to: 1, cost: 2 }],
+        attrBoosts: [], techniquesLearned: [],
+      }],
+    });
+    expect(deriveEffort(after)).toBe(2); // 1 + 1 + 0
+  });
+});
+
+describe('level-up focus bonus skill (3 SP rule)', () => {
+  it('a focus taken at creation grants a new bonus skill at level-0', () => {
+    const c = make({ skills: {}, foci: [{ name: 'Gunslinger', level: 1 }] });
+    expect(effectiveSkills(c).Shoot).toBe(0);
+  });
+
+  it('a focus taken via level-up grants a brand-new bonus skill at level-1', () => {
+    const c = make({
+      level: 2,
+      skills: {},
+      foci: [{ name: 'Gunslinger', level: 1 }],
+      levelHistory: [{
+        level: 2, hpRolled: 4, hpGained: 4, spTotal: 3,
+        skillSpends: [], attrBoosts: [], techniquesLearned: [],
+        focusPicked: { name: 'Gunslinger', level: 1 },
+      }],
+    });
+    expect(effectiveSkills(c).Shoot).toBe(1);
+  });
+});
+
 // ── Encumbrance (p.65) ────────────────────────────────────────────────────────
 
 describe('computeEncumbrance', () => {

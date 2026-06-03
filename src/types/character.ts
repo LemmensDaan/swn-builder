@@ -56,6 +56,8 @@ export interface WeaponEntry {
   attackBonus: number;
   shock?: string;
   notes?: string;
+  /** Live ammo tracking for play. max 0 / undefined = no magazine (melee, unlimited). */
+  ammo?: { current: number; max: number };
 }
 
 export interface ArmorEntry {

@@ -67,12 +67,22 @@ export function effectiveSkills(char: Character): Record<string, number> {
     }
   }
 
-  // 3. Foci bonus skills (level-1 benefit). Cap at 1 during creation; level-up grants are
-  //    already recorded as skill spends, so foci here only add their creation-time level-0/1.
-  const maxCap = char.level >= 3 ? 4 : 1; // allow foci taken via advancement to push past 1
+  // 3. Foci bonus skills.
+  //    Creation foci grant the bonus skill as a normal pick (new → level-0). Foci taken via
+  //    advancement instead grant "3 skill points" toward the skill (p.61): a brand-new skill
+  //    arrives at level-1, and an existing skill goes up one step.
+  const levelUpFoci = new Set<string>();
+  for (const rec of char.levelHistory ?? []) {
+    if (rec.focusPicked) levelUpFoci.add(`${rec.focusPicked.name}|${rec.focusPicked.specialistSkill ?? ''}`);
+  }
+  const maxCap = char.level >= 3 ? 4 : 1;
   for (const f of char.foci) {
     const bs = focusBonusSkill(f);
-    if (bs && !PSYCHIC_SET.has(bs)) stack(skills, bs, maxCap);
+    if (!bs || PSYCHIC_SET.has(bs)) continue;
+    const viaLevelUp = levelUpFoci.has(`${f.name}|${f.specialistSkill ?? ''}`);
+    stack(skills, bs, maxCap);
+    // A level-up focus's bonus skill is worth 3 SP — push a brand-new skill from 0 up to 1.
+    if (viaLevelUp && (skills[bs] ?? 0) < 1) stack(skills, bs, maxCap);
   }
 
   return skills;

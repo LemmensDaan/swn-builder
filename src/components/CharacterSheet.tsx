@@ -170,11 +170,25 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
           {/* Combat */}
           <SheetSection title="Combat">
             <div className="space-y-2.5">
-              <StatRow label="HP" value={`${char.hitPoints.current} / ${char.hitPoints.max}`} big />
+              {/* Live trackers */}
+              <Tracker
+                label="HP" current={char.hitPoints.current} max={char.hitPoints.max}
+                onChange={v => onUpdate({ ...char, hitPoints: { ...char.hitPoints, current: v } })}
+                downLabel="Damage" upLabel="Heal" big
+              />
               <StatRow label="Armor Class" value={`${totalAC}`} big />
               <StatRow label="Base Attack Bonus" value={`+${char.baseAttackBonus}`} />
-              <StatRow label="System Strain" value={`${char.systemStrain.current} / ${char.systemStrain.max}`} />
-              {isPsychic && <StatRow label="Psionic Effort" value={`${char.effort.committed} / ${effortMax}`} />}
+              <Tracker
+                label="System Strain" current={char.systemStrain.current} max={char.systemStrain.max}
+                onChange={v => onUpdate({ ...char, systemStrain: { ...char.systemStrain, current: v } })}
+              />
+              {isPsychic && (
+                <Tracker
+                  label="Effort (committed)" current={char.effort.committed} max={effortMax}
+                  onChange={v => onUpdate({ ...char, effort: { ...char.effort, committed: v } })}
+                  downLabel="Release" upLabel="Commit"
+                />
+              )}
               <StatRow
                 label="Move"
                 value={enc.level === 'none' ? '10m' : `${enc.move}m`}
@@ -194,6 +208,19 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
                 <StatRow label="Mental" value={`${char.saves.mental}+`} small />
               </div>
             </div>
+            {/* Night's rest: refresh Effort, recover 1 System Strain, reload all weapons */}
+            <button
+              onClick={() => onUpdate({
+                ...char,
+                effort: { ...char.effort, committed: 0 },
+                systemStrain: { ...char.systemStrain, current: Math.max(0, char.systemStrain.current - 1) },
+                weapons: char.weapons.map(w => w.ammo ? { ...w, ammo: { ...w.ammo, current: w.ammo.max } } : w),
+              })}
+              className="mt-4 w-full py-2 rounded bg-indigo-800/60 hover:bg-indigo-700 text-indigo-200 text-sm font-medium transition-colors"
+              title="Refresh Effort, recover 1 System Strain, reload weapons"
+            >
+              🌙 Night's Rest
+            </button>
           </SheetSection>
 
           {/* Skills */}
@@ -270,21 +297,43 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
                     <th className="text-right py-2 pr-4">Damage</th>
                     <th className="text-right py-2 pr-4">Hit Bonus</th>
                     <th className="text-right py-2 pr-4">Range</th>
-                    <th className="text-left py-2">Notes</th>
+                    <th className="text-center py-2 pr-4">Ammo</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {char.weapons.map(w => (
-                    <tr key={w.name} className="border-b border-gray-800">
-                      <td className="py-2 pr-4 font-medium text-gray-200">{w.name}</td>
-                      <td className="py-2 pr-4 text-right font-mono text-red-400">{w.damage}</td>
-                      <td className="py-2 pr-4 text-right text-green-400">
-                        {w.attackBonus >= 0 ? '+' : ''}{char.baseAttackBonus + w.attackBonus}
-                      </td>
-                      <td className="py-2 pr-4 text-right text-gray-500 text-xs">{w.range ?? 'Melee'}</td>
-                      <td className="py-2 text-xs text-gray-500">{w.shock ?? w.notes ?? '—'}</td>
-                    </tr>
-                  ))}
+                  {char.weapons.map((w, wi) => {
+                    const setAmmo = (cur: number) => {
+                      if (!w.ammo) return;
+                      const next = char.weapons.map((x, i) =>
+                        i === wi && x.ammo ? { ...x, ammo: { ...x.ammo, current: Math.max(0, Math.min(x.ammo.max, cur)) } } : x);
+                      onUpdate({ ...char, weapons: next });
+                    };
+                    return (
+                      <tr key={`${w.name}-${wi}`} className="border-b border-gray-800">
+                        <td className="py-2 pr-4 font-medium text-gray-200">{w.name}</td>
+                        <td className="py-2 pr-4 text-right font-mono text-red-400">{w.damage}</td>
+                        <td className="py-2 pr-4 text-right text-green-400">
+                          {w.attackBonus >= 0 ? '+' : ''}{char.baseAttackBonus + w.attackBonus}
+                        </td>
+                        <td className="py-2 pr-4 text-right text-gray-500 text-xs">{w.range ?? 'Melee'}</td>
+                        <td className="py-2 pr-4">
+                          {w.ammo ? (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button onClick={() => setAmmo(w.ammo!.current - 1)} disabled={w.ammo.current <= 0}
+                                className="w-6 h-6 rounded bg-gray-700 hover:bg-red-900/50 disabled:opacity-20 text-gray-300 text-xs" title="Fire (−1)">−</button>
+                              <span className={`font-mono text-sm w-12 text-center ${w.ammo.current === 0 ? 'text-red-400' : 'text-gray-200'}`}>
+                                {w.ammo.current}/{w.ammo.max}
+                              </span>
+                              <button onClick={() => setAmmo(w.ammo!.max)}
+                                className="px-1.5 h-6 rounded bg-gray-700 hover:bg-amber-900/50 text-gray-300 text-xs" title="Reload">⟳</button>
+                            </div>
+                          ) : (
+                            <div className="text-center text-xs text-gray-600">—</div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -419,6 +468,30 @@ function StatRow({ label, value, big, small }: { label: string; value: string; b
       <span className={`font-bold ${big ? 'text-xl text-gray-100' : small ? 'text-sm text-gray-300' : 'text-gray-100'}`}>
         {value}
       </span>
+    </div>
+  );
+}
+
+/** Live current/max tracker with − / + steppers (clamped 0…max). */
+function Tracker({ label, current, max, onChange, downLabel, upLabel, big }: {
+  label: string; current: number; max: number; onChange: (v: number) => void;
+  downLabel?: string; upLabel?: string; big?: boolean;
+}) {
+  const set = (v: number) => onChange(Math.max(0, Math.min(max, v)));
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-gray-400 text-sm">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <button onClick={() => set(current - 1)} disabled={current <= 0}
+          className="w-6 h-6 rounded bg-gray-700 hover:bg-red-900/50 disabled:opacity-20 text-gray-300 text-sm flex items-center justify-center"
+          title={downLabel}>−</button>
+        <span className={`font-bold tabular-nums text-center ${big ? 'text-xl w-16' : 'text-base w-14'} ${current === 0 ? 'text-red-400' : 'text-gray-100'}`}>
+          {current} / {max}
+        </span>
+        <button onClick={() => set(current + 1)} disabled={current >= max}
+          className="w-6 h-6 rounded bg-gray-700 hover:bg-green-900/50 disabled:opacity-20 text-gray-300 text-sm flex items-center justify-center"
+          title={upLabel}>+</button>
+      </div>
     </div>
   );
 }

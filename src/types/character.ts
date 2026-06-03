@@ -44,7 +44,7 @@ export interface Character {
   attributes: Record<AttributeName, number>;
 
   class: ClassName;
-  adventurerPartials?: [AdventurerPartial, AdventurerPartial];
+  adventurerPartials?: AdventurerPartial[];
 
   skills: SkillLevels;
 

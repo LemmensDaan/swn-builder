@@ -22,11 +22,12 @@ interface Props {
   char: Character;
   onEdit: () => void;
   onBack: () => void;
+  onOpenRules: () => void;
 }
 
 const ATTR_ORDER = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 
-export default function CharacterSheet({ char, onEdit, onBack }: Props) {
+export default function CharacterSheet({ char, onEdit, onBack, onOpenRules }: Props) {
   const attrs = char.attributes;
   const isPsychic = char.class === 'Psychic' || char.adventurerPartials?.includes('Partial Psychic');
   const highestAC = char.armor.reduce((max, a) => Math.max(max, a.ac), 10);
@@ -35,21 +36,35 @@ export default function CharacterSheet({ char, onEdit, onBack }: Props) {
   const xpTable = [0, 3, 6, 12, 18, 27, 39, 54, 72, 93];
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
+    <div className="min-h-screen text-gray-100 flex justify-center">
+      <div className="w-full max-w-6xl flex flex-col min-h-screen bg-gray-950">
       {/* Top bar */}
-      <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center justify-between">
+      <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="text-gray-400 hover:text-gray-200 text-sm">← Characters</button>
           <span className="text-gray-700">|</span>
           <span className="text-amber-300 font-bold">{char.name}</span>
           <span className="text-gray-500 text-sm">{char.class} · Level {char.level}</span>
         </div>
-        <button
-          onClick={onEdit}
-          className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium"
-        >
-          Edit
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenRules}
+            title="Open SWN Revised Deluxe Edition rulebook"
+            className="p-1.5 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </button>
+          <button
+            onClick={onEdit}
+            className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium"
+          >
+            Edit
+          </button>
+        </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
@@ -74,7 +89,7 @@ export default function CharacterSheet({ char, onEdit, onBack }: Props) {
               const score = attrs[a];
               const mod = attrMod(score);
               return (
-                <div key={a} className="bg-gray-900 rounded-xl p-3 text-center border border-gray-700">
+                <div key={a} className="glass rounded-xl p-3 text-center">
                   <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">{a}</div>
                   <div className="text-2xl font-bold">{score}</div>
                   <div className={`text-sm font-bold mt-1 ${mod > 0 ? 'text-green-400' : mod < 0 ? 'text-red-400' : 'text-gray-500'}`}>
@@ -270,13 +285,14 @@ export default function CharacterSheet({ char, onEdit, onBack }: Props) {
           </p>
         </SheetSection>
       </div>
+      </div>
     </div>
   );
 }
 
 function SheetSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50">
+    <div className="glass rounded-xl p-4">
       <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">{title}</h2>
       {children}
     </div>
@@ -285,7 +301,7 @@ function SheetSection({ title, children }: { title: string; children: React.Reac
 
 function InfoBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-gray-800/50 rounded-lg px-4 py-3">
+    <div className="glass rounded-lg px-4 py-3">
       <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</div>
       <div className="text-gray-200 font-medium truncate">{value}</div>
     </div>

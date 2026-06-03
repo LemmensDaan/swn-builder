@@ -4,8 +4,23 @@
 
 @layer components {
   .input {
-    @apply w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-gray-100 placeholder-gray-600
+    @apply w-full bg-gray-800/70 border border-gray-600 rounded-lg px-3 py-2 text-gray-100 placeholder-gray-600
       focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40 transition-colors;
+  }
+
+  /* Semi-transparent card — use on panels that sit over the background image */
+  .glass {
+    @apply bg-gray-800/40 backdrop-blur-md border border-gray-700/60;
+  }
+
+  /* Slightly more opaque for interactive cards */
+  .glass-card {
+    @apply bg-gray-800/50 backdrop-blur-sm border border-gray-700/50;
+  }
+
+  /* Dark header/footer bars */
+  .glass-bar {
+    @apply bg-gray-900/70 backdrop-blur-md border-gray-700/80;
   }
 }
 
@@ -16,4 +31,9 @@
 body {
   margin: 0;
   background-color: #030712;
+  background-image: url('/background.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }

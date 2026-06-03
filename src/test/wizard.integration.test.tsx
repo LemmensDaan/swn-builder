@@ -30,50 +30,32 @@ function getFinishButton() {
 
 // ── Step-level validation tests ───────────────────────────────────────────────
 
-describe('Step 1 — Concept validation', () => {
+describe('Step 1 — Concept: Next always clickable (validation is at Review)', () => {
   beforeEach(clearStorage);
 
-  it('Next is disabled when name is empty', () => {
+  it('Next is always enabled (validation shown at Review, not per-step)', () => {
     render(<App />);
     clickButton(/new character/i);
-    expect(getNextButton()).toBeDisabled();
+    expect(getNextButton()).not.toBeDisabled();
   });
 
-  it('Next is enabled after entering a name', async () => {
-    const user = userEvent.setup();
+  it('Can navigate to step 2 without a name', () => {
     render(<App />);
     clickButton(/new character/i);
-    await user.type(screen.getByPlaceholderText(/e\.g\. kael/i), 'Zara Kosh');
-    expect(getNextButton()).not.toBeDisabled();
+    fireEvent.click(getNextButton());
+    // Step 2 tab becomes active (amber style in the tab bar)
+    expect(screen.getAllByText(/attributes/i).length).toBeGreaterThan(0);
   });
 });
 
-describe('Step 3 — Background validation', () => {
+describe('Step 3 — Background: navigation is always free', () => {
   beforeEach(clearStorage);
 
-  it('Next is disabled until a background is chosen', async () => {
-    const user = userEvent.setup();
+  it('Next is always enabled on background step', async () => {
     render(<App />);
     clickButton(/new character/i);
-    // Step 1: enter name
-    await user.type(screen.getByPlaceholderText(/e\.g\. kael/i), 'Test Hero');
     fireEvent.click(getNextButton()); // → step 2
     fireEvent.click(getNextButton()); // → step 3
-    expect(getNextButton()).toBeDisabled();
-  });
-
-  it('Next is enabled after picking a background', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    clickButton(/new character/i);
-    await user.type(screen.getByPlaceholderText(/e\.g\. kael/i), 'Test Hero');
-    fireEvent.click(getNextButton()); // → step 2
-    fireEvent.click(getNextButton()); // → step 3
-    // Click the first background card
-    const bgButtons = screen.getAllByRole('button').filter(
-      b => BACKGROUNDS.some(bg => b.textContent?.includes(bg.name))
-    );
-    fireEvent.click(bgButtons[0]);
     expect(getNextButton()).not.toBeDisabled();
   });
 });
@@ -152,9 +134,11 @@ describe('Review page — derived stats match source formulas', () => {
     if (clsBtn) fireEvent.click(clsBtn);
     fireEvent.click(getNextButton());
 
-    // Step 6: pick first available focus
-    const focusPicks = screen.getAllByRole('button', { name: /^pick$/i });
-    if (focusPicks[0]) fireEvent.click(focusPicks[0]);
+    // Step 6: pick first available focus (cards are now fully clickable, look for "click to pick" hint)
+    const focusCards = screen.getAllByRole('button').filter(
+      b => b.textContent?.includes('click to pick')
+    );
+    if (focusCards[0]) fireEvent.click(focusCards[0]);
     fireEvent.click(getNextButton());
 
     // Step 7: psychics — skip (non-psychic class)

@@ -15,7 +15,7 @@ export default function Step7Psychics({ char, onChange }: Props) {
   if (!isPsychic && !isPartialPsychic) {
     return (
       <div className="space-y-4">
-        <div className="bg-gray-800 rounded-lg p-6 text-center">
+        <div className="glass-card rounded-lg p-6 text-center">
           <p className="text-gray-400 mb-2">Your class does not include psychic abilities.</p>
           <p className="text-sm text-gray-500">
             If you want limited psychic powers, consider the <strong className="text-amber-300">Wild Psychic Talent</strong> focus (available in the Foci step).
@@ -58,7 +58,7 @@ export default function Step7Psychics({ char, onChange }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gray-800 rounded-lg p-4 text-sm text-gray-400">
+      <div className="glass-card rounded-lg p-4 text-sm text-gray-400">
         {isPsychic ? (
           <p>
             Choose <span className="text-amber-300 font-bold">2 psychic disciplines</span> as bonus skills.
@@ -118,7 +118,7 @@ export default function Step7Psychics({ char, onChange }: Props) {
             const freeTechPicks = skillLevel; // 1 free level-1 technique if level-1
 
             return (
-              <div key={skillName} className="bg-gray-800 rounded-lg p-5 border border-indigo-900/50">
+              <div key={skillName} className="glass-card rounded-lg p-5 border border-indigo-900/50">
                 <h3 className="text-indigo-300 font-bold text-lg mb-1">{disc.name}</h3>
                 <p className="text-xs text-gray-500 mb-3">Skill Level: {skillLevel}</p>
 

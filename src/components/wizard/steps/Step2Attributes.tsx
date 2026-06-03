@@ -31,7 +31,12 @@ interface Props {
 
 export default function Step2Attributes({ char, onChange, isEditing }: Props) {
   // When editing an existing character, default to manual so current values are immediately visible
-  const [method, setMethod] = useState<Method>(isEditing ? 'manual' : 'array');
+  // Default to manual if attributes have already been set (non-default values)
+  // so that navigating back to this step always shows current values correctly
+  const [method, setMethod] = useState<Method>(() => {
+    const hasValues = Object.values(char.attributes).some(v => v !== 10);
+    return (isEditing || hasValues) ? 'manual' : 'array';
+  });
   // For roll mode: the 6 rolled values (in order: STR DEX CON INT WIS CHA)
   const [rolls, setRolls] = useState<number[]>([]);
   // Which attribute (if any) has been bumped to 14 after rolling
@@ -161,7 +166,7 @@ export default function Step2Attributes({ char, onChange, isEditing }: Props) {
           const modColor = m > 0 ? 'text-green-400' : m < 0 ? 'text-red-400' : 'text-gray-500';
 
           return (
-            <div key={a.key} className="bg-gray-800 rounded-lg p-4 border border-gray-700 space-y-2">
+            <div key={a.key} className="glass-card rounded-lg p-4 border border-gray-700 space-y-2">
               {/* Header */}
               <div className="flex items-start justify-between">
                 <div>

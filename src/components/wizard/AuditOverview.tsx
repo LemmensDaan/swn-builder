@@ -128,7 +128,7 @@ export default function AuditOverview({ char }: Props) {
   const totalFociPicks = 1 + (isExpert ? 1 : 0) + (isWarrior ? 1 : 0);
 
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 space-y-6 font-mono text-sm">
+    <div className="glass rounded-xl p-6 space-y-6 font-mono text-sm">
       <p className="text-xs text-gray-600 uppercase tracking-widest">Character Audit</p>
 
       {/* ── Identity ───────────────────────────────────────────────── */}

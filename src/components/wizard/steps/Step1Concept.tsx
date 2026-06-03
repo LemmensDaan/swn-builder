@@ -44,7 +44,7 @@ export default function Step1Concept({ char, onChange }: Props) {
         />
       </Field>
 
-      <div className="bg-gray-800 rounded-lg p-4 text-sm text-gray-400 space-y-2">
+      <div className="glass-card rounded-lg p-4 text-sm text-gray-400 space-y-2">
         <p className="text-amber-300 font-semibold">Setting the Scene</p>
         <p>
           It is the year 3200. Centuries after the <em>Silence</em> — a catastrophe that destroyed interstellar civilization — scattered worlds are slowly reaching back out to each other. You are an adventurer among these stars: a freebooter, mercenary, explorer, or simply someone who refuses to stay put.

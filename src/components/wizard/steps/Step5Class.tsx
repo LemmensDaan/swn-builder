@@ -67,26 +67,24 @@ const CLASSES: {
 const PARTIAL_OPTIONS: AdventurerPartial[] = ['Partial Expert', 'Partial Psychic', 'Partial Warrior'];
 
 export default function Step5Class({ char, onChange }: Props) {
-  // Default to empty — user selects manually
+  // Now stored as AdventurerPartial[] (0–2 items) so intermediate state persists
   const selected: AdventurerPartial[] = char.adventurerPartials ?? [];
 
   function selectClass(cls: ClassName) {
-    // Switching class resets partials
     onChange({ class: cls, adventurerPartials: undefined });
   }
 
   function togglePartial(p: AdventurerPartial) {
     const has = selected.includes(p);
+    let next: AdventurerPartial[];
     if (has) {
-      // Deselect
-      const next = selected.filter(x => x !== p);
-      onChange({ adventurerPartials: next.length === 2 ? next as [AdventurerPartial, AdventurerPartial] : undefined });
+      next = selected.filter(x => x !== p);
     } else {
-      // Select — only if fewer than 2 chosen
-      if (selected.length >= 2) return;
-      const next = [...selected, p];
-      onChange({ adventurerPartials: next.length === 2 ? next as [AdventurerPartial, AdventurerPartial] : undefined });
+      if (selected.length >= 2) return; // already 2 chosen — do nothing
+      next = [...selected, p];
     }
+    // Store even 0 or 1 selections so state persists across navigation
+    onChange({ adventurerPartials: next.length > 0 ? next : undefined });
   }
 
   return (
@@ -137,14 +135,12 @@ export default function Step5Class({ char, onChange }: Props) {
         })}
       </div>
 
-      {/* Partial class selector — only shown for Adventurer */}
       {char.class === 'Adventurer' && (
         <div className="bg-gray-800 border border-amber-700/40 rounded-lg p-5 space-y-4">
           <div>
             <p className="text-sm font-semibold text-amber-300 mb-1">Choose Two Partial Classes</p>
             <p className="text-xs text-gray-500">
-              Select exactly 2. Each grants a weakened version of that class's abilities.
-              The third is greyed out once 2 are selected.
+              Click to select / deselect. Once 2 are chosen the third is disabled.
               <PageRef page={22} note="Partial Expert: free non-combat focus + extra skill point per level. Partial Psychic: one discipline only. Partial Warrior: free combat focus + +1 attack at 1st/5th + +2 HP/level." />
             </p>
           </div>
@@ -158,30 +154,26 @@ export default function Step5Class({ char, onChange }: Props) {
                   key={p}
                   onClick={() => togglePartial(p)}
                   disabled={maxed}
-                  className={`px-4 py-2 rounded border text-sm font-medium transition-colors ${
+                  className={`px-5 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
                     active
                       ? 'border-amber-500 bg-amber-900/30 text-amber-300'
                       : maxed
                       ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed'
-                      : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-400 hover:text-gray-200'
+                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-amber-600 hover:text-amber-200'
                   }`}
                 >
                   {p}
-                  {active && <span className="ml-1.5 text-amber-500">✓</span>}
+                  {active && <span className="ml-2 text-amber-500">✓</span>}
                 </button>
               );
             })}
           </div>
 
-          {selected.length === 0 && (
-            <p className="text-xs text-red-400">Select 2 partial classes to continue.</p>
-          )}
-          {selected.length === 1 && (
-            <p className="text-xs text-amber-400">Select 1 more partial class.</p>
-          )}
-          {selected.length === 2 && (
-            <p className="text-xs text-green-400">✓ {selected.join(' + ')}</p>
-          )}
+          <p className="text-xs">
+            {selected.length === 0 && <span className="text-gray-500">Select 2 partial classes.</span>}
+            {selected.length === 1 && <span className="text-amber-400">1 more to go.</span>}
+            {selected.length === 2 && <span className="text-green-400">✓ {selected.join(' + ')}</span>}
+          </p>
         </div>
       )}
     </div>

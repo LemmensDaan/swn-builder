@@ -90,11 +90,21 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
   const hasQuickAnyCombat = bg ? bg.quickSkills.includes('Any Combat') : false;
 
   const [mode, setMode] = useState<SkillMode>('quick');
-  const [freeCombat, setFreeCombat] = useState<Skill | null>(null);   // persists across mode changes
-  const [quickCombat, setQuickCombat] = useState<Skill | null>(null); // persists across mode changes
+  const [freeCombat, setFreeCombat] = useState<Skill | null>(null);
+  const [quickCombat, setQuickCombat] = useState<Skill | null>(null);
   const [picks, setPicks] = useState<PickEntry[]>([]);
   const [rolls, setRolls] = useState<RollEntry[]>([]);
-  const [bonusSkill, setBonusSkill] = useState<Skill | null>(null);   // persists across mode changes
+  // Infer bonus skill from existing char.skills when returning to this step
+  const [bonusSkill, setBonusSkill] = useState<Skill | null>(() => {
+    if (!bg || Object.keys(char.skills).length === 0) return null;
+    const bgSourceSkills = new Set<string>([
+      ...(bg.freeSkill !== 'Any Combat' ? [bg.freeSkill] : []),
+      ...bg.quickSkills.filter(s => s !== 'Any Combat'),
+    ]);
+    // A skill not from background sources is likely the bonus pick
+    const extra = Object.keys(char.skills).find(s => !bgSourceSkills.has(s));
+    return (extra as Skill) ?? null;
+  });
 
   // ── Compute completion ───────────────────────────────────────────────────────
 
@@ -301,7 +311,7 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
   return (
     <div className="space-y-6">
       {/* Background info */}
-      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 flex flex-wrap gap-4 items-center text-sm">
+      <div className="glass-card rounded-lg p-4 border border-gray-700 flex flex-wrap gap-4 items-center text-sm">
         <div>
           <span className="text-gray-500">Background: </span>
           <span className="text-amber-300 font-medium">{bg.name}</span>
@@ -370,7 +380,7 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
           <div className="flex flex-wrap gap-2">
             {bg.quickSkills.map((s, i) => (
               <span key={i} className="px-3 py-1 rounded-full bg-green-900/40 border border-green-700 text-green-300 text-sm">
-                {s}
+                {s}-0
               </span>
             ))}
           </div>

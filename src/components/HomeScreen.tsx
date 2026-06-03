@@ -5,19 +5,27 @@ interface Props {
   onNew: () => void;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
+  onOpenRules: () => void;
 }
 
-export default function HomeScreen({ characters, onNew, onOpen, onDelete }: Props) {
+export default function HomeScreen({ characters, onNew, onOpen, onDelete, onOpenRules }: Props) {
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
+    <div className="min-h-screen bg-gray-950/50 text-gray-100 flex flex-col">
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-700 px-6 py-4">
+      <div className="bg-gray-900/90 backdrop-blur-sm border-b border-gray-700 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-amber-400">Stars Without Number</h1>
             <p className="text-xs text-gray-500">Revised Deluxe Edition — Character & Ship Builder</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
+            <button
+              onClick={onOpenRules}
+              title="Open SWN Revised Deluxe Edition rulebook"
+              className="p-2 rounded text-gray-400 hover:text-amber-300 hover:bg-gray-700 transition-colors"
+            >
+              <BookIcon />
+            </button>
             <button
               onClick={onNew}
               className="px-4 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm transition-colors"
@@ -81,7 +89,7 @@ function CharacterCard({ char, onOpen, onDelete }: { char: Character; onOpen: ()
     : char.class;
 
   return (
-    <div className="bg-gray-800/70 border border-gray-700 rounded-xl p-5 hover:border-gray-600 transition-colors">
+    <div className="glass-card rounded-xl p-5 hover:border-amber-700/50 transition-colors">
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="font-bold text-gray-100 text-lg leading-tight">{char.name || '(unnamed)'}</h3>
@@ -168,5 +176,15 @@ function Pill({ label, value, color }: { label: string; value: string; color: st
       <div className="font-bold text-sm">{value}</div>
       <div className="text-gray-500 text-xs">{label}</div>
     </div>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </svg>
   );
 }

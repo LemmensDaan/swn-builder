@@ -16,6 +16,7 @@ interface Props {
   initial?: Character;
   onSave: (char: Character) => void;
   onCancel: () => void;
+  onOpenRules: () => void;
 }
 
 const TOTAL_STEPS = 9;
@@ -38,7 +39,7 @@ export interface ValidationError {
   message: string;
 }
 
-export default function CharacterWizard({ initial, onSave, onCancel }: Props) {
+export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules }: Props) {
   const isEditing = !!initial;
 
   const [step, setStep] = useState(1);
@@ -141,6 +142,7 @@ export default function CharacterWizard({ initial, onSave, onCancel }: Props) {
 
   return (
     <WizardLayout
+      onOpenRules={onOpenRules}
       step={step}
       totalSteps={TOTAL_STEPS}
       title={meta.title}
@@ -152,7 +154,7 @@ export default function CharacterWizard({ initial, onSave, onCancel }: Props) {
       onNext={step < TOTAL_STEPS ? handleNext : undefined}
       onFinish={step === TOTAL_STEPS ? finalize : undefined}
       finishDisabled={!canFinish}
-      nextDisabled={!stepValid(step)}
+      nextDisabled={false}
     >
       {step === 1 && <Step1Concept char={char} onChange={patch} />}
       {step === 2 && <Step2Attributes char={char} onChange={patch} isEditing={isEditing} />}

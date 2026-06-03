@@ -53,12 +53,6 @@ function CreditBar({ char, onChange }: { char: Character; onChange: (patch: Part
           <span className="text-gray-500 text-sm">cr</span>
         </div>
 
-        {/* Spent */}
-        <div className="text-sm">
-          <span className="text-gray-500">Spent: </span>
-          <span className="font-mono text-orange-300">−{spent.toLocaleString()} cr</span>
-        </div>
-
         {/* Remaining */}
         <div className="text-sm">
           <span className="text-gray-500">Remaining: </span>
@@ -69,8 +63,8 @@ function CreditBar({ char, onChange }: { char: Character; onChange: (patch: Part
         </div>
       </div>
 
-      {/* Progress bar */}
-      {char.credits > 0 && (
+      {/* Progress bar — only when budget is set and something was spent */}
+      {char.credits > 0 && spent > 0 && (
         <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-300 ${overBudget ? 'bg-red-500' : 'bg-amber-500'}`}
@@ -79,7 +73,7 @@ function CreditBar({ char, onChange }: { char: Character; onChange: (patch: Part
         </div>
       )}
 
-      {/* Gear cost breakdown */}
+      {/* Gear cost breakdown — only when something has been bought */}
       {spent > 0 && (
         <div className="flex flex-wrap gap-1.5 pt-1">
           {char.armor.map(a => {

@@ -72,7 +72,7 @@ export default function Step6Foci({ char, onChange }: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="bg-gray-800 rounded-lg p-4 text-sm text-gray-400">
+      <div className="glass-card rounded-lg p-4 text-sm text-gray-400">
         <p>
           You have <span className="text-amber-300 font-bold">{totalPicks}</span> focus pick{totalPicks > 1 ? 's' : ''}.
           {isExpert && ' Experts get 1 extra non-combat focus.'}
@@ -144,18 +144,23 @@ export default function Step6Foci({ char, onChange }: Props) {
         />
       </div>
 
-      {/* Focus list */}
+      {/* Focus list — entire card is clickable */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {filtered.map(focus => {
           const sel = getSelected(focus.name);
           const canPick = !sel && char.foci.length < totalPicks;
+          const clickable = sel || canPick;
           return (
-            <div
+            <button
               key={focus.name}
-              className={`rounded-lg border p-4 transition-colors ${
+              onClick={() => clickable && toggleFocus(focus.name)}
+              disabled={!clickable}
+              className={`text-left rounded-lg border p-4 transition-colors w-full ${
                 sel
-                  ? 'border-amber-500 bg-amber-900/10'
-                  : 'border-gray-700 bg-gray-800'
+                  ? 'border-amber-500 bg-amber-900/10 hover:border-amber-400'
+                  : canPick
+                  ? 'border-gray-700 bg-gray-800 hover:border-amber-600 hover:bg-gray-700/80 cursor-pointer'
+                  : 'border-gray-800 bg-gray-900/50 opacity-50 cursor-not-allowed'
               }`}
             >
               <div className="flex items-start justify-between gap-2 mb-2">
@@ -164,22 +169,8 @@ export default function Step6Foci({ char, onChange }: Props) {
                   {focus.isCombat && <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800">Combat</span>}
                   {focus.repeatable && <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-800">Repeatable</span>}
                 </div>
-                {canPick && (
-                  <button
-                    onClick={() => toggleFocus(focus.name)}
-                    className="text-xs px-2 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white flex-shrink-0"
-                  >
-                    Pick
-                  </button>
-                )}
-                {sel && (
-                  <button
-                    onClick={() => toggleFocus(focus.name)}
-                    className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-red-900 text-gray-300 flex-shrink-0"
-                  >
-                    Remove
-                  </button>
-                )}
+                {sel && <span className="text-amber-400 text-lg flex-shrink-0">✓</span>}
+                {!sel && canPick && <span className="text-gray-600 text-xs flex-shrink-0">click to pick</span>}
               </div>
               <p className="text-xs text-gray-500 mb-3">{focus.description}</p>
               {focus.levels.map((lvl, i) => (
@@ -188,7 +179,7 @@ export default function Step6Foci({ char, onChange }: Props) {
                   <span className="text-gray-300">{lvl.description}</span>
                 </div>
               ))}
-            </div>
+            </button>
           );
         })}
       </div>

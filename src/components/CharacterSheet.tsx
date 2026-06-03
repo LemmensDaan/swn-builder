@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import type { Character } from '../types/character';
 import { attrMod } from '../types/character';
 import { ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS } from '../data/equipment';
+import { xpForLevel } from '../data/leveling';
+import LevelUp from './LevelUp';
 
 function gearCost(name: string): number {
   return (
@@ -23,17 +26,20 @@ interface Props {
   onEdit: () => void;
   onBack: () => void;
   onOpenRules: () => void;
+  onUpdate: (char: Character) => void;
 }
 
 const ATTR_ORDER = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 
-export default function CharacterSheet({ char, onEdit, onBack, onOpenRules }: Props) {
+export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onUpdate }: Props) {
   const attrs = char.attributes;
   const isPsychic = char.class === 'Psychic' || char.adventurerPartials?.includes('Partial Psychic');
   const highestAC = char.armor.reduce((max, a) => Math.max(max, a.ac), 10);
   const totalAC = highestAC + attrMod(attrs.DEX);
+  const [showLevelUp, setShowLevelUp] = useState(false);
 
-  const xpTable = [0, 3, 6, 12, 18, 27, 39, 54, 72, 93];
+  const nextLevelXp = xpForLevel(char.level + 1);
+  const canLevelUp = char.xp >= nextLevelXp && char.level < 20;
 
   return (
     <div className="min-h-screen text-gray-100 flex justify-center">
@@ -58,6 +64,14 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules }: Pr
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
           </button>
+          {canLevelUp && (
+            <button
+              onClick={() => setShowLevelUp(true)}
+              className="px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 text-white text-sm font-semibold animate-pulse"
+            >
+              ↑ Level Up
+            </button>
+          )}
           <button
             onClick={onEdit}
             className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium"
@@ -73,7 +87,22 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules }: Pr
           <InfoBlock label="Background" value={char.background || '—'} />
           <InfoBlock label="Homeworld" value={char.homeworld || '—'} />
           <InfoBlock label="Species" value={char.species} />
-          <InfoBlock label="XP" value={`${char.xp} / ${xpTable[Math.min(char.level, xpTable.length - 1)]} (next lvl)`} />
+          <div className="glass rounded-lg px-4 py-3">
+            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">XP</div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                value={char.xp}
+                onChange={e => onUpdate({ ...char, xp: Math.max(0, Number(e.target.value)) })}
+                className="w-16 bg-transparent text-gray-200 font-medium text-sm border-b border-gray-600 focus:border-amber-500 outline-none"
+              />
+              <span className="text-gray-600 text-xs">/ {nextLevelXp} (lvl {char.level + 1})</span>
+            </div>
+            {canLevelUp && (
+              <p className="text-xs text-amber-400 mt-1 font-medium">Ready to level up!</p>
+            )}
+          </div>
         </div>
 
         {char.goal && (
@@ -267,16 +296,53 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules }: Pr
                 );
               })()}
               <ul className="space-y-1">
-                {char.equipment.map((e, i) => (
-                  <li key={i} className="text-sm text-gray-400 flex gap-2">
-                    <span className="text-gray-600">•</span>
-                    <span>{e}</span>
-                  </li>
-                ))}
+                {[...new Set(char.equipment)].map((e) => {
+                  const qty = char.equipment.filter((x: string) => x === e).length;
+                  return (
+                    <li key={e} className="text-sm text-gray-400 flex gap-2">
+                      <span className="text-gray-600">•</span>
+                      <span>{qty > 1 ? `${e} ×${qty}` : e}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </SheetSection>
           )}
         </div>
+
+        {/* Level history */}
+        {char.levelHistory.length > 0 && (
+          <SheetSection title="Advancement History">
+            <div className="space-y-2">
+              {char.levelHistory.map(record => (
+                <div key={record.level} className="glass rounded-lg px-3 py-2 text-xs">
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="text-amber-400 font-bold">Level {record.level}</span>
+                    <span className="text-green-400">+{record.hpGained} HP</span>
+                    <span className="text-gray-500">({record.spTotal} SP gained)</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-gray-400">
+                    {record.skillSpends.map(s => (
+                      <span key={s.skill} className="bg-gray-700/60 px-2 py-0.5 rounded">
+                        {s.skill} {s.from === -1 ? '(new)' : `-${s.from}`}→-{s.to}
+                      </span>
+                    ))}
+                    {record.attrBoosts.map(b => (
+                      <span key={b.attr} className="bg-blue-900/40 text-blue-300 px-2 py-0.5 rounded">
+                        {b.attr} {b.from}→{b.to}
+                      </span>
+                    ))}
+                    {record.focusPicked && (
+                      <span className="bg-amber-900/40 text-amber-300 px-2 py-0.5 rounded">
+                        {record.focusPicked.name} Lvl {record.focusPicked.level}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SheetSection>
+        )}
 
         {/* Notes */}
         <SheetSection title="Notes">
@@ -286,6 +352,13 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules }: Pr
         </SheetSection>
       </div>
       </div>
+      {showLevelUp && (
+        <LevelUp
+          char={char}
+          onConfirm={updated => { onUpdate(updated); setShowLevelUp(false); }}
+          onCancel={() => setShowLevelUp(false)}
+        />
+      )}
     </div>
   );
 }

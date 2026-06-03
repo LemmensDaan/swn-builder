@@ -56,6 +56,7 @@ export default function App() {
           onEdit={() => setView({ type: 'wizard', editId: viewingChar.id })}
           onBack={() => setView({ type: 'home' })}
           onOpenRules={() => setShowRules(true)}
+          onUpdate={upsert}
         />
       )}
 

@@ -288,20 +288,27 @@ export default function AuditOverview({ char }: Props) {
         </Section>
       )}
 
-      {/* ── Armor & weapons ────────────────────────────────────────── */}
-      <Section title="Combat Gear">
-        <Row label="Armor Class" value={`${totalAC}`}
-          note={`${char.armor[0]?.name ?? 'Unarmored (AC 10)'} + DEX mod (${attrMod(char.attributes.DEX) >= 0 ? '+' : ''}${attrMod(char.attributes.DEX)})`} />
-        {char.armor.length === 0 && (
-          <div className="pl-[132px] text-xs text-gray-600">No armor equipped.</div>
-        )}
-        {char.weapons.map(w => (
-          <Row key={w.name} label={w.name} value={w.damage}
-            note={w.range ? `range ${w.range}` : 'melee'} />
-        ))}
-        {char.weapons.length === 0 && (
-          <Row label="Weapons" value="None" note="Unarmed: 1d2, no Shock" />
-        )}
+      {/* ── Armor ──────────────────────────────────────────────────── */}
+      <Section title="Armor">
+        <Row label="Total AC" value={`${totalAC}`}
+          note={`base + DEX mod (${attrMod(char.attributes.DEX) >= 0 ? '+' : ''}${attrMod(char.attributes.DEX)})`} />
+        {char.armor.length === 0
+          ? <div className="py-0.5 text-gray-600 text-sm pl-0">Unarmored (AC 10)</div>
+          : char.armor.map(a => (
+            <Row key={a.name} label={a.name} value={`AC ${a.ac}`} />
+          ))
+        }
+      </Section>
+
+      {/* ── Weapons ────────────────────────────────────────────────── */}
+      <Section title="Weapons">
+        {char.weapons.length === 0
+          ? <Row label="Unarmed" value="1d2" note="no Shock, always adds Punch skill to damage" />
+          : char.weapons.map(w => (
+            <Row key={w.name} label={w.name} value={w.damage}
+              note={w.range ? `range ${w.range}` : w.shock ? `shock: ${w.shock}` : 'melee'} />
+          ))
+        }
       </Section>
 
       {/* ── Equipment & credits ────────────────────────────────────── */}
@@ -310,9 +317,10 @@ export default function AuditOverview({ char }: Props) {
           {char.credits > 0 && (
             <Row label="Credits" value={`${char.credits.toLocaleString()} cr`} />
           )}
-          {char.equipment.map((e, i) => (
-            <Row key={i} label="" value={e} />
-          ))}
+          {[...new Set(char.equipment)].map(e => {
+            const qty = char.equipment.filter(x => x === e).length;
+            return <Row key={e} label="" value={qty > 1 ? `${e} ×${qty}` : e} />;
+          })}
         </Section>
       )}
 

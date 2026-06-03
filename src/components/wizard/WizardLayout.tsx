@@ -34,7 +34,7 @@ export default function WizardLayout({
     <div className="min-h-screen text-gray-100 flex justify-center">
 
       {/* Solid wizard column — image visible in gutters left and right */}
-      <div className="w-full max-w-5xl flex flex-col min-h-screen bg-gray-950">
+      <div className="w-full max-w-5xl flex flex-col min-h-screen bg-gray-950 overflow-x-hidden">
 
         {/* Header — solid */}
         <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center gap-4 flex-shrink-0">
@@ -103,9 +103,9 @@ export default function WizardLayout({
           </div>
         </div>
 
-        {/* Content — solid dark */}
-        <div className="flex-1 overflow-y-auto bg-gray-950">
-          <div className="max-w-4xl mx-auto px-4 py-8">
+        {/* Content — solid dark, overflow-x hidden to prevent horizontal scroll */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-950">
+          <div className="max-w-4xl mx-auto px-4 py-8 min-w-0">
             <h1 className="text-2xl font-bold text-amber-300 mb-1">{title}</h1>
             {subtitle && <p className="text-gray-400 mb-6">{subtitle}</p>}
             {children}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Character } from '../../../types/character';
-import { EQUIPMENT_PACKAGES, ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS } from '../../../data/equipment';
+import { EQUIPMENT_PACKAGES, ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../../../data/equipment';
+import type { EquipCategory } from '../../../data/equipment';
 import PageRef from '../../ui/PageRef';
 
 interface Props {
@@ -8,7 +9,11 @@ interface Props {
   onChange: (patch: Partial<Character>) => void;
 }
 
-type EquipTab = 'packages' | 'armor' | 'ranged' | 'melee';
+type EquipTab = 'packages' | 'armor' | 'ranged' | 'melee' | 'items';
+
+const ITEM_CATEGORIES: EquipCategory[] = [
+  'Ammo & Power', 'Communications', 'Computing', 'Medical', 'Field Equipment', 'Pharmaceuticals', 'Lifestyle',
+];
 
 // ── Credit helpers ────────────────────────────────────────────────────────────
 
@@ -17,6 +22,7 @@ function itemCost(name: string): number {
     ARMOR_TABLE.find(a => a.name === name)?.cost ??
     RANGED_WEAPONS.find(w => w.name === name)?.cost ??
     MELEE_WEAPONS.find(w => w.name === name)?.cost ??
+    GENERAL_EQUIPMENT.find(g => g.name === name)?.cost ??
     0
   );
 }
@@ -112,8 +118,8 @@ export default function Step8Equipment({ char, onChange }: Props) {
   function selectPackage(name: string) {
     const pkg = EQUIPMENT_PACKAGES.find(p => p.name === name);
     if (!pkg) return;
-    // Package sets budget to leftover credits + clears individual gear
-    onChange({ equipment: pkg.items, credits: pkg.credits, armor: [], weapons: [] });
+    // Package sets budget to leftover credits; individual gear (armor/weapons) persists
+    onChange({ equipment: pkg.items, credits: pkg.credits });
   }
 
   function addArmor(name: string, ac: number, cost: number) {
@@ -137,11 +143,14 @@ export default function Step8Equipment({ char, onChange }: Props) {
     onChange({ weapons: next, credits: char.credits + cost });
   }
 
+  const [itemCategory, setItemCategory] = useState<EquipCategory>('Ammo & Power');
+
   const TABS: { key: EquipTab; label: string }[] = [
     { key: 'packages', label: 'Packages' },
     { key: 'armor', label: 'Armor' },
     { key: 'ranged', label: 'Ranged' },
     { key: 'melee', label: 'Melee' },
+    { key: 'items', label: 'Items' },
   ];
 
   return (
@@ -392,6 +401,91 @@ export default function Step8Equipment({ char, onChange }: Props) {
         </div>
       )}
 
+      {/* ── Items tab ──────────────────────────────────────────────── */}
+      {tab === 'items' && (
+        <div className="space-y-3">
+          {/* Category filter */}
+          <div className="flex flex-wrap gap-1.5">
+            {ITEM_CATEGORIES.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setItemCategory(cat)}
+                className={`px-3 py-1 rounded text-xs font-medium border transition-colors ${
+                  itemCategory === cat
+                    ? 'border-amber-500 bg-amber-900/30 text-amber-300'
+                    : 'border-gray-600 bg-gray-800 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-700 text-gray-400 text-xs uppercase tracking-wide">
+                  <th className="text-left py-2 pr-4">Item</th>
+                  <th className="text-right py-2 pr-3">Cost</th>
+                  <th className="text-right py-2 pr-3">Enc</th>
+                  <th className="text-right py-2 pr-3">TL</th>
+                  <th className="py-2 w-20"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {GENERAL_EQUIPMENT.filter(g => g.category === itemCategory).map(g => {
+                  const qty = char.equipment.filter(e => e === g.name).length;
+                  const canAfford = char.credits >= g.cost || g.cost === 0;
+                  return (
+                    <tr key={g.name} className={`border-b border-gray-800 hover:bg-gray-800/50 ${qty > 0 ? 'bg-amber-900/10' : ''}`}>
+                      <td className="py-2 pr-4">
+                        <div className={`font-medium ${qty > 0 ? 'text-amber-300' : 'text-gray-200'}`}>
+                          {g.name}
+                          {qty > 1 && <span className="ml-1 text-xs text-amber-500">×{qty}</span>}
+                        </div>
+                        {g.notes && <div className="text-xs text-gray-500">{g.notes}</div>}
+                      </td>
+                      <td className={`py-2 pr-3 text-right font-mono text-xs ${!canAfford ? 'text-red-500' : 'text-gray-400'}`}>
+                        {g.cost > 0 ? g.cost.toLocaleString() : '—'}
+                      </td>
+                      <td className="py-2 pr-3 text-right text-gray-500 text-xs">{g.enc || '—'}</td>
+                      <td className="py-2 pr-3 text-right text-gray-600 text-xs">TL{g.tl}</td>
+                      <td className="py-2">
+                        <div className="flex items-center gap-1">
+                          <button
+                            disabled={qty === 0}
+                            onClick={() => {
+                              const idx = char.equipment.lastIndexOf(g.name);
+                              const next = [...char.equipment];
+                              next.splice(idx, 1);
+                              onChange({ equipment: next, credits: char.credits + g.cost });
+                            }}
+                            className="w-7 h-7 rounded bg-gray-700 hover:bg-red-900/40 disabled:opacity-20 text-gray-300 text-sm flex items-center justify-center"
+                          >−</button>
+                          <span className="w-5 text-center text-xs text-gray-400">{qty}</span>
+                          <button
+                            onClick={() => onChange({
+                              equipment: [...char.equipment, g.name],
+                              credits: char.credits - g.cost,
+                            })}
+                            className={`w-7 h-7 rounded text-sm flex items-center justify-center ${
+                              canAfford
+                                ? 'bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300'
+                                : 'bg-gray-800 text-red-500/60 hover:bg-red-900/20'
+                            }`}
+                            title={!canAfford ? `Need ${(g.cost - char.credits).toLocaleString()} more cr` : undefined}
+                          >+</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* ── Selected gear summary ───────────────────────────────────── */}
       {(char.armor.length > 0 || char.weapons.length > 0 || char.equipment.length > 0) && (
         <div className="bg-gray-800/50 rounded-lg p-4">
@@ -407,9 +501,15 @@ export default function Step8Equipment({ char, onChange }: Props) {
                 ⚔ {w.name} ({w.damage})
               </span>
             ))}
-            {char.equipment.map((e, i) => (
-              <span key={i} className="px-2 py-1 rounded bg-gray-700 text-gray-300">{e}</span>
-            ))}
+            {/* Deduplicate and show counts */}
+            {[...new Set(char.equipment)].map(e => {
+              const qty = char.equipment.filter(x => x === e).length;
+              return (
+                <span key={e} className="px-2 py-1 rounded bg-gray-700 text-gray-300">
+                  {qty > 1 ? `${e} ×${qty}` : e}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}

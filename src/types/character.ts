@@ -1,5 +1,36 @@
 import type { SkillLevels, Skill } from '../data/skills';
 
+export interface SkillSpend {
+  skill: string;
+  from: number;   // previous level (-1 = untrained)
+  to: number;     // new level
+  cost: number;   // SP spent
+}
+
+export interface AttrBoost {
+  attr: string;
+  from: number;
+  to: number;
+  cost: number;
+}
+
+export interface TechniqueLearn {
+  discipline: string;
+  techniqueName: string;
+  cost: number; // 1 SP per technique level
+}
+
+export interface LevelRecord {
+  level: number;                   // the level gained (2, 3, ...)
+  hpRolled: number;                // d6 result
+  hpGained: number;                // after CON mod + Warrior bonus, min 1
+  spTotal: number;                 // SP pool this level (3 or 4 for Expert)
+  skillSpends: SkillSpend[];
+  attrBoosts: AttrBoost[];
+  techniquesLearned: TechniqueLearn[];
+  focusPicked?: FocusSelection;    // free focus at levels 2, 5, 7, 10
+}
+
 export type AttributeName = 'STR' | 'DEX' | 'CON' | 'INT' | 'WIS' | 'CHA';
 
 export type ClassName = 'Expert' | 'Psychic' | 'Warrior' | 'Adventurer';
@@ -67,6 +98,12 @@ export interface Character {
   debts: number;
 
   notes: string;
+
+  // Advancement history — one record per level gained after level 1
+  levelHistory: LevelRecord[];
+  // Snapshot of skills as set by the wizard at level 1;
+  // used to recompute final skills if the wizard is re-saved on a leveled character
+  creationSkills: SkillLevels;
 }
 
 export function attrMod(score: number): number {
@@ -100,6 +137,33 @@ export function calcAttackBonus(cls: ClassName, partials: AdventurerPartial[] | 
   return Math.floor(level / 2);
 }
 
+/**
+ * Recompute final char.skills from creationSkills + all levelHistory skill spends.
+ * Call this whenever the wizard re-saves a leveled character.
+ */
+export function recomputeSkills(char: Character): SkillLevels {
+  const skills: Record<string, number> = { ...char.creationSkills };
+  for (const record of char.levelHistory) {
+    for (const spend of record.skillSpends) {
+      skills[spend.skill] = spend.to;
+    }
+  }
+  return skills;
+}
+
+/**
+ * Recompute final attributes from base attributes + all levelHistory attr boosts.
+ */
+export function recomputeAttributes(char: Character): Record<AttributeName, number> {
+  const attrs = { ...char.attributes };
+  for (const record of char.levelHistory) {
+    for (const boost of record.attrBoosts) {
+      (attrs as Record<string, number>)[boost.attr] = boost.to;
+    }
+  }
+  return attrs;
+}
+
 export function emptyCharacter(): Character {
   return {
     id: crypto.randomUUID(),
@@ -127,5 +191,7 @@ export function emptyCharacter(): Character {
     credits: 0,
     debts: 0,
     notes: '',
+    levelHistory: [],
+    creationSkills: {},
   };
 }

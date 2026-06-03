@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Character } from '../../types/character';
-import { emptyCharacter, calcSaves, calcAttackBonus, calcEffort, attrMod } from '../../types/character';
+import { emptyCharacter, calcSaves, calcAttackBonus, calcEffort, attrMod, recomputeSkills } from '../../types/character';
 import WizardLayout from './WizardLayout';
 import Step1Concept from './steps/Step1Concept';
 import Step2Attributes from './steps/Step2Attributes';
@@ -43,12 +43,12 @@ export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules
   const isEditing = !!initial;
 
   const [step, setStep] = useState(1);
-  // When editing, all steps are already "visited" so the user can jump anywhere immediately
   const [maxVisited, setMaxVisited] = useState(isEditing ? TOTAL_STEPS : 1);
   const [char, setChar] = useState<Character>(() => initial ?? emptyCharacter());
   const [skillsComplete, setSkillsComplete] = useState(
     () => isEditing ? Object.keys(initial!.skills).length >= 2 : false
   );
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   function patch(updates: Partial<Character>) {
     setChar(prev => {
@@ -128,6 +128,8 @@ export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules
   function finalize() {
     if (!canFinish) return;
     const finalChar = { ...char };
+
+    // Roll HP for new characters
     if (!isEditing || finalChar.hitPoints.max <= 1) {
       const conMod = attrMod(finalChar.attributes.CON);
       const isWarrior = finalChar.class === 'Warrior' || finalChar.adventurerPartials?.includes('Partial Warrior');
@@ -135,12 +137,22 @@ export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules
       finalChar.hitPoints.max = Math.max(1, roll + conMod + (isWarrior ? 2 : 0));
       finalChar.hitPoints.current = finalChar.hitPoints.max;
     }
+
+    // Snapshot creation skills so level-history recompute works later
+    finalChar.creationSkills = { ...finalChar.skills };
+
+    // If re-saving a leveled character: recompute skills = new base + history
+    if (finalChar.levelHistory.length > 0) {
+      finalChar.skills = recomputeSkills(finalChar);
+    }
+
     onSave(finalChar);
   }
 
   const meta = STEP_META[step - 1];
 
   return (
+    <>
     <WizardLayout
       onOpenRules={onOpenRules}
       step={step}
@@ -150,12 +162,22 @@ export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules
       maxVisited={maxVisited}
       onStepClick={goToStep}
       stepValidity={stepValidity}
-      onBack={step > 1 ? () => goToStep(step - 1) : onCancel}
+      onBack={step > 1 ? () => goToStep(step - 1) : () => setConfirmCancel(true)}
       onNext={step < TOTAL_STEPS ? handleNext : undefined}
       onFinish={step === TOTAL_STEPS ? finalize : undefined}
       finishDisabled={!canFinish}
       nextDisabled={false}
     >
+      {/* Warning when editing a leveled character */}
+      {isEditing && char.levelHistory.length > 0 && (
+        <div className="mb-6 bg-amber-900/20 border border-amber-700/50 rounded-lg px-4 py-3 text-sm text-amber-300">
+          <span className="font-semibold">⚠ Leveled character ({char.level})</span>
+          <span className="text-amber-400/70 ml-2">
+            This character has {char.levelHistory.length} level-up{char.levelHistory.length > 1 ? 's' : ''} recorded.
+            Changing class, background, or attributes will update base stats but preserve all advancement history.
+          </span>
+        </div>
+      )}
       {step === 1 && <Step1Concept char={char} onChange={patch} />}
       {step === 2 && <Step2Attributes char={char} onChange={patch} isEditing={isEditing} />}
       {step === 3 && <Step3Background char={char} onChange={patch} />}
@@ -174,5 +196,36 @@ export default function CharacterWizard({ initial, onSave, onCancel, onOpenRules
         />
       )}
     </WizardLayout>
+
+    {/* Cancel confirmation */}
+    {confirmCancel && (
+      <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+          <h3 className="text-gray-100 font-semibold text-lg">
+            {isEditing ? 'Discard changes?' : 'Cancel character creation?'}
+          </h3>
+          <p className="text-gray-400 text-sm">
+            {isEditing
+              ? 'Any unsaved changes to this character will be lost.'
+              : 'Your progress will not be saved.'}
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setConfirmCancel(false)}
+              className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium"
+            >
+              Keep editing
+            </button>
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 rounded bg-red-700 hover:bg-red-600 text-white text-sm font-semibold"
+            >
+              Exit Wizard
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

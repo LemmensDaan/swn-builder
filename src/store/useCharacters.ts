@@ -1,12 +1,30 @@
 import { useState, useEffect } from 'react';
 import type { Character } from '../types/character';
+import { emptyCharacter } from '../types/character';
 
 const STORAGE_KEY = 'swn-characters';
+
+/** Ensure a loaded character has all fields introduced in later versions. */
+function normalize(raw: Partial<Character>): Character {
+  const defaults = emptyCharacter();
+  return {
+    ...defaults,
+    ...raw,
+    // Fields added after initial release — apply defaults if missing
+    levelHistory: raw.levelHistory ?? [],
+    creationSkills: raw.creationSkills ?? raw.skills ?? {},
+    adventurerPartials: raw.adventurerPartials ?? undefined,
+    debts: raw.debts ?? 0,
+    notes: raw.notes ?? '',
+  } as Character;
+}
 
 function load(): Character[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(normalize) : [];
   } catch {
     return [];
   }

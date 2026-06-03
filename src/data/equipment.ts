@@ -154,3 +154,90 @@ export const MELEE_WEAPONS: MeleeWeapon[] = [
   { name: 'Suit Ripper', damage: '1d6', shock: 'None', attr: 'Str/Dex', cost: 75, enc: 1, tl: 4, type: 'Special', advanced: true, notes: 'Each hit counts as a vacc suit tear; illegal in space environments' },
   { name: 'Unarmed Attack', damage: '1d2', shock: 'None', attr: 'Str/Dex', cost: 0, enc: 0, tl: 0, type: 'Special', advanced: false, notes: 'Always adds Punch skill to damage rolls' },
 ];
+
+// ── General Equipment (p.70–76) ───────────────────────────────────────────────
+
+export type EquipCategory =
+  | 'Ammo & Power'
+  | 'Communications'
+  | 'Computing'
+  | 'Medical'
+  | 'Field Equipment'
+  | 'Pharmaceuticals'
+  | 'Lifestyle';
+
+export interface GeneralItem {
+  name: string;
+  category: EquipCategory;
+  cost: number;
+  enc: number;   // 0 = negligible, 1+ = items
+  tl: number;
+  notes?: string;
+}
+
+export const GENERAL_EQUIPMENT: GeneralItem[] = [
+  // Ammo & Power
+  { name: 'Ammo, 20 rounds', category: 'Ammo & Power', cost: 10, enc: 1, tl: 2, notes: 'Compatible with any projectile weapon' },
+  { name: 'Ammo, missile', category: 'Ammo & Power', cost: 50, enc: 1, tl: 3, notes: 'For rocket launchers and hydra arrays' },
+  { name: 'Power Cell, Type A', category: 'Ammo & Power', cost: 10, enc: 1, tl: 4, notes: 'Recharges energy weapons; 30 min recharge time' },
+  { name: 'Power Cell, Type B', category: 'Ammo & Power', cost: 100, enc: 1, tl: 4, notes: 'Powers vehicles and heavy gear; 24 hr recharge time' },
+  { name: 'Solar Recharger', category: 'Ammo & Power', cost: 500, enc: 3, tl: 4, notes: 'Recharges 1 Type A cell/day in normal starlight' },
+  { name: 'Telekinetic Generator', category: 'Ammo & Power', cost: 250, enc: 2, tl: 4, notes: 'Telekinetic or manual power; charges 1 Type A cell per 15 min' },
+
+  // Communications
+  { name: 'Compad', category: 'Communications', cost: 100, enc: 0, tl: 4, notes: 'Hand-held communicator; works on any world with a comm grid' },
+  { name: 'Field Radio', category: 'Communications', cost: 200, enc: 1, tl: 3, notes: 'Range: 2 km urban / 30 km plains; works without a comm grid' },
+  { name: 'Comm Server', category: 'Communications', cost: 1000, enc: 3, tl: 4, notes: 'Provides comm coverage for 36 compads within 300 km' },
+  { name: 'Translator Torc', category: 'Communications', cost: 200, enc: 0, tl: 4, notes: 'Translates between 2 keyed languages; –2 to social checks through it' },
+
+  // Computing
+  { name: 'Dataslab', category: 'Computing', cost: 300, enc: 1, tl: 4, notes: 'Palm-sized computer; compad + wireless data interface' },
+  { name: 'Metatool', category: 'Computing', cost: 200, enc: 1, tl: 4, notes: 'Wrist-mounted multi-tool; sufficient for jury-rigged repairs' },
+  { name: 'Spare Parts', category: 'Computing', cost: 50, enc: 1, tl: 4, notes: 'General TL4 components; 1 unit consumed per repair as needed' },
+  { name: 'Toolkit, Postech', category: 'Computing', cost: 300, enc: 3, tl: 4, notes: 'Full range of tools for TL4 electronics and repairs' },
+  { name: 'Toolkit, Pretech', category: 'Computing', cost: 1000, enc: 1, tl: 5, notes: 'Required for working on TL5 artifacts' },
+  { name: 'Line Shunt', category: 'Computing', cost: 100, enc: 0, tl: 4, notes: 'Single-use; required for certain hacking operations' },
+  { name: 'Dataslab, Black', category: 'Computing', cost: 10000, enc: 1, tl: 4, notes: '+1 to all hacking attempts; illegal on most worlds' },
+
+  // Medical
+  { name: 'Bioscanner', category: 'Medical', cost: 300, enc: 1, tl: 4, notes: 'Heal-0 required for full diagnostics; DNA sequencing in minutes' },
+  { name: 'Lazarus Patch', category: 'Medical', cost: 30, enc: 1, tl: 4, notes: 'Stabilize a dying character (0 HP); must be used within 6 rounds' },
+  { name: 'Medkit', category: 'Medical', cost: 100, enc: 2, tl: 4, notes: 'Supplies for long-term recuperative care; roll 2d6/day, depleted on 12' },
+  { name: 'Lift (stim)', category: 'Pharmaceuticals', cost: 50, enc: 0, tl: 4, notes: 'Heals 1d8 + Heal skill HP after 5 min rest; +1 System Strain' },
+  { name: 'Hush (stim)', category: 'Pharmaceuticals', cost: 200, enc: 0, tl: 4, notes: 'Heavy tranquilizer; subject is compliant but non-communicative for ~1 hr' },
+  { name: 'Psych (stim)', category: 'Pharmaceuticals', cost: 25, enc: 0, tl: 4, notes: 'Morale 12, +1 skill checks; ignores cover; 15 min duration; psychologically addictive' },
+  { name: 'Tsunami (stim)', category: 'Pharmaceuticals', cost: 50, enc: 0, tl: 4, notes: '+10 temp HP, +2 hit rolls; crash after 10 min; +2 System Strain' },
+  { name: 'Pretech Cosmetic (stim)', category: 'Pharmaceuticals', cost: 1000, enc: 0, tl: 5, notes: 'Heals 1d6 HP; +1 System Strain' },
+
+  // Field Equipment
+  { name: 'Backpack (TL0)', category: 'Field Equipment', cost: 5, enc: 1, tl: 0, notes: 'Basic pack; no encumbrance bonus' },
+  { name: 'Backpack (TL4)', category: 'Field Equipment', cost: 50, enc: 0, tl: 4, notes: 'Modern lightweight pack; effectively weightless when worn' },
+  { name: 'Vacc Suit', category: 'Field Equipment', cost: 100, enc: 2, tl: 4, notes: 'Survives hard vacuum; AC 13; 6 hr O2; –2 to hit/skill checks unless trained' },
+  { name: 'Vacc Skin', category: 'Field Equipment', cost: 1000, enc: 1, tl: 5, notes: 'TL5 vacc suit worn under armor; no penalties; recycles air and waste' },
+  { name: 'Armored Vacc Suit', category: 'Field Equipment', cost: 400, enc: 2, tl: 4, notes: 'Vacc suit + AC 13; half chance to tear vs edged weapons' },
+  { name: 'Survival Kit', category: 'Field Equipment', cost: 60, enc: 1, tl: 4, notes: '+1 to Survive checks; fire lighter, water filter, flares, knife, radio beacon' },
+  { name: 'Pressure Tent', category: 'Field Equipment', cost: 100, enc: 4, tl: 3, notes: 'Breathable atmosphere for 5 people; 1 Type A cell per day of filtration' },
+  { name: 'Low-Light Goggles', category: 'Field Equipment', cost: 200, enc: 1, tl: 3, notes: 'Monochrome vision in near-darkness; 1 week per Type A cell' },
+  { name: 'Binoculars (TL4)', category: 'Field Equipment', cost: 200, enc: 1, tl: 4, notes: '25×150 power; integral low-light optics; 1 week per Type A cell' },
+  { name: 'Climbing Harness', category: 'Field Equipment', cost: 50, enc: 1, tl: 3, notes: '+1 to Exert climbing checks; –2 to Sneak while climbing' },
+  { name: 'Grapnel Launcher', category: 'Field Equipment', cost: 200, enc: 1, tl: 3, notes: 'Fires rope up to 40 m; 6 shots per Type A cell' },
+  { name: 'Grav Chute', category: 'Field Equipment', cost: 300, enc: 1, tl: 4, notes: 'Slows falls up to 1000 m; single use; up to 300 kg' },
+  { name: 'Grav Harness', category: 'Field Equipment', cost: 5000, enc: 3, tl: 5, notes: 'Flight at 20 m/round; 5 min per Type B cell; up to 200 kg' },
+  { name: 'Survey Scanner', category: 'Field Equipment', cost: 250, enc: 1, tl: 4, notes: 'Atmospheric/gravitic readings, chemical analysis, 200 hrs video recording' },
+  { name: 'Navcomp', category: 'Field Equipment', cost: 500, enc: 1, tl: 4, notes: '+1 to navigation checks; never lost on worlds with GPS satellites' },
+  { name: 'Atmofilter', category: 'Field Equipment', cost: 100, enc: 1, tl: 4, notes: 'Face mask filters most atmospheric toxins' },
+  { name: 'Rations, 1 day', category: 'Field Equipment', cost: 5, enc: 1, tl: 1 },
+  { name: 'Rope, 20 m (TL4)', category: 'Field Equipment', cost: 40, enc: 1, tl: 4 },
+  { name: 'Glowbug', category: 'Field Equipment', cost: 5, enc: 0, tl: 3, notes: 'Adhesive light disc; 10 m radius for 24 hrs; 100 recharged per Type A cell' },
+  { name: 'Thermal Flare', category: 'Field Equipment', cost: 5, enc: 0, tl: 3, notes: 'Burns 2 hrs bright light OR fires 200 m as signal/weapon (1d6 dmg)' },
+  { name: 'Instapanel', category: 'Field Equipment', cost: 50, enc: 1, tl: 4, notes: 'Expands into a 2×2 m rigid ceraplast sheet; takes 5 min to harden' },
+  { name: 'Scout Report', category: 'Field Equipment', cost: 200, enc: 0, tl: 4, notes: 'Maps, cultural info, and taboos for a specific world' },
+  { name: 'Vacc Fresher', category: 'Field Equipment', cost: 400, enc: 3, tl: 4, notes: 'Refills vacc suit O2 tanks; 10 min + 1 Type A cell per refill' },
+
+  // Lifestyle
+  { name: 'Lifestyle: Slum', category: 'Lifestyle', cost: 5, enc: 0, tl: 0, notes: 'Per day — bare survival, squat, scraps' },
+  { name: 'Lifestyle: Poor', category: 'Lifestyle', cost: 10, enc: 0, tl: 0, notes: 'Per day — barracks, public transit, infrequent luxuries' },
+  { name: 'Lifestyle: Common', category: 'Lifestyle', cost: 15, enc: 0, tl: 0, notes: 'Per day — private apartment, rented vehicle' },
+  { name: 'Lifestyle: Good', category: 'Lifestyle', cost: 25, enc: 0, tl: 0, notes: 'Per day — townhouse, personal vehicle' },
+  { name: 'Lifestyle: Elite', category: 'Lifestyle', cost: 200, enc: 0, tl: 0, notes: 'Per day — luxury penthouse, staff' },
+];

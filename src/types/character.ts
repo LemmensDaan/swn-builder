@@ -76,6 +76,8 @@ export interface ArmorEntry {
 export interface Character {
   id: string;
   name: string;
+  retired?: boolean;
+  image?: string;
   level: number;
   xp: number;
   homeworld: string;

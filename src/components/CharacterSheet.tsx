@@ -504,6 +504,11 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
               if (Number.isFinite(n) && n !== 0) addCredits(n);
               setEarnings('');
             };
+            const subtractEarnings = () => {
+              const n = Math.round(Number(earnings));
+              if (Number.isFinite(n) && n !== 0) addCredits(-n);
+              setEarnings('');
+            };
             return (
               <div className="flex items-center gap-2 flex-wrap mb-3 pb-3 border-b border-gray-700">
                 <Banknote size={18} className={remaining < 0 ? 'text-red-400' : 'text-amber-400'} />
@@ -515,20 +520,26 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
                 {char.debts > 0 && <span className="text-red-400 text-sm">Debts: {char.debts.toLocaleString()} cr</span>}
                 <div className="ml-auto flex items-center gap-1.5">
                   <span className="text-xs text-gray-500">Add earnings:</span>
+                  <button
+                    onClick={subtractEarnings}
+                    className="w-5 h-5 rounded bg-gray-700/80 hover:bg-red-900/60 text-gray-300 text-xs flex items-center justify-center"
+                    title="Subtract"
+                  >−</button>
                   <input
                     type="number"
                     value={earnings}
                     onChange={e => setEarnings(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') addEarnings(); }}
                     placeholder="0"
-                    className="w-24 bg-gray-900/60 border border-gray-700 rounded px-2 py-0.5 text-sm text-gray-200 placeholder-gray-600 text-right focus:outline-none focus:border-amber-500"
+                    className="w-20 bg-gray-900/60 border border-gray-700 rounded px-2 py-0.5 text-sm text-gray-200 placeholder-gray-600 text-center focus:outline-none focus:border-amber-500 [appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
                   />
-                  <button onClick={addEarnings}
-                    className="text-xs px-2.5 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-200 hover:text-amber-300 font-medium">
-                    Add
-                  </button>
+                  <button
+                    onClick={addEarnings}
+                    className="w-5 h-5 rounded bg-gray-700/80 hover:bg-green-900/60 text-gray-300 text-xs flex items-center justify-center"
+                    title="Add"
+                  >+</button>
                   <button onClick={() => setShowGear(true)}
-                    className="text-xs px-2.5 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-200 hover:text-amber-300 font-medium">
+                    className="text-xs px-2.5 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-200 hover:text-amber-300 font-medium ml-1">
                     Manage Gear →
                   </button>
                 </div>

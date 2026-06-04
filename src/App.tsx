@@ -39,6 +39,22 @@ export default function App() {
           onNew={() => setView({ type: 'wizard' })}
           onOpen={id => setView({ type: 'sheet', id })}
           onDelete={id => remove(id)}
+          onRetire={id => {
+            const char = characters.find(c => c.id === id);
+            if (char) upsert({ ...char, retired: true });
+          }}
+          onUnretire={id => {
+            const char = characters.find(c => c.id === id);
+            if (char) upsert({ ...char, retired: false });
+          }}
+          onCopy={id => {
+            const char = characters.find(c => c.id === id);
+            if (char) upsert({ ...char, id: crypto.randomUUID(), name: char.name ? `${char.name}-copy` : 'copy', retired: false });
+          }}
+          onImageChange={(id, dataUrl) => {
+            const char = characters.find(c => c.id === id);
+            if (char) upsert({ ...char, image: dataUrl });
+          }}
           onOpenRules={() => setShowRules(true)}
           onOpenHelp={() => setShowHelp(true)}
         />

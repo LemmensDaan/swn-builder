@@ -18,6 +18,8 @@ function normalize(raw: Partial<Character>): Character {
     equipmentNotCarried: raw.equipmentNotCarried ?? [],
     debts: raw.debts ?? 0,
     notes: raw.notes ?? '',
+    retired: raw.retired ?? false,
+    image: raw.image ?? undefined,
   } as Character;
 }
 

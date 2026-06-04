@@ -1,4 +1,4 @@
-
+⚠️ Read up on rules first before editing wizard/char overview pages any further ⚠️
 1. Char overview page.
 -> instead of view sheet, i would make the card clickable, also add nice hover effect
 -> on the card only show the following props with icons: name (person-standing), species (dna), class (sparkles), level (arrow-big-up), background (scroll-text). Keep the delete button, also add a retire button. (for char deaths, use skull icon)
@@ -7,7 +7,7 @@
 - ammo reloading should also keep track of stowed/ready ammo imo. reloading not possible if no ammo readied/stowed
 - ready/stow for stacked items (including ammo), should follow rules of encumbrance as stated in swn source material. So it should be possible to stow separate items instead of a full stack, check on source material before editing
 - check inner workings of psychic before further editing the layout
-
+⚠️                                                                               ⚠️
 --- questions ---
 ->  How are characters saved at this moment? locally somewhere?
 

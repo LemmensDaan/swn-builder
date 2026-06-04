@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { BookOpen, HelpCircle } from 'lucide-react';
 import type { Character } from '../types/character';
 import { attrMod } from '../types/character';
 import { ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../data/equipment';
@@ -6,6 +7,8 @@ import { xpForLevel } from '../data/leveling';
 import { effectiveSkills, psychicSkillLevels, deriveAC, deriveEffort, computeEncumbrance } from '../data/derivation';
 import LevelUp from './LevelUp';
 import AuditOverview from './wizard/AuditOverview';
+import Step8Equipment from './wizard/steps/Step8Equipment';
+import { useLockBodyScroll } from './HelpPage';
 
 function gearCost(name: string): number {
   return (
@@ -46,39 +49,55 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
   const enc = computeEncumbrance(char);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [detailed, setDetailed] = useState(false);
+  const [confirmEdit, setConfirmEdit] = useState(false);
+  const [showGear, setShowGear] = useState(false);
 
   const nextLevelXp = xpForLevel(char.level + 1);
   const canLevelUp = char.xp >= nextLevelXp && char.level < 20;
+
+  // ── Stow/equip toggles (default: armor & weapons Readied, general gear Stowed) ──
+  const equipReadied = new Set(char.equipmentReadied ?? []);
+  function toggleArmorReadied(i: number) {
+    onUpdate({ ...char, armor: char.armor.map((a, idx) => idx === i ? { ...a, readied: a.readied === false } : a) });
+  }
+  function toggleWeaponReadied(i: number) {
+    onUpdate({ ...char, weapons: char.weapons.map((w, idx) => idx === i ? { ...w, readied: w.readied === false } : w) });
+  }
+  function toggleEquipReadied(name: string) {
+    const next = equipReadied.has(name)
+      ? (char.equipmentReadied ?? []).filter(n => n !== name)
+      : [...(char.equipmentReadied ?? []), name];
+    onUpdate({ ...char, equipmentReadied: next });
+  }
+  function addCredits(n: number) {
+    onUpdate({ ...char, credits: Math.max(0, char.credits + n) });
+  }
 
   return (
     <div className="min-h-screen text-gray-100 flex justify-center">
       <div className="w-full max-w-6xl flex flex-col min-h-screen bg-gray-950">
       {/* Top bar */}
       <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="text-gray-400 hover:text-gray-200 text-sm">← Characters</button>
+        <div className="flex items-center gap-3 min-w-0">
+          <button onClick={onBack} className="text-gray-400 hover:text-gray-200 text-sm flex-shrink-0">← Characters</button>
           <span className="text-gray-700">|</span>
-          <span className="text-amber-300 font-bold">{char.name}</span>
-          <span className="text-gray-500 text-sm">{char.class} · Level {char.level}</span>
+          <span className="text-amber-300 font-bold truncate">{char.name}</span>
+          <span className="text-gray-500 text-sm flex-shrink-0">{char.class} · Level {char.level}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={onOpenHelp}
             title="Rules reference & FAQ"
-            className="w-8 h-8 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors font-bold"
+            className="w-8 h-8 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors flex items-center justify-center"
           >
-            ?
+            <HelpCircle size={18} />
           </button>
           <button
             onClick={onOpenRules}
             title="Open SWN Revised Deluxe Edition rulebook"
             className="p-1.5 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
+            <BookOpen size={18} />
           </button>
           {/* Simple / Detailed view toggle */}
           <div className="flex rounded overflow-hidden border border-gray-700 text-xs">
@@ -104,10 +123,11 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
             </button>
           )}
           <button
-            onClick={onEdit}
+            onClick={() => setConfirmEdit(true)}
+            title="Edit core character details (locked — may change derived stats)"
             className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium"
           >
-            Edit
+            🔒 Edit
           </button>
         </div>
       </div>
@@ -122,7 +142,7 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <InfoBlock label="Background" value={char.background || '—'} />
           <InfoBlock label="Homeworld" value={char.homeworld || '—'} />
-          <InfoBlock label="Species" value={char.species} />
+          <InfoBlock label="Species" value={char.species || '—'} />
           <div className="glass rounded-lg px-4 py-3">
             <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">XP</div>
             <div className="flex items-center gap-2">
@@ -310,7 +330,12 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
                     };
                     return (
                       <tr key={`${w.name}-${wi}`} className="border-b border-gray-800">
-                        <td className="py-2 pr-4 font-medium text-gray-200">{w.name}</td>
+                        <td className="py-2 pr-4 font-medium text-gray-200">
+                          <div className="flex items-center gap-2">
+                            <span>{w.name}</span>
+                            <ReadyToggle readied={w.readied !== false} onToggle={() => toggleWeaponReadied(wi)} />
+                          </div>
+                        </td>
                         <td className="py-2 pr-4 text-right font-mono text-red-400">{w.damage}</td>
                         <td className="py-2 pr-4 text-right text-green-400">
                           {w.attackBonus >= 0 ? '+' : ''}{char.baseAttackBonus + w.attackBonus}
@@ -345,23 +370,26 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
           {char.armor.length > 0 && (
             <SheetSection title="Armor">
               <div className="space-y-2">
-                {char.armor.map(a => (
-                  <div key={a.name} className="flex items-center justify-between bg-gray-900/60 rounded px-3 py-2">
-                    <span className="text-gray-200">{a.name}</span>
-                    <span className="text-green-400 font-bold">AC {a.ac}</span>
+                {char.armor.map((a, ai) => (
+                  <div key={`${a.name}-${ai}`} className="flex items-center justify-between gap-2 bg-gray-900/60 rounded px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-gray-200 truncate">{a.name}</span>
+                      <ReadyToggle readied={a.readied !== false} onToggle={() => toggleArmorReadied(ai)} />
+                    </div>
+                    <span className="text-green-400 font-bold flex-shrink-0">AC {a.ac}</span>
                   </div>
                 ))}
               </div>
             </SheetSection>
           )}
 
-          {(char.equipment.length > 0 || char.credits > 0) && (
-            <SheetSection title="Equipment & Credits">
-              {/* Simple view shows just the remaining credits (budget − spent), which may be negative. */}
-              {(() => {
-                const remaining = char.credits - computeGearSpent(char);
-                return (
-                  <div className="mb-3 pb-2 border-b border-gray-700 flex items-center gap-2">
+          <SheetSection title="Equipment & Credits">
+            {/* Remaining credits (budget − spent), may be negative; quick adders for GM rewards. */}
+            {(() => {
+              const remaining = char.credits - computeGearSpent(char);
+              return (
+                <div className="mb-3 pb-2 border-b border-gray-700 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className={`font-bold text-lg ${remaining < 0 ? 'text-red-400' : 'text-amber-400'}`}>
                       {remaining.toLocaleString()}
                     </span>
@@ -369,21 +397,39 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
                     {remaining < 0 && <span className="text-red-500 text-xs">(over budget)</span>}
                     {char.debts > 0 && <span className="text-red-400 text-sm ml-auto">Debts: {char.debts.toLocaleString()} cr</span>}
                   </div>
-                );
-              })()}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-gray-500">Adjust:</span>
+                    {[100, 500, 1000].map(n => (
+                      <button key={n} onClick={() => addCredits(n)}
+                        className="text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300">+{n}</button>
+                    ))}
+                    <button onClick={() => addCredits(-100)}
+                      className="text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-red-900/40 text-gray-300 hover:text-red-300">−100</button>
+                    <button onClick={() => setShowGear(true)}
+                      className="ml-auto text-xs px-2.5 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-200 hover:text-amber-300 font-medium">
+                      Manage Gear →
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+            {char.equipment.length === 0 ? (
+              <p className="text-gray-600 text-sm italic">No general equipment. Use “Manage Gear” to add some.</p>
+            ) : (
               <ul className="space-y-1">
                 {[...new Set(char.equipment)].map((e) => {
                   const qty = char.equipment.filter((x: string) => x === e).length;
                   return (
-                    <li key={e} className="text-sm text-gray-400 flex gap-2">
+                    <li key={e} className="text-sm text-gray-400 flex items-center gap-2">
                       <span className="text-gray-600">•</span>
-                      <span>{qty > 1 ? `${e} ×${qty}` : e}</span>
+                      <span className="flex-1">{qty > 1 ? `${e} ×${qty}` : e}</span>
+                      <ReadyToggle readied={equipReadied.has(e)} onToggle={() => toggleEquipReadied(e)} />
                     </li>
                   );
                 })}
               </ul>
-            </SheetSection>
-          )}
+            )}
+          </SheetSection>
         </div>
 
         {/* Level history */}
@@ -439,6 +485,54 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
           onCancel={() => setShowLevelUp(false)}
         />
       )}
+
+      {/* Unlock confirmation for full (structural) editing */}
+      {confirmEdit && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <h3 className="text-gray-100 font-semibold text-lg flex items-center gap-2">🔒 Unlock full editor?</h3>
+            <p className="text-gray-400 text-sm">
+              The full editor lets you change <strong className="text-gray-300">attributes, background, class, skills, foci, and psychics</strong>.
+              Changing these recalculates derived stats and can conflict with choices made while leveling up.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setConfirmEdit(false)}
+                className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium">
+                Cancel
+              </button>
+              <button onClick={() => { setConfirmEdit(false); onEdit(); }}
+                className="px-4 py-2 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-semibold">
+                Unlock &amp; Edit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gear editor — reuses the wizard's equipment step, edits live */}
+      {showGear && (
+        <GearEditor char={char} onUpdate={onUpdate} onClose={() => setShowGear(false)} />
+      )}
+    </div>
+  );
+}
+
+function GearEditor({ char, onUpdate, onClose }: { char: Character; onUpdate: (c: Character) => void; onClose: () => void }) {
+  useLockBodyScroll();
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-gray-950">
+      <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <span className="text-amber-300 font-semibold">Manage Gear — {char.name}</span>
+        <button onClick={onClose} className="px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium">
+          ✓ Done
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          {/* postCreation hides the package/roll-credits starting-method tab */}
+          <Step8Equipment char={char} onChange={patch => onUpdate({ ...char, ...patch })} postCreation />
+        </div>
+      </div>
     </div>
   );
 }
@@ -458,6 +552,23 @@ function InfoBlock({ label, value }: { label: string; value: string }) {
       <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</div>
       <div className="text-gray-200 font-medium truncate">{value}</div>
     </div>
+  );
+}
+
+/** Small pill that toggles a gear item between Readied and Stowed. */
+function ReadyToggle({ readied, onToggle }: { readied: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      title="Toggle Readied / Stowed (affects encumbrance)"
+      className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border transition-colors ${
+        readied
+          ? 'border-amber-700/60 bg-amber-900/30 text-amber-300 hover:bg-amber-900/50'
+          : 'border-gray-600 bg-gray-700/60 text-gray-400 hover:bg-gray-700'
+      }`}
+    >
+      {readied ? 'Readied' : 'Stowed'}
+    </button>
   );
 }
 

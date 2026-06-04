@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { BookOpen } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { useLockBodyScroll } from './HelpPage';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -68,12 +69,7 @@ export default function PDFViewer({ onClose }: Props) {
       <div className="bg-gray-900 border-b border-gray-700 px-4 py-2 flex items-center gap-3 flex-shrink-0">
         {/* Title */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            className="text-amber-400 flex-shrink-0">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-          </svg>
+          <BookOpen size={16} className="text-amber-400 flex-shrink-0" />
           <span className="text-amber-300 font-semibold text-sm truncate">
             Stars Without Number — Revised Deluxe Edition
           </span>

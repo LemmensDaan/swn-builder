@@ -14,6 +14,7 @@ function normalize(raw: Partial<Character>): Character {
     levelHistory: raw.levelHistory ?? [],
     creationSkills: raw.creationSkills ?? raw.skills ?? {},
     adventurerPartials: raw.adventurerPartials ?? undefined,
+    equipmentReadied: raw.equipmentReadied ?? [],
     debts: raw.debts ?? 0,
     notes: raw.notes ?? '',
   } as Character;

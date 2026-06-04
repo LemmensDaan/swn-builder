@@ -58,11 +58,15 @@ export interface WeaponEntry {
   notes?: string;
   /** Live ammo tracking for play. max 0 / undefined = no magazine (melee, unlimited). */
   ammo?: { current: number; max: number };
+  /** Encumbrance placement. undefined = Readied (default for weapons). */
+  readied?: boolean;
 }
 
 export interface ArmorEntry {
   name: string;
   ac: number;
+  /** Encumbrance placement. undefined = Readied (default for armor). */
+  readied?: boolean;
 }
 
 export interface Character {
@@ -97,6 +101,8 @@ export interface Character {
   armor: ArmorEntry[];
   weapons: WeaponEntry[];
   equipment: string[];
+  /** Names of general-equipment items that are Readied rather than Stowed (default: stowed). */
+  equipmentReadied: string[];
   credits: number;
   debts: number;
 
@@ -191,6 +197,7 @@ export function emptyCharacter(): Character {
     armor: [],
     weapons: [],
     equipment: [],
+    equipmentReadied: [],
     credits: 0,
     debts: 0,
     notes: '',

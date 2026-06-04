@@ -35,13 +35,13 @@ describe('Step 1 — Concept: Next always clickable (validation is at Review)', 
 
   it('Next is always enabled (validation shown at Review, not per-step)', () => {
     render(<App />);
-    clickButton(/new character/i);
+    clickButton(/create character/i);
     expect(getNextButton()).not.toBeDisabled();
   });
 
   it('Can navigate to step 2 without a name', () => {
     render(<App />);
-    clickButton(/new character/i);
+    clickButton(/create character/i);
     fireEvent.click(getNextButton());
     // Step 2 tab becomes active (amber style in the tab bar)
     expect(screen.getAllByText(/attributes/i).length).toBeGreaterThan(0);
@@ -53,7 +53,7 @@ describe('Step 3 — Background: navigation is always free', () => {
 
   it('Next is always enabled on background step', async () => {
     render(<App />);
-    clickButton(/new character/i);
+    clickButton(/create character/i);
     fireEvent.click(getNextButton()); // → step 2
     fireEvent.click(getNextButton()); // → step 3
     expect(getNextButton()).not.toBeDisabled();
@@ -66,7 +66,7 @@ describe('Step 5 — Class validation: Adventurer requires 2 partials', () => {
   async function navigateToStep5() {
     const user = userEvent.setup();
     render(<App />);
-    clickButton(/new character/i);
+    clickButton(/create character/i);
     await user.type(screen.getByPlaceholderText(/e\.g\. kael/i), 'Test');
     fireEvent.click(getNextButton()); // 2
     fireEvent.click(getNextButton()); // 3 — no bg required to advance to step 4
@@ -99,7 +99,7 @@ describe('Review page — derived stats match source formulas', () => {
     render(<App />);
 
     // Home → new character
-    clickButton(/new character/i);
+    clickButton(/create character/i);
 
     // Step 1: name
     await user.type(screen.getByPlaceholderText(/e\.g\. kael/i), 'AutoTest');

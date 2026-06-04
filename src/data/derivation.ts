@@ -182,20 +182,26 @@ export function computeEncumbrance(char: Character): Encumbrance {
   const readiedMax = Math.floor(str / 2);
   const stowedMax = str;
 
-  // Readied: armor + weapons, using each item's Enc value.
+  // Armor and weapons default to Readied; each can be toggled to Stowed (readied === false).
+  const readiedSet = new Set(char.equipmentReadied ?? []);
   let readied = 0;
+  let stowed = 0;
+
   for (const a of char.armor) {
-    readied += ARMOR_TABLE.find(x => x.name === a.name)?.enc ?? 1;
+    const enc = ARMOR_TABLE.find(x => x.name === a.name)?.enc ?? 1;
+    if (a.readied === false) stowed += enc; else readied += enc;
   }
   for (const w of char.weapons) {
     const enc = RANGED_WEAPONS.find(x => x.name === w.name)?.enc
       ?? MELEE_WEAPONS.find(x => x.name === w.name)?.enc ?? 1;
-    readied += enc;
+    if (w.readied === false) stowed += enc; else readied += enc;
   }
 
-  // Stowed: general equipment items (negligible "*" items have enc 0).
-  let stowed = 0;
-  for (const e of char.equipment) stowed += generalItemEnc(e);
+  // General equipment defaults to Stowed; names in equipmentReadied are Readied instead.
+  for (const e of char.equipment) {
+    const enc = generalItemEnc(e);
+    if (readiedSet.has(e)) readied += enc; else stowed += enc;
+  }
 
   // Over-limit "steps": each tier of (readied −2 / stowed −4) over the base limit.
   const readiedOver = Math.max(0, readied - readiedMax);

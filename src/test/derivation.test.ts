@@ -280,6 +280,32 @@ describe('computeEncumbrance', () => {
     expect(e.stowed).toBe(0);
     expect(e.level).toBe('none');
   });
+
+  it('stow/equip: armor marked readied:false counts as Stowed', () => {
+    const base = make({
+      attributes: { STR: 14, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 },
+      armor: [{ name: 'Woven Body Armor', ac: 15 }], // Enc 2, default Readied
+    });
+    expect(computeEncumbrance(base).readied).toBe(2);
+    expect(computeEncumbrance(base).stowed).toBe(0);
+
+    const stowed = make({
+      attributes: { STR: 14, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 },
+      armor: [{ name: 'Woven Body Armor', ac: 15, readied: false }],
+    });
+    expect(computeEncumbrance(stowed).readied).toBe(0);
+    expect(computeEncumbrance(stowed).stowed).toBe(2);
+  });
+
+  it('stow/equip: a general item in equipmentReadied counts as Readied', () => {
+    const e = computeEncumbrance(make({
+      attributes: { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 },
+      equipment: ['Medkit'], // Enc 2, default Stowed
+      equipmentReadied: ['Medkit'],
+    }));
+    expect(e.readied).toBe(2);
+    expect(e.stowed).toBe(0);
+  });
 });
 
 // ── Quick Skills fix (Bug 1): the free skill must NOT be double-counted ───────

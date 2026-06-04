@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { BookOpen, HelpCircle, Trash2 } from 'lucide-react';
 import type { Character } from '../types/character';
 import { effectiveSkills, deriveAC } from '../data/derivation';
 
@@ -25,22 +26,16 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onOpen
             <button
               onClick={onOpenHelp}
               title="Rules reference & FAQ"
-              className="w-9 h-9 rounded text-gray-400 hover:text-amber-300 hover:bg-gray-700 transition-colors font-bold"
+              className="w-9 h-9 rounded text-gray-400 hover:text-amber-300 hover:bg-gray-700 transition-colors flex items-center justify-center"
             >
-              ?
+              <HelpCircle size={20} />
             </button>
             <button
               onClick={onOpenRules}
               title="Open SWN Revised Deluxe Edition rulebook"
               className="p-2 rounded text-gray-400 hover:text-amber-300 hover:bg-gray-700 transition-colors"
             >
-              <BookIcon />
-            </button>
-            <button
-              onClick={onNew}
-              className="px-4 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm transition-colors"
-            >
-              + New Character
+              <BookOpen size={20} />
             </button>
           </div>
         </div>
@@ -170,16 +165,10 @@ function CharacterCard({ char, onOpen, onDelete }: { char: Character; onOpen: ()
         </button>
         <button
           onClick={e => { e.stopPropagation(); setConfirmDelete(true); }}
-          className="px-3 py-2 rounded bg-gray-700 hover:bg-red-900/60 text-red-500 hover:text-red-400 text-sm transition-colors"
+          className="px-3 py-2 rounded bg-gray-700 hover:bg-red-900/60 text-red-500 hover:text-red-400 text-sm transition-colors flex items-center"
           title="Delete character"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-            <path d="M10 11v6M14 11v6"/>
-            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-          </svg>
+          <Trash2 size={16} />
         </button>
       </div>
     </div>
@@ -219,12 +208,3 @@ function Pill({ label, value, color }: { label: string; value: string; color: st
   );
 }
 
-function BookIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-    </svg>
-  );
-}

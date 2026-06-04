@@ -8,6 +8,8 @@ import PageRef from '../../ui/PageRef';
 interface Props {
   char: Character;
   onChange: (patch: Partial<Character>) => void;
+  /** When editing an existing character: hide the package / roll-credits starting-method tab. */
+  postCreation?: boolean;
 }
 
 type EquipTab = 'packages' | 'armor' | 'ranged' | 'melee' | 'items';
@@ -38,13 +40,14 @@ function computeSpent(char: Character): number {
 
 // ── Credit bar component ──────────────────────────────────────────────────────
 
-function CreditBar({ char, onChange }: { char: Character; onChange: (patch: Partial<Character>) => void }) {
+function CreditBar({ char, onChange, addControls }: { char: Character; onChange: (patch: Partial<Character>) => void; addControls?: boolean }) {
   // char.credits = total BUDGET. Spent is computed from bought armor/weapons. Remaining = budget − spent.
   const budget = char.credits;
   const spent = computeSpent(char);
   const remaining = budget - spent;
   const overBudget = remaining < 0;
   const pctUsed = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
+  const addCredits = (n: number) => onChange({ credits: Math.max(0, char.credits + n) });
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-3">
@@ -77,6 +80,23 @@ function CreditBar({ char, onChange }: { char: Character; onChange: (patch: Part
           {overBudget && <span className="text-red-500 text-xs ml-1">over budget!</span>}
         </div>
       </div>
+
+      {/* Quick "add credits" (e.g. GM reward) — post-creation only */}
+      {addControls && (
+        <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-gray-700/60">
+          <span className="text-xs text-gray-500">Add credits:</span>
+          {[100, 500, 1000].map(n => (
+            <button key={n} onClick={() => addCredits(n)}
+              className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300">
+              +{n}
+            </button>
+          ))}
+          <button onClick={() => addCredits(-100)}
+            className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-red-900/40 text-gray-300 hover:text-red-300">
+            −100
+          </button>
+        </div>
+      )}
 
       {/* Progress bar — only when budget is set and something was spent */}
       {char.credits > 0 && spent > 0 && (
@@ -151,8 +171,8 @@ function EncumbranceBar({ char }: { char: Character }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function Step8Equipment({ char, onChange }: Props) {
-  const [tab, setTab] = useState<EquipTab>('packages');
+export default function Step8Equipment({ char, onChange, postCreation }: Props) {
+  const [tab, setTab] = useState<EquipTab>(postCreation ? 'items' : 'packages');
 
   function rollCredits() {
     const r = (Math.ceil(Math.random() * 6) + Math.ceil(Math.random() * 6)) * 100;
@@ -194,7 +214,7 @@ export default function Step8Equipment({ char, onChange }: Props) {
   const [itemCategory, setItemCategory] = useState<EquipCategory>('Ammo & Power');
 
   const TABS: { key: EquipTab; label: string }[] = [
-    { key: 'packages', label: 'Packages' },
+    ...(postCreation ? [] : [{ key: 'packages' as EquipTab, label: 'Packages' }]),
     { key: 'armor', label: 'Armor' },
     { key: 'ranged', label: 'Ranged' },
     { key: 'melee', label: 'Melee' },
@@ -205,7 +225,7 @@ export default function Step8Equipment({ char, onChange }: Props) {
     <div className="space-y-5">
 
       {/* Credit tracker — always visible */}
-      <CreditBar char={char} onChange={onChange} />
+      <CreditBar char={char} onChange={onChange} addControls={postCreation} />
 
       {/* Encumbrance readout */}
       <EncumbranceBar char={char} />

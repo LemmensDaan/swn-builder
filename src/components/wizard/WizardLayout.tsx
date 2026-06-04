@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { BookOpen, HelpCircle } from 'lucide-react';
 
 interface Props {
   step: number;
@@ -60,20 +61,16 @@ export default function WizardLayout({
           <button
             onClick={onOpenHelp}
             title="Rules reference & FAQ"
-            className="w-8 h-8 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors font-bold"
+            className="w-8 h-8 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors flex items-center justify-center"
           >
-            ?
+            <HelpCircle size={18} />
           </button>
           <button
             onClick={onOpenRules}
             title="Open SWN Revised Deluxe Edition rulebook"
             className="p-1.5 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
+            <BookOpen size={18} />
           </button>
           <button
             onClick={onSave}

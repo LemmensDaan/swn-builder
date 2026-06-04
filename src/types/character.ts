@@ -60,6 +60,8 @@ export interface WeaponEntry {
   ammo?: { current: number; max: number };
   /** Encumbrance placement. undefined = Readied (default for weapons). */
   readied?: boolean;
+  /** Left at ship/base — contributes zero encumbrance. */
+  notCarried?: boolean;
 }
 
 export interface ArmorEntry {
@@ -67,6 +69,8 @@ export interface ArmorEntry {
   ac: number;
   /** Encumbrance placement. undefined = Readied (default for armor). */
   readied?: boolean;
+  /** Left at ship/base — contributes zero encumbrance. */
+  notCarried?: boolean;
 }
 
 export interface Character {
@@ -103,6 +107,8 @@ export interface Character {
   equipment: string[];
   /** Names of general-equipment items that are Readied rather than Stowed (default: stowed). */
   equipmentReadied: string[];
+  /** Names of general-equipment items left behind (not carried at all — zero encumbrance). */
+  equipmentNotCarried: string[];
   credits: number;
   debts: number;
 
@@ -198,6 +204,7 @@ export function emptyCharacter(): Character {
     weapons: [],
     equipment: [],
     equipmentReadied: [],
+    equipmentNotCarried: [],
     credits: 0,
     debts: 0,
     notes: '',

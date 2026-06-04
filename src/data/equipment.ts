@@ -1,58 +1,99 @@
+/** A weapon granted by a starting package. Damage/range/ammo are stored so it becomes
+ *  a first-class entry in `char.weapons` (and shows on the play sheet), not just a string. */
+export interface PackageWeapon {
+  name: string;
+  damage: string;
+  range?: string;   // ranged only (e.g. "100/300m"); omitted for melee
+  ammoMax?: number; // magazine capacity for ranged weapons
+  shock?: string;   // melee shock value
+}
+
+export interface PackageArmor {
+  name: string;
+  ac: number;
+}
+
 export interface EquipmentPackage {
   name: string;
-  items: string[];
+  weapons: PackageWeapon[];
+  armor: PackageArmor[];
+  items: string[];   // consumables / tools / flavour gear (stay as strings)
   credits: number;
 }
+
+const KNIFE: PackageWeapon = { name: 'Knife', damage: '1d4', shock: '1 pt/AC 15' };
+const MONOBLADE_KNIFE: PackageWeapon = { name: 'Monoblade Knife', damage: '1d6', shock: '1 pt/AC 15' };
+const LASER_PISTOL: PackageWeapon = { name: 'Laser Pistol', damage: '1d6', range: '100/300m', ammoMax: 10 };
 
 export const EQUIPMENT_PACKAGES: EquipmentPackage[] = [
   {
     name: 'Gunslinger',
-    items: ['Laser Pistol (1d6 dmg)', '8× Type A cells', 'Armored Undersuit (AC 13)', 'Backpack (TL0)', 'Monoblade Knife (1d6 dmg)', 'Compad'],
+    weapons: [LASER_PISTOL, MONOBLADE_KNIFE],
+    armor: [{ name: 'Armored Undersuit', ac: 13 }],
+    items: ['8× Type A cells', 'Backpack (TL0)', 'Compad'],
     credits: 100,
   },
   {
     name: 'Soldier',
-    items: ['Combat Rifle (1d12 dmg)', '80 rounds ammo', 'Woven Body Armor (AC 15)', 'Backpack (TL0)', 'Knife (1d4 dmg)', 'Compad'],
+    weapons: [{ name: 'Combat Rifle', damage: '1d12*', range: '100/300m', ammoMax: 30 }, KNIFE],
+    armor: [{ name: 'Woven Body Armor', ac: 15 }],
+    items: ['80 rounds ammo', 'Backpack (TL0)', 'Compad'],
     credits: 100,
   },
   {
     name: 'Scout',
-    items: ['Laser Rifle (1d10 dmg)', '8× Type A cells', 'Armored Vacc Suit (AC 13)', 'Backpack (TL0)', 'Knife (1d4 dmg)', 'Compad', 'Survey Scanner', 'Survival Kit', 'Binoculars (TL3)'],
+    weapons: [{ name: 'Laser Rifle', damage: '1d10*', range: '300/500m', ammoMax: 20 }, KNIFE],
+    armor: [{ name: 'Armored Vacc Suit', ac: 13 }],
+    items: ['8× Type A cells', 'Backpack (TL0)', 'Compad', 'Survey Scanner', 'Survival Kit', 'Binoculars (TL3)'],
     credits: 25,
   },
   {
     name: 'Medic',
-    items: ['Laser Pistol (1d6 dmg)', 'Backpack (TL0)', 'Secure Clothing (AC 13)', 'Medkit', '4× Lazarus Patches', 'Compad', '2× doses of Lift', 'Bioscanner'],
+    weapons: [LASER_PISTOL],
+    armor: [{ name: 'Secure Clothing', ac: 13 }],
+    items: ['Backpack (TL0)', 'Medkit', '4× Lazarus Patches', 'Compad', '2× doses of Lift', 'Bioscanner'],
     credits: 25,
   },
   {
     name: 'Civilian',
-    items: ['Secure Clothing (AC 13)', 'Compad'],
+    weapons: [],
+    armor: [{ name: 'Secure Clothing', ac: 13 }],
+    items: ['Compad'],
     credits: 700,
   },
   {
     name: 'Technician',
-    items: ['Laser Pistol (1d6 dmg)', '4× Type A cells', 'Armored Undersuit (AC 13)', 'Backpack (TL0)', 'Monoblade Knife (1d6 dmg)', 'Dataslab', 'Postech Toolkit', 'Metatool', '6× units spare parts'],
+    weapons: [LASER_PISTOL, MONOBLADE_KNIFE],
+    armor: [{ name: 'Armored Undersuit', ac: 13 }],
+    items: ['4× Type A cells', 'Backpack (TL0)', 'Dataslab', 'Postech Toolkit', 'Metatool', '6× units spare parts'],
     credits: 200,
   },
   {
     name: 'Barbarian',
-    items: ['Spear (1d6+1 dmg)', 'Backpack (TL0)', 'Primitive Hide Armor (AC 13)', '7 days rations', 'Primitive Shield (+1 AC)', '20m rope', 'Knife (1d4 dmg)'],
+    weapons: [{ name: 'Spear', damage: '1d6+1', shock: '2 pts/AC 13' }, KNIFE],
+    armor: [{ name: 'Primitive Hide Armor', ac: 13 }],
+    items: ['Backpack (TL0)', '7 days rations', 'Primitive Shield (+1 AC)', '20m rope'],
     credits: 500,
   },
   {
     name: 'Blade',
-    items: ['Monoblade Sword (1d8+1 dmg)', 'Backpack (TL0)', 'Woven Body Armor (AC 15)', 'Compad', 'Secure Clothing (AC 13)', 'Lazarus Patch', 'Thermal Knife (1d6 dmg)'],
+    weapons: [{ name: 'Monoblade Sword', damage: '1d8+1', shock: '2 pts/AC 13' }, { name: 'Thermal Knife', damage: '1d6', shock: '1 pt/AC 15' }],
+    armor: [{ name: 'Woven Body Armor', ac: 15 }, { name: 'Secure Clothing', ac: 13 }],
+    items: ['Backpack (TL0)', 'Compad', 'Lazarus Patch'],
     credits: 50,
   },
   {
     name: 'Thief',
-    items: ['Laser Pistol (1d6 dmg)', '2× Type A cells', 'Armored Undersuit (AC 13)', 'Backpack (TL0)', 'Monoblade Knife (1d6 dmg)', 'Compad', 'Climbing Harness', 'Metatool', 'Low-light Goggles'],
+    weapons: [LASER_PISTOL, MONOBLADE_KNIFE],
+    armor: [{ name: 'Armored Undersuit', ac: 13 }],
+    items: ['2× Type A cells', 'Backpack (TL0)', 'Compad', 'Climbing Harness', 'Metatool', 'Low-light Goggles'],
     credits: 25,
   },
   {
     name: 'Hacker',
-    items: ['Laser Pistol (1d6 dmg)', '2× Type A cells', 'Secure Clothing (AC 13)', 'Dataslab', 'Postech Toolkit', 'Metatool', '3× units spare parts', '2× Line Shunts'],
+    weapons: [LASER_PISTOL],
+    armor: [{ name: 'Secure Clothing', ac: 13 }],
+    items: ['2× Type A cells', 'Dataslab', 'Postech Toolkit', 'Metatool', '3× units spare parts', '2× Line Shunts'],
     credits: 100,
   },
 ];

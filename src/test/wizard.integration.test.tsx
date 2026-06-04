@@ -213,10 +213,10 @@ import { EQUIPMENT_PACKAGES } from '../data/equipment';
 describe('Equipment packages', () => {
   it('has 10 packages', () => expect(EQUIPMENT_PACKAGES).toHaveLength(10));
 
-  it('Soldier package includes Combat Rifle and Woven Body Armor', () => {
+  it('Soldier package includes Combat Rifle and Woven Body Armor as first-class gear', () => {
     const pkg = EQUIPMENT_PACKAGES.find(p => p.name === 'Soldier')!;
-    expect(pkg.items.some(i => i.includes('Combat Rifle'))).toBe(true);
-    expect(pkg.items.some(i => i.includes('Woven Body Armor'))).toBe(true);
+    expect(pkg.weapons.some(w => w.name === 'Combat Rifle')).toBe(true);
+    expect(pkg.armor.some(a => a.name === 'Woven Body Armor')).toBe(true);
   });
 
   it('Medic package includes Medkit and Lazarus Patches', () => {

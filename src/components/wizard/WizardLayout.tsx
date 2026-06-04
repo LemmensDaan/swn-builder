@@ -152,7 +152,7 @@ export default function WizardLayout({
               disabled={finishDisabled}
               className="px-6 py-2 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold transition-colors"
             >
-              Finish — View Sheet
+              Finish - View Sheet
             </button>
           ) : (
             <button

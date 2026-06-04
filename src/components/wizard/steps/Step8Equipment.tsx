@@ -184,10 +184,24 @@ export default function Step8Equipment({ char, onChange, postCreation }: Props) 
   function selectPackage(name: string) {
     const pkg = EQUIPMENT_PACKAGES.find(p => p.name === name);
     if (!pkg) return;
-    // Budget = leftover credits + cost of any package items the cost-table recognises, so the
+    // Package weapons/armor become first-class entries (so they appear in the sheet's
+    // Weapons/Armor sections with ammo + ready toggles); consumables stay as item strings.
+    const weapons: Character['weapons'] = pkg.weapons.map(w => ({
+      name: w.name,
+      damage: w.damage,
+      range: w.range,
+      shock: w.shock,
+      attackBonus: 0,
+      ammo: w.ammoMax ? { current: w.ammoMax, max: w.ammoMax } : undefined,
+    }));
+    const armor: Character['armor'] = pkg.armor.map(a => ({ name: a.name, ac: a.ac }));
+    // Budget = leftover credits + cost of any package gear the cost-table recognises, so the
     // package gear nets to zero in "spent" and the remaining shows the package's leftover credits.
-    const itemsCost = pkg.items.reduce((s, it) => s + itemCost(it), 0);
-    onChange({ equipment: pkg.items, credits: pkg.credits + itemsCost });
+    const gearCost =
+      weapons.reduce((s, w) => s + itemCost(w.name), 0) +
+      armor.reduce((s, a) => s + itemCost(a.name), 0) +
+      pkg.items.reduce((s, it) => s + itemCost(it), 0);
+    onChange({ weapons, armor, equipment: pkg.items, credits: pkg.credits + gearCost });
   }
 
   // Budget model: char.credits is the fixed budget; buying gear does NOT change it.
@@ -272,6 +286,11 @@ export default function Step8Equipment({ char, onChange, postCreation }: Props) 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {EQUIPMENT_PACKAGES.map(pkg => {
               const isSelected = char.equipment.join() === pkg.items.join();
+              const lines = [
+                ...pkg.weapons.map(w => `⚔ ${w.name} (${w.damage})`),
+                ...pkg.armor.map(a => `🛡 ${a.name} (AC ${a.ac})`),
+                ...pkg.items,
+              ];
               return (
                 <button
                   key={pkg.name}
@@ -287,7 +306,7 @@ export default function Step8Equipment({ char, onChange, postCreation }: Props) 
                     <span className="text-xs text-amber-400 font-mono">{pkg.credits} cr leftover</span>
                   </div>
                   <ul className="text-xs text-gray-400 space-y-0.5">
-                    {pkg.items.map((item, i) => (
+                    {lines.map((item, i) => (
                       <li key={i} className="flex gap-1">
                         <span className="text-gray-600">•</span>
                         <span>{item}</span>

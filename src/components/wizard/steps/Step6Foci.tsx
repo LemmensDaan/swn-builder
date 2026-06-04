@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import type { Character } from '../../../types/character';
-import type { FocusSelection } from '../../../types/character';
+import type { Character, FocusSelection, PsychicTechniqueSelection } from '../../../types/character';
 import { FOCI } from '../../../data/foci';
 import { SKILLS, PSYCHIC_SKILLS } from '../../../data/skills';
 import type { Skill } from '../../../data/skills';
 import { focusNeedsSkillChoice } from '../../../data/derivation';
+import { PSYCHIC_DISCIPLINES } from '../../../data/psychics';
 import PageRef from '../../ui/PageRef';
 
 interface Props {
@@ -94,6 +94,49 @@ export default function Step6Foci({ char, onChange }: Props) {
   function upgradeToLevel2(index: number) {
     const next = char.foci.map((f, i) => i === index ? { ...f, level: 2 as const } : f);
     onChange({ foci: next });
+  }
+
+  // ── Wild Psychic Talent helpers ──────────────────────────────────────────────
+  /** Discipline pick + ability pick options for Wild Psychic Talent. */
+  function wptAbilityOptions(disciplineName: string) {
+    const disc = PSYCHIC_DISCIPLINES.find(d => d.skill === disciplineName);
+    if (!disc) return [];
+    return [
+      { value: `${disc.coreTechnique.name} (Core Level 0)`, label: `${disc.coreTechnique.name} — core level-0 power` },
+      ...disc.techniques.filter(t => t.level === 1).map(t => ({
+        value: t.name,
+        label: `${t.name} — level-1 technique`,
+      })),
+    ];
+  }
+
+  /** Changing the level-1 discipline resets all ability picks. */
+  function setWptDiscipline(focusIndex: number, discipline: string) {
+    const nextFoci = char.foci.map((f, i) => i === focusIndex ? { ...f, specialistSkill: discipline } : f);
+    onChange({ foci: nextFoci, psychicTechniques: [] });
+  }
+
+  /** Update one ability pick (0 = level-1 pick, 1 = level-2 pick). */
+  function setWptAbility(pickIndex: 0 | 1, discipline: string, techniqueName: string) {
+    const arr: (PsychicTechniqueSelection | undefined)[] = [
+      char.psychicTechniques[0],
+      char.psychicTechniques[1],
+    ];
+    arr[pickIndex] = { discipline, techniqueName };
+    onChange({ psychicTechniques: arr.filter((x): x is PsychicTechniqueSelection => !!x && !!x.discipline) });
+  }
+
+  /** Changing the level-2 discipline clears the level-2 ability pick. */
+  function setWptLevel2Disc(discipline: string) {
+    const p0 = char.psychicTechniques[0];
+    const base: PsychicTechniqueSelection[] = p0 ? [p0] : [];
+    if (discipline) base.push({ discipline, techniqueName: '' });
+    onChange({ psychicTechniques: base });
+  }
+
+  /** Remove Wild Psychic Talent and clear its stored ability picks. */
+  function removeWptFocus(index: number) {
+    onChange({ foci: char.foci.filter((_, i) => i !== index), psychicTechniques: [] });
   }
 
   const picksLeft = totalPicks - picksUsed;
@@ -199,6 +242,87 @@ export default function Step6Foci({ char, onChange }: Props) {
         <div className="border-t border-gray-700 pt-4 space-y-2">
           <p className="text-sm font-medium text-gray-400">Selected Foci</p>
           {char.foci.map((f, i) => {
+            if (f.name === 'Wild Psychic Talent') {
+              const p0 = char.psychicTechniques[0];
+              const p1 = char.psychicTechniques[1];
+              return (
+                <div key={i} className="flex flex-col gap-2 px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-700/50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-amber-300 font-medium text-sm">{f.name}</span>
+                    <span className="text-amber-500 text-xs">Lvl {f.level}</span>
+                    <div className="ml-auto flex items-center gap-2">
+                      <button
+                        onClick={() => upgradeToLevel2(i)}
+                        disabled={f.level === 2}
+                        className="text-xs text-amber-500 hover:text-green-400 disabled:opacity-30"
+                        title="Upgrade to Level 2 (uses a second pick)"
+                      >↑ Lvl 2</button>
+                      <button onClick={() => removeWptFocus(i)} className="text-amber-500 hover:text-red-400 text-sm">×</button>
+                    </div>
+                  </div>
+                  {/* Level-1 discipline picker */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-gray-400 w-24 flex-shrink-0">Discipline:</span>
+                    <select
+                      value={f.specialistSkill ?? ''}
+                      onChange={e => setWptDiscipline(i, e.target.value)}
+                      className="input py-0.5 text-xs"
+                    >
+                      <option value="">— pick a discipline —</option>
+                      {PSYCHIC_DISCIPLINES.map(d => <option key={d.skill} value={d.skill}>{d.name}</option>)}
+                    </select>
+                  </div>
+                  {/* Level-1 ability picker (core level-0 or standalone level-1 technique) */}
+                  {f.specialistSkill && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-gray-400 w-24 flex-shrink-0">Pick 1:</span>
+                      <select
+                        value={p0?.techniqueName ?? ''}
+                        onChange={e => setWptAbility(0, f.specialistSkill!, e.target.value)}
+                        className="input py-0.5 text-xs"
+                      >
+                        <option value="">— choose ability —</option>
+                        {wptAbilityOptions(f.specialistSkill).map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {/* Level-2 ability picker — any discipline */}
+                  {f.level === 2 && (
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-gray-400 w-24 flex-shrink-0">Pick 2 from:</span>
+                        <select
+                          value={p1?.discipline ?? ''}
+                          onChange={e => setWptLevel2Disc(e.target.value)}
+                          className="input py-0.5 text-xs"
+                        >
+                          <option value="">— pick a discipline —</option>
+                          {PSYCHIC_DISCIPLINES.map(d => <option key={d.skill} value={d.skill}>{d.name}</option>)}
+                        </select>
+                      </div>
+                      {p1?.discipline && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-gray-400 w-24 flex-shrink-0">Pick 2:</span>
+                          <select
+                            value={p1?.techniqueName ?? ''}
+                            onChange={e => setWptAbility(1, p1.discipline, e.target.value)}
+                            className="input py-0.5 text-xs"
+                          >
+                            <option value="">— choose ability —</option>
+                            {wptAbilityOptions(p1.discipline).map(opt => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             const kind = focusNeedsSkillChoice(f.name);
             return (
               <div key={i} className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-700/50">

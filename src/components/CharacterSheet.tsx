@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { BookOpen, HelpCircle } from 'lucide-react';
+import { Banknote, Bed, BookOpen, HelpCircle, LockKeyhole, Moon, Orbit, Package, SunMoon, Sunrise, Sunset } from 'lucide-react';
 import type { Character } from '../types/character';
 import { attrMod } from '../types/character';
 import { ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../data/equipment';
+import { SKILLS } from '../data/skills';
+import { FOCI } from '../data/foci';
 import { xpForLevel } from '../data/leveling';
 import { effectiveSkills, psychicSkillLevels, deriveAC, deriveEffort, computeEncumbrance } from '../data/derivation';
 import LevelUp from './LevelUp';
@@ -39,6 +41,20 @@ interface Props {
 
 const ATTR_ORDER = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 
+// Encumbrance status colours + the movement penalty ladder (p.65).
+const ENC_STATUS: Record<string, { text: string; cls: string }> = {
+  none: { text: 'Unencumbered', cls: 'text-green-400' },
+  light: { text: 'Lightly Encumbered', cls: 'text-amber-400' },
+  heavy: { text: 'Heavily Encumbered', cls: 'text-orange-400' },
+  overloaded: { text: 'Overloaded', cls: 'text-red-400' },
+};
+const ENC_LEVELS: { level: string; text: string; penalty: string; cls: string }[] = [
+  { level: 'none', text: 'Unencumbered', penalty: 'Move 10m', cls: 'text-green-400' },
+  { level: 'light', text: 'Lightly Encumbered', penalty: 'Move 7m', cls: 'text-amber-400' },
+  { level: 'heavy', text: 'Heavily Encumbered', penalty: 'Move 5m', cls: 'text-orange-400' },
+  { level: 'overloaded', text: 'Overloaded', penalty: 'Cannot move', cls: 'text-red-400' },
+];
+
 export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOpenHelp, onUpdate }: Props) {
   const attrs = char.attributes;
   const isPsychic = char.class === 'Psychic' || char.adventurerPartials?.includes('Partial Psychic');
@@ -51,23 +67,44 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
   const [detailed, setDetailed] = useState(false);
   const [confirmEdit, setConfirmEdit] = useState(false);
   const [showGear, setShowGear] = useState(false);
+  const [earnings, setEarnings] = useState('');
 
   const nextLevelXp = xpForLevel(char.level + 1);
   const canLevelUp = char.xp >= nextLevelXp && char.level < 20;
 
-  // ── Stow/equip toggles (default: armor & weapons Readied, general gear Stowed) ──
+  // ── Stow / equip / not-carried toggles ──────────────────────────────────────
   const equipReadied = new Set(char.equipmentReadied ?? []);
+  const equipNotCarried = new Set(char.equipmentNotCarried ?? []);
+
   function toggleArmorReadied(i: number) {
     onUpdate({ ...char, armor: char.armor.map((a, idx) => idx === i ? { ...a, readied: a.readied === false } : a) });
   }
+  function toggleArmorNotCarried(i: number) {
+    onUpdate({ ...char, armor: char.armor.map((a, idx) => idx === i ? { ...a, notCarried: !a.notCarried } : a) });
+  }
   function toggleWeaponReadied(i: number) {
     onUpdate({ ...char, weapons: char.weapons.map((w, idx) => idx === i ? { ...w, readied: w.readied === false } : w) });
+  }
+  function toggleWeaponNotCarried(i: number) {
+    onUpdate({ ...char, weapons: char.weapons.map((w, idx) => idx === i ? { ...w, notCarried: !w.notCarried } : w) });
   }
   function toggleEquipReadied(name: string) {
     const next = equipReadied.has(name)
       ? (char.equipmentReadied ?? []).filter(n => n !== name)
       : [...(char.equipmentReadied ?? []), name];
     onUpdate({ ...char, equipmentReadied: next });
+  }
+  function toggleEquipNotCarried(name: string) {
+    if (equipNotCarried.has(name)) {
+      onUpdate({ ...char, equipmentNotCarried: (char.equipmentNotCarried ?? []).filter(n => n !== name) });
+    } else {
+      // Leaving behind also clears readied state
+      onUpdate({
+        ...char,
+        equipmentNotCarried: [...(char.equipmentNotCarried ?? []), name],
+        equipmentReadied: (char.equipmentReadied ?? []).filter(n => n !== name),
+      });
+    }
   }
   function addCredits(n: number) {
     onUpdate({ ...char, credits: Math.max(0, char.credits + n) });
@@ -125,9 +162,9 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
           <button
             onClick={() => setConfirmEdit(true)}
             title="Edit core character details (locked — may change derived stats)"
-            className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium"
+            className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium flex items-center gap-1.5"
           >
-            🔒 Edit
+            <LockKeyhole size={14} /> Edit
           </button>
         </div>
       </div>
@@ -145,15 +182,13 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
           <InfoBlock label="Species" value={char.species || '—'} />
           <div className="glass rounded-lg px-4 py-3">
             <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">XP</div>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min={0}
-                value={char.xp}
-                onChange={e => onUpdate({ ...char, xp: Math.max(0, Number(e.target.value)) })}
-                className="w-16 bg-transparent text-gray-200 font-medium text-sm border-b border-gray-600 focus:border-amber-500 outline-none"
-              />
-              <span className="text-gray-600 text-xs">/ {nextLevelXp} (lvl {char.level + 1})</span>
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => onUpdate({ ...char, xp: Math.max(0, char.xp - 1) })} disabled={char.xp <= 0}
+                className="w-6 h-6 rounded bg-gray-700 hover:bg-red-900/50 disabled:opacity-20 text-gray-300 text-sm flex items-center justify-center">−</button>
+              <span className="font-bold tabular-nums text-sm text-gray-200 w-10 text-center">{char.xp}</span>
+              <button onClick={() => onUpdate({ ...char, xp: char.xp + 1 })}
+                className="w-6 h-6 rounded bg-gray-700 hover:bg-green-900/50 text-gray-300 text-sm flex items-center justify-center">+</button>
+              <span className="text-gray-600 text-xs ml-1">/ {nextLevelXp}</span>
             </div>
             {canLevelUp && (
               <p className="text-xs text-amber-400 mt-1 font-medium">Ready to level up!</p>
@@ -167,17 +202,17 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
           </div>
         )}
 
-        {/* Attributes */}
+        {/* Attributes + Saving Throws */}
         <SheetSection title="Attributes">
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
             {ATTR_ORDER.map(a => {
               const score = attrs[a];
               const mod = attrMod(score);
               return (
-                <div key={a} className="glass rounded-xl p-3 text-center">
-                  <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">{a}</div>
-                  <div className="text-2xl font-bold">{score}</div>
-                  <div className={`text-sm font-bold mt-1 ${mod > 0 ? 'text-green-400' : mod < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                <div key={a} className="glass rounded-lg p-2 text-center">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">{a}</div>
+                  <div className="text-xl font-bold">{score}</div>
+                  <div className={`text-xs font-bold mt-0.5 ${mod > 0 ? 'text-green-400' : mod < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                     {mod >= 0 ? '+' : ''}{mod}
                   </div>
                 </div>
@@ -186,123 +221,213 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
           </div>
         </SheetSection>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Combat */}
-          <SheetSection title="Combat">
-            <div className="space-y-2.5">
-              {/* Live trackers */}
-              <Tracker
-                label="HP" current={char.hitPoints.current} max={char.hitPoints.max}
-                onChange={v => onUpdate({ ...char, hitPoints: { ...char.hitPoints, current: v } })}
-                downLabel="Damage" upLabel="Heal" big
-              />
-              <StatRow label="Armor Class" value={`${totalAC}`} big />
-              <StatRow label="Base Attack Bonus" value={`+${char.baseAttackBonus}`} />
-              <Tracker
-                label="System Strain" current={char.systemStrain.current} max={char.systemStrain.max}
-                onChange={v => onUpdate({ ...char, systemStrain: { ...char.systemStrain, current: v } })}
-              />
-              {isPsychic && (
-                <Tracker
-                  label="Effort (committed)" current={char.effort.committed} max={effortMax}
-                  onChange={v => onUpdate({ ...char, effort: { ...char.effort, committed: v } })}
-                  downLabel="Release" upLabel="Commit"
-                />
-              )}
-              <StatRow
-                label="Move"
-                value={enc.level === 'none' ? '10m' : `${enc.move}m`}
-              />
-              {enc.level !== 'none' && (
-                <div className="text-xs text-amber-400 -mt-1">
-                  {enc.level === 'light' ? 'Lightly' : enc.level === 'heavy' ? 'Heavily' : 'Over-'}encumbered
-                  <span className="text-gray-600"> (Readied {enc.readied}/{enc.readiedMax}, Stowed {enc.stowed}/{enc.stowedMax})</span>
-                </div>
-              )}
-            </div>
-            <div className="mt-4 pt-4 border-t border-gray-700">
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Saving Throws</p>
-              <div className="space-y-1.5">
-                <StatRow label="Physical" value={`${char.saves.physical}+`} small />
-                <StatRow label="Evasion" value={`${char.saves.evasion}+`} small />
-                <StatRow label="Mental" value={`${char.saves.mental}+`} small />
-              </div>
-            </div>
-            {/* Night's rest: refresh Effort, recover 1 System Strain, reload all weapons */}
-            <button
-              onClick={() => onUpdate({
-                ...char,
-                effort: { ...char.effort, committed: 0 },
-                systemStrain: { ...char.systemStrain, current: Math.max(0, char.systemStrain.current - 1) },
-                weapons: char.weapons.map(w => w.ammo ? { ...w, ammo: { ...w.ammo, current: w.ammo.max } } : w),
+        {/* Skills (left) + Combat / Psychic / Foci (right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-6">
+
+          {/* ── Left: all skills, one per row, greyed when unowned ── */}
+          <SheetSection title="Skills" fill>
+            <div className="space-y-0.5">
+              {([...SKILLS] as string[]).sort().map(skillName => {
+                const level: number = (skills as Record<string, number>)[skillName] ?? -1;
+                const owned = level >= 0;
+                return (
+                  <div key={skillName} className="flex items-center justify-between gap-2">
+                    <span className={`text-xs ${owned ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {skillName}{owned ? `-${level}` : ''}
+                    </span>
+                    <span className="inline-flex gap-0.5 flex-shrink-0">
+                      {Array.from({ length: 4 }, (_, i) => (
+                        <span key={i} className={`w-2 h-2 rounded-sm border ${
+                          i < Math.min(4, Math.max(0, level + 1))
+                            ? 'bg-amber-400 border-amber-500'
+                            : owned ? 'border-gray-600 bg-transparent' : 'border-gray-800 bg-transparent'
+                        }`} />
+                      ))}
+                    </span>
+                  </div>
+                );
               })}
-              className="mt-4 w-full py-2 rounded bg-indigo-800/60 hover:bg-indigo-700 text-indigo-200 text-sm font-medium transition-colors"
-              title="Refresh Effort, recover 1 System Strain, reload weapons"
-            >
-              🌙 Night's Rest
-            </button>
+            </div>
           </SheetSection>
 
-          {/* Skills */}
-          <SheetSection title="Skills">
-            {Object.keys(skills).length === 0 ? (
-              <p className="text-gray-600 text-sm italic">No skills recorded.</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-1.5">
-                {Object.entries(skills)
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([skill, level]) => (
-                    <div
-                      key={skill}
-                      className="flex items-center justify-between bg-gray-900/60 rounded px-2 py-1"
-                    >
-                      <span className="text-sm text-gray-300">{skill}-{level}</span>
+          {/* ── Right: Combat + Psychic (top row) then Foci (bottom) ── */}
+          <div className="flex flex-col gap-6">
+            {/* Top row: Combat always left; Psychic alongside if applicable */}
+            <div className={`grid gap-6 ${isPsychic && Object.keys(psychic).length > 0 ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+              <SheetSection title="Combat" action={
+                <button
+                  onClick={() => onUpdate({
+                    ...char,
+                    effort: { ...char.effort, committed: 0 },
+                    systemStrain: { ...char.systemStrain, current: Math.max(0, char.systemStrain.current - 1) },
+                    weapons: char.weapons.map(w => w.ammo ? { ...w, ammo: { ...w.ammo, current: w.ammo.max } } : w),
+                  })}
+                  title="Night's Rest — refresh Effort, recover 1 System Strain, reload weapons"
+                  className="px-2.5 py-1 rounded bg-indigo-700/50 hover:bg-indigo-700 text-indigo-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                >
+                  <Orbit size={16} className="text-yellow-400" /> Night's Rest
+                </button>
+              }>
+                {/* Row 1: HP | AC | Move */}
+                <div className="grid grid-cols-3 gap-2">
+                  {/* HP — interactive */}
+                  <div className="glass rounded-lg p-2 text-center">
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">HP</div>
+                    <div className="flex items-center justify-center gap-1">
+                      <button onClick={() => onUpdate({ ...char, hitPoints: { ...char.hitPoints, current: Math.max(0, char.hitPoints.current - 1) } })} disabled={char.hitPoints.current <= 0}
+                        className="w-5 h-5 rounded bg-gray-700/80 hover:bg-red-900/60 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center" title="Damage">−</button>
+                      <span className={`font-bold tabular-nums text-sm w-14 text-center ${char.hitPoints.current === 0 ? 'text-red-400' : 'text-gray-100'}`}>
+                        {char.hitPoints.current}/{char.hitPoints.max}
+                      </span>
+                      <button onClick={() => onUpdate({ ...char, hitPoints: { ...char.hitPoints, current: Math.min(char.hitPoints.max, char.hitPoints.current + 1) } })} disabled={char.hitPoints.current >= char.hitPoints.max}
+                        className="w-5 h-5 rounded bg-gray-700/80 hover:bg-green-900/60 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center" title="Heal">+</button>
                     </div>
-                  ))}
-              </div>
-            )}
-          </SheetSection>
+                  </div>
+                  {/* AC — static */}
+                  <div className="glass rounded-lg p-2 text-center">
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">AC</div>
+                    <div className="text-xl font-bold text-gray-100">{totalAC}</div>
+                  </div>
+                  {/* Move — static + encumbrance tooltip */}
+                  <div className="relative group glass rounded-lg p-2 text-center cursor-default select-none">
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Move</div>
+                    <div className={`text-xl font-bold ${enc.level === 'none' ? 'text-gray-100' : ENC_STATUS[enc.level].cls}`}>{enc.move}m</div>
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-50 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 border border-gray-700 rounded shadow-xl p-2 w-52 space-y-1 pointer-events-none">
+                      {ENC_LEVELS.map(l => (
+                        <div key={l.level} className={`flex items-center justify-between text-xs rounded px-2 py-0.5 ${enc.level === l.level ? 'bg-gray-700/80 ' + l.cls : 'text-gray-600'}`}>
+                          <span>{l.text}</span><span className="font-mono">{l.penalty}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
 
-          {/* Foci & Psychics */}
-          <div className="space-y-4">
+                {/* Row 2: ATK | System Strain | Effort (psychic) */}
+                <div className={`grid gap-2 mt-2 ${isPsychic ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {/* ATK — static */}
+                  <div className="glass rounded-lg p-2 text-center">
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">ATK</div>
+                    <div className="text-xl font-bold text-gray-100">+{char.baseAttackBonus}</div>
+                  </div>
+                  {/* System Strain — interactive, danger when full */}
+                  <div className="glass rounded-lg p-2 text-center">
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Strain</div>
+                    <div className="flex items-center justify-center gap-1">
+                      <button onClick={() => onUpdate({ ...char, systemStrain: { ...char.systemStrain, current: Math.max(0, char.systemStrain.current - 1) } })} disabled={char.systemStrain.current <= 0}
+                        className="w-5 h-5 rounded bg-gray-700/80 hover:bg-red-900/60 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center">−</button>
+                      <span className={`font-bold tabular-nums text-sm w-12 text-center ${char.systemStrain.current >= char.systemStrain.max ? 'text-red-400' : 'text-gray-100'}`}>
+                        {char.systemStrain.current}/{char.systemStrain.max}
+                      </span>
+                      <button onClick={() => onUpdate({ ...char, systemStrain: { ...char.systemStrain, current: Math.min(char.systemStrain.max, char.systemStrain.current + 1) } })} disabled={char.systemStrain.current >= char.systemStrain.max}
+                        className="w-5 h-5 rounded bg-gray-700/80 hover:bg-green-900/60 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center">+</button>
+                    </div>
+                  </div>
+                  {/* Effort — interactive, danger when fully committed */}
+                  {isPsychic && (
+                    <div className="glass rounded-lg p-2 text-center">
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Effort</div>
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => onUpdate({ ...char, effort: { ...char.effort, committed: Math.max(0, char.effort.committed - 1) } })} disabled={char.effort.committed <= 0}
+                          className="w-5 h-5 rounded bg-gray-700/80 hover:bg-red-900/60 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center" title="Release">−</button>
+                        <span className={`font-bold tabular-nums text-sm w-12 text-center ${char.effort.committed >= effortMax ? 'text-red-400' : 'text-gray-100'}`}>
+                          {char.effort.committed}/{effortMax}
+                        </span>
+                        <button onClick={() => onUpdate({ ...char, effort: { ...char.effort, committed: Math.min(effortMax, char.effort.committed + 1) } })} disabled={char.effort.committed >= effortMax}
+                          className="w-5 h-5 rounded bg-gray-700/80 hover:bg-green-900/60 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center" title="Commit">+</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Saving throws */}
+                <div className="mt-3 pt-3 border-t border-gray-700">
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['Physical', 'Evasion', 'Mental'] as const).map(s => (
+                      <div key={s} className="glass rounded-lg p-2 text-center">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">{s}</div>
+                        <div className="text-sm font-bold text-gray-100">{char.saves[s.toLowerCase() as keyof typeof char.saves]}+</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </SheetSection>
+
+              {/* Psychic disciplines + techniques alongside Combat */}
+              {isPsychic && Object.keys(psychic).length > 0 && (
+                <SheetSection title="Psychic">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-1.5 mb-3">
+                    {Object.entries(psychic).map(([d, lvl]) => (
+                      <div key={d} className="bg-indigo-900/30 border border-indigo-800/40 rounded-lg p-2 text-center">
+                        <div className="text-[10px] text-indigo-300 leading-tight mb-1">{d}</div>
+                        <div className="flex justify-center gap-0.5 mb-1">
+                          {Array.from({ length: 4 }, (_, i) => (
+                            <span key={i} className={`w-2 h-2 rounded-sm border ${
+                              i < Math.min(4, Math.max(0, lvl + 1))
+                                ? 'bg-indigo-400 border-indigo-500'
+                                : 'border-indigo-900 bg-transparent'
+                            }`} />
+                          ))}
+                        </div>
+                        <div className="text-xs font-bold text-indigo-400">{lvl}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {Object.keys(psychic).some(d => char.psychicTechniques.some(t => t.discipline === d && t.techniqueName)) && (
+                    <div className="space-y-1.5 border-t border-gray-700 pt-2">
+                      {Object.keys(psychic).map(d => {
+                        const techs = char.psychicTechniques.filter(t => t.discipline === d && t.techniqueName);
+                        if (techs.length === 0) return null;
+                        return (
+                          <div key={d}>
+                            <p className="text-xs text-indigo-400 font-medium mb-0.5">{d}</p>
+                            {techs.map(t => (
+                              <div key={t.techniqueName} className="text-xs text-gray-400 pl-2">• {t.techniqueName}</div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </SheetSection>
+              )}
+            </div>
+
+            {/* Bottom: Foci */}
             <SheetSection title="Foci">
               {char.foci.length === 0 ? (
                 <p className="text-gray-600 text-sm italic">No foci chosen.</p>
               ) : (
                 <div className="space-y-2">
-                  {char.foci.map(f => (
-                    <div key={f.name} className="bg-gray-900/60 rounded px-3 py-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm text-gray-200">{f.name}</span>
-                        <span className="text-xs text-amber-400">Lvl {f.level}</span>
-                      </div>
-                      {f.specialistSkill && <div className="text-xs text-gray-500">Skill: {f.specialistSkill}</div>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </SheetSection>
-
-            {isPsychic && Object.keys(psychic).length > 0 && (
-              <SheetSection title="Psychic Disciplines">
-                <div className="space-y-2">
-                  {Object.keys(psychic).map(d => {
-                    const techs = char.psychicTechniques.filter(t => t.discipline === d);
+                  {char.foci.map(f => {
+                    const def = FOCI.find(x => x.name === f.name);
+                    const levelDesc = def?.levels[f.level - 1]?.description;
                     return (
-                      <div key={d} className="bg-indigo-900/20 rounded px-3 py-2 border border-indigo-900/40">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm text-indigo-300">{d}</span>
-                          <span className="text-xs text-indigo-500">Level {psychic[d]}</span>
+                      <div key={f.name} className="bg-gray-900/60 rounded px-3 py-2">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-medium text-sm text-gray-200">{f.name}</span>
+                          <span className="text-xs text-amber-400 flex-shrink-0 ml-2">Lvl {f.level}</span>
                         </div>
-                        {techs.map(t => (
-                          <div key={t.techniqueName} className="text-xs text-gray-400 mt-0.5">• {t.techniqueName}</div>
-                        ))}
+                        {f.name === 'Wild Psychic Talent' ? (
+                          <>
+                            {f.specialistSkill && <div className="text-xs text-gray-500 mb-0.5">Discipline: {f.specialistSkill}</div>}
+                            {char.psychicTechniques.filter(t => !!t.techniqueName).map((t, ti) => (
+                              <div key={ti} className="text-xs text-indigo-300 leading-snug">
+                                ↳ {t.techniqueName}{t.discipline !== f.specialistSkill ? ` (${t.discipline})` : ''}
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <>
+                            {f.specialistSkill && <div className="text-xs text-gray-500 mb-0.5">Skill: {f.specialistSkill}</div>}
+                            {levelDesc && <p className="text-xs text-gray-400 leading-snug">{levelDesc}</p>}
+                          </>
+                        )}
                       </div>
                     );
                   })}
                 </div>
-              </SheetSection>
-            )}
+              )}
+            </SheetSection>
           </div>
         </div>
 
@@ -318,6 +443,7 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
                     <th className="text-right py-2 pr-4">Hit Bonus</th>
                     <th className="text-right py-2 pr-4">Range</th>
                     <th className="text-center py-2 pr-4">Ammo</th>
+                    <th className="py-2 w-6"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -329,11 +455,11 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
                       onUpdate({ ...char, weapons: next });
                     };
                     return (
-                      <tr key={`${w.name}-${wi}`} className="border-b border-gray-800">
+                      <tr key={`${w.name}-${wi}`} className={`border-b border-gray-800 ${w.notCarried ? 'opacity-40' : w.readied === false ? 'opacity-60' : ''}`}>
                         <td className="py-2 pr-4 font-medium text-gray-200">
                           <div className="flex items-center gap-2">
-                            <span>{w.name}</span>
-                            <ReadyToggle readied={w.readied !== false} onToggle={() => toggleWeaponReadied(wi)} />
+                            <span className={w.notCarried ? 'line-through text-gray-500' : ''}>{w.name}</span>
+                            {!w.notCarried && <ReadyToggle readied={w.readied !== false} onToggle={() => toggleWeaponReadied(wi)} />}
                           </div>
                         </td>
                         <td className="py-2 pr-4 text-right font-mono text-red-400">{w.damage}</td>
@@ -342,7 +468,7 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
                         </td>
                         <td className="py-2 pr-4 text-right text-gray-500 text-xs">{w.range ?? 'Melee'}</td>
                         <td className="py-2 pr-4">
-                          {w.ammo ? (
+                          {!w.notCarried && w.ammo ? (
                             <div className="flex items-center justify-center gap-1.5">
                               <button onClick={() => setAmmo(w.ammo!.current - 1)} disabled={w.ammo.current <= 0}
                                 className="w-6 h-6 rounded bg-gray-700 hover:bg-red-900/50 disabled:opacity-20 text-gray-300 text-xs" title="Fire (−1)">−</button>
@@ -356,6 +482,9 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
                             <div className="text-center text-xs text-gray-600">—</div>
                           )}
                         </td>
+                        <td className="py-2">
+                          <NotCarriedBtn active={!!w.notCarried} onToggle={() => toggleWeaponNotCarried(wi)} />
+                        </td>
                       </tr>
                     );
                   })}
@@ -365,72 +494,90 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
           </SheetSection>
         )}
 
-        {/* Armor & Equipment */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {char.armor.length > 0 && (
-            <SheetSection title="Armor">
-              <div className="space-y-2">
-                {char.armor.map((a, ai) => (
-                  <div key={`${a.name}-${ai}`} className="flex items-center justify-between gap-2 bg-gray-900/60 rounded px-3 py-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-gray-200 truncate">{a.name}</span>
-                      <ReadyToggle readied={a.readied !== false} onToggle={() => toggleArmorReadied(ai)} />
-                    </div>
-                    <span className="text-green-400 font-bold flex-shrink-0">AC {a.ac}</span>
-                  </div>
-                ))}
-              </div>
-            </SheetSection>
-          )}
-
-          <SheetSection title="Equipment & Credits">
-            {/* Remaining credits (budget − spent), may be negative; quick adders for GM rewards. */}
-            {(() => {
-              const remaining = char.credits - computeGearSpent(char);
-              return (
-                <div className="mb-3 pb-2 border-b border-gray-700 space-y-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`font-bold text-lg ${remaining < 0 ? 'text-red-400' : 'text-amber-400'}`}>
-                      {remaining.toLocaleString()}
-                    </span>
-                    <span className="text-gray-500 text-sm">credits remaining</span>
-                    {remaining < 0 && <span className="text-red-500 text-xs">(over budget)</span>}
-                    {char.debts > 0 && <span className="text-red-400 text-sm ml-auto">Debts: {char.debts.toLocaleString()} cr</span>}
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs text-gray-500">Adjust:</span>
-                    {[100, 500, 1000].map(n => (
-                      <button key={n} onClick={() => addCredits(n)}
-                        className="text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300">+{n}</button>
-                    ))}
-                    <button onClick={() => addCredits(-100)}
-                      className="text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-red-900/40 text-gray-300 hover:text-red-300">−100</button>
-                    <button onClick={() => setShowGear(true)}
-                      className="ml-auto text-xs px-2.5 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-200 hover:text-amber-300 font-medium">
-                      Manage Gear →
-                    </button>
-                  </div>
+        {/* Equipment (full-width): armor rows, then general items, then credits bar */}
+        <SheetSection title="Equipment">
+          {/* Credits row */}
+          {(() => {
+            const remaining = char.credits - computeGearSpent(char);
+            const addEarnings = () => {
+              const n = Math.round(Number(earnings));
+              if (Number.isFinite(n) && n !== 0) addCredits(n);
+              setEarnings('');
+            };
+            return (
+              <div className="flex items-center gap-2 flex-wrap mb-3 pb-3 border-b border-gray-700">
+                <Banknote size={18} className={remaining < 0 ? 'text-red-400' : 'text-amber-400'} />
+                <span className={`font-bold text-lg ${remaining < 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                  {remaining.toLocaleString()}
+                </span>
+                <span className="text-gray-500 text-sm">credits</span>
+                {remaining < 0 && <span className="text-red-500 text-xs">(over budget)</span>}
+                {char.debts > 0 && <span className="text-red-400 text-sm">Debts: {char.debts.toLocaleString()} cr</span>}
+                <div className="ml-auto flex items-center gap-1.5">
+                  <span className="text-xs text-gray-500">Add earnings:</span>
+                  <input
+                    type="number"
+                    value={earnings}
+                    onChange={e => setEarnings(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addEarnings(); }}
+                    placeholder="0"
+                    className="w-24 bg-gray-900/60 border border-gray-700 rounded px-2 py-0.5 text-sm text-gray-200 placeholder-gray-600 text-right focus:outline-none focus:border-amber-500"
+                  />
+                  <button onClick={addEarnings}
+                    className="text-xs px-2.5 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-200 hover:text-amber-300 font-medium">
+                    Add
+                  </button>
+                  <button onClick={() => setShowGear(true)}
+                    className="text-xs px-2.5 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-200 hover:text-amber-300 font-medium">
+                    Manage Gear →
+                  </button>
                 </div>
-              );
-            })()}
-            {char.equipment.length === 0 ? (
-              <p className="text-gray-600 text-sm italic">No general equipment. Use “Manage Gear” to add some.</p>
+              </div>
+            );
+          })()}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+            {/* Armor rows */}
+            {char.armor.map((a, ai) => (
+              <div key={`${a.name}-${ai}`} className={`flex items-center gap-2 py-1.5 border-b border-gray-800/60 ${a.notCarried ? 'opacity-40' : a.readied === false ? 'opacity-60' : ''}`}>
+                <span className="text-gray-500 text-xs">🛡</span>
+                <span className={`text-sm flex-1 ${a.notCarried ? 'text-gray-500 line-through' : a.readied === false ? 'text-gray-500' : 'text-gray-200'}`}>{a.name}</span>
+                <span className="text-green-400 text-xs font-bold">AC {a.ac}</span>
+                {!a.notCarried && <ReadyToggle readied={a.readied !== false} onToggle={() => toggleArmorReadied(ai)} />}
+                <NotCarriedBtn active={!!a.notCarried} onToggle={() => toggleArmorNotCarried(ai)} />
+              </div>
+            ))}
+
+            {/* General equipment items */}
+            {char.equipment.length === 0 && char.armor.length === 0 ? (
+              <p className="text-gray-600 text-sm italic col-span-2 py-2">No gear. Use "Manage Gear" to add some.</p>
             ) : (
-              <ul className="space-y-1">
-                {[...new Set(char.equipment)].map((e) => {
-                  const qty = char.equipment.filter((x: string) => x === e).length;
-                  return (
-                    <li key={e} className="text-sm text-gray-400 flex items-center gap-2">
-                      <span className="text-gray-600">•</span>
-                      <span className="flex-1">{qty > 1 ? `${e} ×${qty}` : e}</span>
-                      <ReadyToggle readied={equipReadied.has(e)} onToggle={() => toggleEquipReadied(e)} />
-                    </li>
-                  );
-                })}
-              </ul>
+              [...new Set(char.equipment)].map((e) => {
+                const qty = char.equipment.filter((x: string) => x === e).length;
+                const isNotCarried = equipNotCarried.has(e);
+                const isReadied = !isNotCarried && equipReadied.has(e);
+                return (
+                  <div key={e} className={`flex items-center gap-2 py-1.5 border-b border-gray-800/60 ${isNotCarried ? 'opacity-40' : ''}`}>
+                    <span className="text-gray-600 text-xs">•</span>
+                    <span className={`text-sm flex-1 ${isNotCarried ? 'text-gray-600 line-through' : 'text-gray-400'}`}>
+                      {qty > 1 ? `${e} ×${qty}` : e}
+                    </span>
+                    {!isNotCarried && <ReadyToggle readied={isReadied} onToggle={() => toggleEquipReadied(e)} />}
+                    <NotCarriedBtn active={isNotCarried} onToggle={() => toggleEquipNotCarried(e)} />
+                  </div>
+                );
+              })
             )}
-          </SheetSection>
-        </div>
+          </div>
+
+          {/* Encumbrance summary (p.65) — 1 line at bottom of equipment */}
+          <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Encumbrance</span>
+            <span className="text-xs text-gray-400">Readied <span className="font-bold text-gray-200">{enc.readied}/{enc.readiedMax}</span></span>
+            <span className="text-xs text-gray-400">Stowed <span className="font-bold text-gray-200">{enc.stowed}/{enc.stowedMax}</span></span>
+            <span className={`text-xs font-semibold ml-auto ${ENC_STATUS[enc.level].cls}`}>{ENC_STATUS[enc.level].text}</span>
+          </div>
+        </SheetSection>
 
         {/* Level history */}
         {char.levelHistory.length > 0 && (
@@ -490,7 +637,7 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
       {confirmEdit && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="text-gray-100 font-semibold text-lg flex items-center gap-2">🔒 Unlock full editor?</h3>
+            <h3 className="text-gray-100 font-semibold text-lg flex items-center gap-2"><LockKeyhole size={18} className="text-amber-400" /> Unlock full editor?</h3>
             <p className="text-gray-400 text-sm">
               The full editor lets you change <strong className="text-gray-300">attributes, background, class, skills, foci, and psychics</strong>.
               Changing these recalculates derived stats and can conflict with choices made while leveling up.
@@ -537,10 +684,13 @@ function GearEditor({ char, onUpdate, onClose }: { char: Character; onUpdate: (c
   );
 }
 
-function SheetSection({ title, children }: { title: string; children: React.ReactNode }) {
+function SheetSection({ title, children, action, fill }: { title: string; children: React.ReactNode; action?: React.ReactNode; fill?: boolean }) {
   return (
-    <div className="glass rounded-xl p-4">
-      <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">{title}</h2>
+    <div className={`glass rounded-xl p-4 ${fill ? 'h-full flex flex-col' : ''}`}>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest">{title}</h2>
+        {action}
+      </div>
       {children}
     </div>
   );
@@ -555,7 +705,7 @@ function InfoBlock({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Small pill that toggles a gear item between Readied and Stowed. */
+/** 2-state toggle for weapons and armor: Readied ↔ Stowed. */
 function ReadyToggle({ readied, onToggle }: { readied: boolean; onToggle: () => void }) {
   return (
     <button
@@ -572,6 +722,23 @@ function ReadyToggle({ readied, onToggle }: { readied: boolean; onToggle: () => 
   );
 }
 
+/** Small rocket icon button — toggles "left at ship/base" (not carried, zero enc). */
+function NotCarriedBtn({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={active ? 'Left at ship/base — click to bring along' : 'Leave at ship/base (removes from encumbrance)'}
+      className={`p-0.5 rounded transition-colors ${
+        active
+          ? 'text-amber-400 bg-amber-900/30 hover:bg-amber-900/50'
+          : 'text-gray-600 hover:text-gray-400'
+      }`}
+    >
+      <Package size={13} />
+    </button>
+  );
+}
+
 function StatRow({ label, value, big, small }: { label: string; value: string; big?: boolean; small?: boolean }) {
   return (
     <div className="flex items-baseline justify-between">
@@ -583,12 +750,14 @@ function StatRow({ label, value, big, small }: { label: string; value: string; b
   );
 }
 
-/** Live current/max tracker with − / + steppers (clamped 0…max). */
-function Tracker({ label, current, max, onChange, downLabel, upLabel, big }: {
+/** Live current/max tracker with − / + steppers (clamped 0…max).
+ *  dangerHigh: red when current === max (e.g. System Strain); otherwise red when 0 (e.g. HP). */
+function Tracker({ label, current, max, onChange, downLabel, upLabel, big, dangerHigh }: {
   label: string; current: number; max: number; onChange: (v: number) => void;
-  downLabel?: string; upLabel?: string; big?: boolean;
+  downLabel?: string; upLabel?: string; big?: boolean; dangerHigh?: boolean;
 }) {
   const set = (v: number) => onChange(Math.max(0, Math.min(max, v)));
+  const isDanger = dangerHigh ? current >= max : current === 0;
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-gray-400 text-sm">{label}</span>
@@ -596,7 +765,7 @@ function Tracker({ label, current, max, onChange, downLabel, upLabel, big }: {
         <button onClick={() => set(current - 1)} disabled={current <= 0}
           className="w-6 h-6 rounded bg-gray-700 hover:bg-red-900/50 disabled:opacity-20 text-gray-300 text-sm flex items-center justify-center"
           title={downLabel}>−</button>
-        <span className={`font-bold tabular-nums text-center ${big ? 'text-xl w-16' : 'text-base w-14'} ${current === 0 ? 'text-red-400' : 'text-gray-100'}`}>
+        <span className={`font-bold tabular-nums text-center ${big ? 'text-xl w-16' : 'text-base w-14'} ${isDanger ? 'text-red-400' : 'text-gray-100'}`}>
           {current} / {max}
         </span>
         <button onClick={() => set(current + 1)} disabled={current >= max}

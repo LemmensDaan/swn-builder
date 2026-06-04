@@ -136,8 +136,9 @@ export function deriveAC(char: Character): { ac: number; base: number; label: st
   let base = 10;
   let label = 'Unarmored';
 
-  if (char.armor.length > 0) {
-    const best = char.armor.reduce((b, a) => (a.ac >= b.ac ? a : b));
+  const readiedArmor = char.armor.filter(a => !a.notCarried && a.readied !== false);
+  if (readiedArmor.length > 0) {
+    const best = readiedArmor.reduce((b, a) => (a.ac >= b.ac ? a : b));
     base = best.ac;
     label = best.name;
   }
@@ -188,17 +189,21 @@ export function computeEncumbrance(char: Character): Encumbrance {
   let stowed = 0;
 
   for (const a of char.armor) {
+    if (a.notCarried) continue;
     const enc = ARMOR_TABLE.find(x => x.name === a.name)?.enc ?? 1;
     if (a.readied === false) stowed += enc; else readied += enc;
   }
   for (const w of char.weapons) {
+    if (w.notCarried) continue;
     const enc = RANGED_WEAPONS.find(x => x.name === w.name)?.enc
       ?? MELEE_WEAPONS.find(x => x.name === w.name)?.enc ?? 1;
     if (w.readied === false) stowed += enc; else readied += enc;
   }
 
-  // General equipment defaults to Stowed; names in equipmentReadied are Readied instead.
+  // General equipment defaults to Stowed; readied set → Readied; not-carried set → 0 enc.
+  const notCarriedSet = new Set(char.equipmentNotCarried ?? []);
   for (const e of char.equipment) {
+    if (notCarriedSet.has(e)) continue;
     const enc = generalItemEnc(e);
     if (readiedSet.has(e)) readied += enc; else stowed += enc;
   }

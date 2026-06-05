@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
-import { BookOpen, Camera, HelpCircle, Trash2, PersonStanding, Dna, Sparkles, ArrowBigUp, ScrollText, Skull, Ghost, ChevronDown, ChevronRight, HeartPulse, Copy } from 'lucide-react';
+import { BookOpen, Camera, Download, FolderOpen, HelpCircle, Trash2, PersonStanding, Dna, Sparkles, ArrowBigUp, ScrollText, Skull, Ghost, ChevronDown, ChevronRight, HeartPulse, Copy, AlertTriangle, Anchor, Zap, Heart } from 'lucide-react';
 import type { Character } from '../types/character';
+import type { Ship } from '../types/ship';
+import { HULL_TYPES } from '../data/ships';
 
 interface Props {
   characters: Character[];
@@ -11,12 +13,37 @@ interface Props {
   onUnretire: (id: string) => void;
   onCopy: (id: string) => void;
   onImageChange: (id: string, dataUrl: string) => void;
+  onExport: () => void;
+  onImport: (file: File) => Promise<void>;
   onOpenRules: () => void;
   onOpenHelp: () => void;
+  ships: Ship[];
+  onNewShip: () => void;
+  onOpenShip: (id: string) => void;
+  onDeleteShip: (id: string) => void;
 }
 
-export default function HomeScreen({ characters, onNew, onOpen, onDelete, onRetire, onUnretire, onCopy, onImageChange, onOpenRules, onOpenHelp }: Props) {
+export default function HomeScreen({ characters, onNew, onOpen, onDelete, onRetire, onUnretire, onCopy, onImageChange, onExport, onImport, onOpenRules, onOpenHelp, ships, onNewShip, onOpenShip, onDeleteShip }: Props) {
   const [graveyardOpen, setGraveyardOpen] = useState(false);
+  const [importPending, setImportPending] = useState<File | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'characters' | 'ships'>('characters');
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  async function confirmImport() {
+    if (!importPending) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      await onImport(importPending);
+      setImportPending(null);
+    } catch {
+      setImportError('Invalid backup file. Make sure you selected a valid swn-builder export.');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const activeChars = characters.filter(c => !c.retired);
   const retiredChars = characters.filter(c => c.retired);
@@ -29,7 +56,33 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
             <h1 className="text-xl font-bold text-amber-400">Stars Without Number</h1>
             <p className="text-xs text-gray-500">Revised Deluxe Edition — Character & Ship Builder</p>
           </div>
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-1 items-center">
+            <button
+              onClick={onExport}
+              title="Export backup (swn-builder-YYYY-MM-DD.json)"
+              className="w-9 h-9 rounded text-gray-400 hover:text-emerald-300 hover:bg-gray-700 transition-colors flex items-center justify-center"
+            >
+              <Download size={18} />
+            </button>
+            <button
+              onClick={() => importInputRef.current?.click()}
+              title="Import from backup"
+              className="w-9 h-9 rounded text-gray-400 hover:text-sky-300 hover:bg-gray-700 transition-colors flex items-center justify-center"
+            >
+              <FolderOpen size={18} />
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={e => {
+                const file = e.target.files?.[0];
+                if (file) { setImportPending(file); setImportError(null); }
+                e.target.value = '';
+              }}
+            />
+            <div className="w-px h-5 bg-gray-700 mx-1" />
             <button onClick={onOpenHelp} title="Rules reference & FAQ" className="w-9 h-9 rounded text-gray-400 hover:text-amber-300 hover:bg-gray-700 transition-colors flex items-center justify-center">
               <HelpCircle size={20} />
             </button>
@@ -37,78 +90,156 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
               <BookOpen size={20} />
             </button>
           </div>
+
+          {/* Import confirmation modal */}
+          {importPending && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { setImportPending(null); setImportError(null); }}>
+              <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 flex flex-col gap-4 shadow-2xl max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-start gap-3">
+                  <AlertTriangle size={20} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-gray-100 font-semibold">Import backup?</p>
+                    <p className="text-gray-400 text-sm mt-1">
+                      This will <span className="text-amber-300 font-medium">replace all current data</span> with the contents of:
+                    </p>
+                    <p className="text-gray-300 text-sm font-mono mt-1 truncate">{importPending.name}</p>
+                  </div>
+                </div>
+                {importError && (
+                  <p className="text-red-400 text-sm bg-red-900/20 border border-red-800/50 rounded-lg px-3 py-2">
+                    {importError}
+                  </p>
+                )}
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => { setImportPending(null); setImportError(null); }}
+                    className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmImport}
+                    disabled={importing}
+                    className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+                  >
+                    <FolderOpen size={14} />
+                    {importing ? 'Importing…' : 'Import'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="flex-1 max-w-6xl mx-auto w-full px-6 py-8">
         <div className="flex gap-4 mb-8 border-b border-gray-800 pb-1">
-          <Tab label="Characters" active />
-          <Tab label="Ships" active={false} disabled />
+          <Tab label="Characters" active={activeTab === 'characters'} onClick={() => setActiveTab('characters')} />
+          <Tab label="Ships" active={activeTab === 'ships'} onClick={() => setActiveTab('ships')} />
           <Tab label="Factions" active={false} disabled />
         </div>
 
-        {characters.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="text-6xl mb-4">🚀</div>
-            <h2 className="text-xl font-semibold text-gray-300 mb-2">No characters yet</h2>
-            <p className="text-gray-500 mb-6 max-w-sm">
-              Create your first interstellar adventurer for the year 3200. Freebooters, mercenaries, and psychic adepts await.
-            </p>
-            <button onClick={onNew} className="px-6 py-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-colors">
-              Create Character
-            </button>
-          </div>
-        ) : (
+        {activeTab === 'characters' && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {activeChars.map(char => (
-                <CharacterCard
-                  key={char.id}
-                  char={char}
-                  onOpen={() => onOpen(char.id)}
-                  onDelete={() => onDelete(char.id)}
-                  onRetire={() => onRetire(char.id)}
-                  onUnretire={() => onUnretire(char.id)}
-                  onCopy={() => onCopy(char.id)}
-                  onImageChange={dataUrl => onImageChange(char.id, dataUrl)}
-                />
-              ))}
-              <button
-                onClick={onNew}
-                className="border-2 border-dashed border-gray-700 rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:border-amber-700 hover:bg-amber-900/10 transition-colors text-gray-600 hover:text-amber-400"
-              >
-                <span className="text-3xl">+</span>
-                <span className="text-sm font-medium">New Character</span>
-              </button>
-            </div>
-
-            {retiredChars.length > 0 && (
-              <div className="mt-10">
-                <button
-                  onClick={() => setGraveyardOpen(v => !v)}
-                  className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors mb-4 group"
-                >
-                  <Ghost size={16} className="text-gray-600 group-hover:text-gray-400 transition-colors" />
-                  <span className="text-sm font-medium">Graveyard</span>
-                  <span className="text-xs text-gray-700 bg-gray-800 px-1.5 py-0.5 rounded-full ml-0.5">{retiredChars.length}</span>
-                  {graveyardOpen ? <ChevronDown size={14} className="ml-1" /> : <ChevronRight size={14} className="ml-1" />}
+            {characters.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="text-6xl mb-4">🚀</div>
+                <h2 className="text-xl font-semibold text-gray-300 mb-2">No characters yet</h2>
+                <p className="text-gray-500 mb-6 max-w-sm">
+                  Create your first interstellar adventurer for the year 3200. Freebooters, mercenaries, and psychic adepts await.
+                </p>
+                <button onClick={onNew} className="px-6 py-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-colors">
+                  Create Character
                 </button>
-                {graveyardOpen && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {retiredChars.map(char => (
-                      <CharacterCard
-                        key={char.id}
-                        char={char}
-                        onOpen={() => onOpen(char.id)}
-                        onDelete={() => onDelete(char.id)}
-                        onRetire={() => onRetire(char.id)}
-                        onUnretire={() => onUnretire(char.id)}
-                        onCopy={() => onCopy(char.id)}
-                        onImageChange={dataUrl => onImageChange(char.id, dataUrl)}
-                      />
-                    ))}
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {activeChars.map(char => (
+                    <CharacterCard
+                      key={char.id}
+                      char={char}
+                      onOpen={() => onOpen(char.id)}
+                      onDelete={() => onDelete(char.id)}
+                      onRetire={() => onRetire(char.id)}
+                      onUnretire={() => onUnretire(char.id)}
+                      onCopy={() => onCopy(char.id)}
+                      onImageChange={dataUrl => onImageChange(char.id, dataUrl)}
+                    />
+                  ))}
+                  <button
+                    onClick={onNew}
+                    className="border-2 border-dashed border-gray-700 rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:border-amber-700 hover:bg-amber-900/10 transition-colors text-gray-600 hover:text-amber-400"
+                  >
+                    <span className="text-3xl">+</span>
+                    <span className="text-sm font-medium">New Character</span>
+                  </button>
+                </div>
+
+                {retiredChars.length > 0 && (
+                  <div className="mt-10">
+                    <button
+                      onClick={() => setGraveyardOpen(v => !v)}
+                      className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors mb-4 group"
+                    >
+                      <Ghost size={16} className="text-gray-600 group-hover:text-gray-400 transition-colors" />
+                      <span className="text-sm font-medium">Graveyard</span>
+                      <span className="text-xs text-gray-700 bg-gray-800 px-1.5 py-0.5 rounded-full ml-0.5">{retiredChars.length}</span>
+                      {graveyardOpen ? <ChevronDown size={14} className="ml-1" /> : <ChevronRight size={14} className="ml-1" />}
+                    </button>
+                    {graveyardOpen && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {retiredChars.map(char => (
+                          <CharacterCard
+                            key={char.id}
+                            char={char}
+                            onOpen={() => onOpen(char.id)}
+                            onDelete={() => onDelete(char.id)}
+                            onRetire={() => onRetire(char.id)}
+                            onUnretire={() => onUnretire(char.id)}
+                            onCopy={() => onCopy(char.id)}
+                            onImageChange={dataUrl => onImageChange(char.id, dataUrl)}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
+              </>
+            )}
+          </>
+        )}
+
+        {activeTab === 'ships' && (
+          <>
+            {ships.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="text-6xl mb-4">🚀</div>
+                <h2 className="text-xl font-semibold text-gray-300 mb-2">No ships yet</h2>
+                <p className="text-gray-500 mb-6 max-w-sm">
+                  Commission your first starship for traversing the Mandate's scattered worlds.
+                </p>
+                <button onClick={onNewShip} className="px-6 py-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-colors">
+                  Build Ship
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {ships.map(ship => (
+                  <ShipCard
+                    key={ship.id}
+                    ship={ship}
+                    onOpen={() => onOpenShip(ship.id)}
+                    onDelete={() => onDeleteShip(ship.id)}
+                  />
+                ))}
+                <button
+                  onClick={onNewShip}
+                  className="border-2 border-dashed border-gray-700 rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:border-amber-700 hover:bg-amber-900/10 transition-colors text-gray-600 hover:text-amber-400"
+                >
+                  <span className="text-3xl">+</span>
+                  <span className="text-sm font-medium">New Ship</span>
+                </button>
               </div>
             )}
           </>
@@ -400,10 +531,84 @@ function CharacterCard({ char, onOpen, onDelete, onRetire, onUnretire, onCopy, o
   );
 }
 
-function Tab({ label, active, disabled }: { label: string; active: boolean; disabled?: boolean }) {
+function ShipCard({ ship, onOpen, onDelete }: {
+  ship: Ship;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const hull = HULL_TYPES.find(h => h.id === ship.hullId);
+  const hullName = hull?.name ?? ship.hullId;
+  const hullClass = hull?.class ?? '—';
+  const hpDanger = ship.hitPoints.current === 0;
+
+  return (
+    <div
+      onClick={onOpen}
+      className="glass-card rounded-xl cursor-pointer transition-all duration-200 hover:border-amber-600/60 hover:bg-gray-800/50 hover:shadow-lg hover:shadow-amber-900/20 hover:-translate-y-0.5 relative overflow-hidden"
+    >
+      <div className="p-5 flex flex-col min-w-0">
+        <div className="space-y-2.5 mb-4 flex-1">
+          <div className="flex items-center gap-2.5">
+            <Anchor size={15} className="text-amber-400 flex-shrink-0" />
+            <span className="font-bold text-gray-100 text-lg leading-tight truncate">{ship.name || '(unnamed)'}</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Anchor size={14} className="text-sky-400 flex-shrink-0" />
+            <span className="text-sm text-sky-300/80 truncate">{hullName}</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-700/60 text-gray-300 border border-gray-600/50">
+              {hullClass}
+            </span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Zap size={14} className="text-emerald-400 flex-shrink-0" />
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-800/50">
+              Drive-{ship.driveRating}
+            </span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Heart size={14} className={hpDanger ? 'text-red-400 flex-shrink-0' : 'text-red-500/70 flex-shrink-0'} />
+            <span className={`text-sm font-medium ${hpDanger ? 'text-red-400' : 'text-gray-300'}`}>
+              {ship.hitPoints.current} / {ship.hitPoints.max} HP
+            </span>
+          </div>
+        </div>
+
+        <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+          <div className="flex-1" />
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="px-2.5 py-1.5 rounded bg-gray-700 hover:bg-red-900/60 text-red-500 hover:text-red-400 transition-colors flex items-center"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Confirm delete overlay */}
+      {confirmDelete && (
+        <div className="absolute inset-0 bg-gray-950/95 rounded-xl flex flex-col items-center justify-center gap-4 p-5 z-10" onClick={e => e.stopPropagation()}>
+          <p className="text-gray-200 font-semibold text-center">Delete <span className="text-amber-300">{ship.name || 'this ship'}</span>?</p>
+          <p className="text-gray-500 text-xs text-center">This cannot be undone.</p>
+          <div className="flex gap-3">
+            <button onClick={() => setConfirmDelete(false)} className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium">Keep</button>
+            <button onClick={onDelete} className="px-4 py-2 rounded bg-red-700 hover:bg-red-600 text-white text-sm font-semibold">Delete</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Tab({ label, active, disabled, onClick }: { label: string; active: boolean; disabled?: boolean; onClick?: () => void }) {
   return (
     <button
       disabled={disabled}
+      onClick={onClick}
       className={`pb-2 text-sm font-medium border-b-2 transition-colors ${
         active ? 'border-amber-500 text-amber-300'
         : disabled ? 'border-transparent text-gray-700 cursor-not-allowed'

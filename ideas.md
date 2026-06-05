@@ -1,38 +1,37 @@
-⚠️ Read up on rules first before editing wizard/char overview pages any further ⚠️
-1. Char overview page.
--> instead of view sheet, i would make the card clickable, also add nice hover effect
--> on the card only show the following props with icons: name (person-standing), species (dna), class (sparkles), level (arrow-big-up), background (scroll-text). Keep the delete button, also add a retire button. (for char deaths, use skull icon)
+1.🔄️ STORAGE 💽⏳
+- Now working with indexedDB through browser data. Export/Import should now be used for saving. Eventually we will use capacitator on android which will take care of saving/loading from and to that json
 
-2. Char builder/sheet
+2.🔄️ Char builder/sheet ⚠️⏳
+- Read up on rules first before editing wizard/char overview pages any further ⚠️
 - ammo reloading should also keep track of stowed/ready ammo imo. reloading not possible if no ammo readied/stowed
 - ready/stow for stacked items (including ammo), should follow rules of encumbrance as stated in swn source material. So it should be possible to stow separate items instead of a full stack, check on source material before editing
 - check inner workings of psychic before further editing the layout
-⚠️                                                                               ⚠️
---- questions ---
-->  How are characters saved at this moment? locally somewhere?
 
------ only do 1 and 2 for now ----
-
-3. Ship builder
+3.🔄️ Ship builder
 
 - tracker for character/ship
 pathbuilder lets you create your character but also use it as reference sheet and actual sheet.
 so i want to be able to keep track of hp, equipment, ammo, certain abilities,notes etc so that i do not have to have a physical sheet.
 
-- Deluxe extras builders
+4. Deluxe extras builders
 
-import/export for porting from and to different devices (choose easiest format will prob be xml or json, but you can choose)
+5.✅ import/export for porting from and to different devices (choose easiest format will prob be xml or json, but you can choose)
 
-- PDF export
+6. PDF export
 Every created thing should have an export to pdf for downloading.
 We should leave some stuff empty for pdf so that when we print them we can manually edit our sheets with pencil. Think about stats, skills, equipment, credits etc.
 For example Shoot-0 -> should probably be Shoot- , where we then can fill in the number ourselves.
 
-- Import images for character/ship
+- Import images for ship
 - Import file for backstory for quick reference. This file should also be able to be opened like the pdf of swn itself 
 (prob pdf, xml, md depending on what is automatically supported by android)
 
-Silly mode
+9. add Different styles of website
+definitely keep the current style, very nicely done
+add extra styles, my favorites of course based on, homeworld, mass effect, expanse, cyberpunk.
+also change the background, i will provide them though  
+
+10. Silly mode
  - with star wars esque changes of pages like those scenes switch.
  - space noices with each click/button (different kind of pitch if used a lot)
  - achievements
@@ -40,75 +39,82 @@ Silly mode
 
 With any dice roll selection, roll actual dice that we can see the result of, so for example for rolling stats we should see the roll one by one. (could be silly mode addition)
 
-- add Different styles of website
-definitely keep the current style, very nicely done
-add extra styles, my favorites of course based on, homeworld, mass effect, expanse, cyberpunk.
-also change the background, i will provide them though  
+11. !
+🌌🌌🌌🌌🌌🌌
 
-BIG QUESTION IF THIS IS POSSIBLE
-- sector builder with selections of all kinds of different celestial objects (stars, black holes, quasars, super novas, neutron stars, comets, asteroid fields, gas giants, planets, moons, our current ship, armada's space stations, you name it.) that you can choose from to build your sector.
-this should be pretty doable.
--but then the bigh trick is that i want a rendered 3d view of the sector (part of galaxy), then the local cluster, then a system, then a planet, then a base/ship/station
-this would be pretty low polygon items. but would be cool if lets say on the solar system you would be able to see the planets revolve around the sun and themselves, moons around planets etc. we could let them choose between 1 or 2 colors just to get a feeling for it. No idea how feasable this is with current tools and or platform and if it wouldnt be too intensive on the system. But the low polygon art style would be pretty nice to have in that part.
+SWN SECTOR VIEWER — PROJECT OVERVIEW
+What exists (v0.1 — prototype) (in a different project, if you want source code, i can give it to you, but i think you can come up with better stuff)
+A working React + react-three-fiber proof of concept exists with:
 
-WN SECTOR VIEWER — STANDALONE MODULE
-Build a standalone 3D sector viewer as a React + TypeScript component using Three.js via react-three-fiber and @react-three/drei. It will later be dropped into an existing Vite + React + TypeScript + Tailwind + Zustand project as a /sector route.
-Core features:
+A rotating low-poly Sun using sphereGeometry with emissive material and a pointLight
+A planet (Earth) with inclined orbital mechanics via getOrbitPosition(angle, radius, inclination), self-rotation, and an orbit ring component
+Objects casting shadows, animated via useFrame
+The foundation is functional and the orbital math handles inclination correctly
 
-Hex-grid sector overview with named star systems as clickable low-poly stars
-Click a star → smooth camera zoom into that system
-System view: planets orbiting their star, moons orbiting planets, optional asteroid belt, optional space station
-Hover tooltip on planets showing name and SWN world tags
-Back button returns to sector overview
-GM can add/edit/remove systems and planets via a simple sidebar panel
-Sector data stored in Zustand + exported/imported as JSON
+What we're building
+A two-layer interactive 3D sector map for a private SWN (Stars Without Number Deluxe Revised) TTRPG group.
 
-Interaction:
+Layer 1 - Galaxy view — low-poly swirl
+Sector clusters as glowing points 
 
-Click star → enter system
-Hover planet → tooltip (name, world tags)
-Back → sector overview
-GM mode toggle → sidebar to add/edit celestial objects
+Layer 2 — Sector Overview (hex grid) -> could be 2.5D
+A top-down hexagonal grid representing the sector. Each hex can contain a star system, a faction territory, or be empty. Hexes are color-coded by faction or content type. Clicking a hex opens a panel listing all objects in that system, ordered from star outward (star → inner planets → asteroid belt → outer planets → gas giants → moons → space stations etc.). This list is fully editable — the GM can add, remove, and reorder objects, define parent-child relationships (e.g. moon belongs to planet, station orbits gas giant), and set properties per object.
+Editable properties per object:
 
-3D style guide (strict):
+Type: Star, Black Hole, Planet, Gas Giant, Moon, Asteroid Belt, Space Station, Jump Gate, etc.
+Name, color, size (relative scale)
+Orbit radius and inclination -> could be set manually, or we choose random orbits between certain margins, based on the location of the object in the system
+Parent object (for moons, stations)
+Custom notes / SWN world tags / factions
 
-All geometry flat-shaded: flatShading: true on all materials
-Stars: IcosahedronGeometry detail 1, point light glow behind them
-Planets: IcosahedronGeometry detail 0–1, visible chunky triangle faces, slight color variation per face
-Moons: IcosahedronGeometry detail 0
-Asteroid belts: particle points in a ring
-Space stations: simple low-poly angular geometry
-Background: particle starfield
-UI overlay: monospace font, dark with subtle blue tint, minimal
-Reference aesthetic: low-poly indie space game, flat triangle faces clearly visible, not smooth or realistic
+When hovered over hex cell, it could be highlighted and lifted a bit out of the grid. when clicked, system should be able to be edited as stated before. 
 
-Data model (JSON):
-json{
-  "sectorName": "Veiled Expanse",
-  "systems": [
-    {
-      "id": "sys-1",
-      "name": "Arcturus Prime",
-      "x": -22, "z": -18,
-      "starColor": "#88aaff",
-      "tags": ["Pretech Remnants", "Hostile Space"],
-      "planets": [
-        {
-          "id": "pl-1",
-          "name": "Verdana",
-          "tags": ["Inhabited", "Trade Hub"],
-          "color": "#4488cc",
-          "orbitRadius": 12,
-          "hasMoon": true,
-          "hasStation": false
-        }
-      ],
-      "hasAsteroidBelt": true
-    }
-  ]
-}
-Notes:
+Layer 3 — System Viewer (3D render)
+When the GM or player clicks "View System" from the hex panel, the app transitions into a 3D rendered view of that system built from the data defined in Layer 1. Uses the existing prototype as foundation.
+Render features:
 
-Build as a self-contained route component, no tight coupling to the rest of the app
-PWA/mobile friendly, runs well on mid-range Android
-GM edit mode behind a simple toggle, no auth needed
+Sun(s) with emissive glow and point light
+Planets and gas giants on inclined orbits with self-rotation
+Moons orbiting their parent planet
+Asteroid belts as particle rings
+Space stations as low-poly angular meshes
+Orbit rings visualizing each object's path
+Shadows and basic lighting from the star
+
+-> the way the system would be setup should be based on the "system tree" defined in layer 2.
+
+Art style:
+
+Fun over realistic — scale is exaggerated for readability
+Low-poly / flat-shaded aesthetic where applicable
+Color (1 or 2 depending on object) chosen per object by the GM
+No attempt at scientific accuracy, with a few exceptions like lighting/shading/shadows from sun and others.
+
+The aesthetic continuity across all three layers is going to look really cohesive — same flat shading, same color language, same particle starfield behind everything. Low-poly scales beautifully from galaxy down to moon.
+Good additions, fits the vision perfectly.
+All three layers should also use leader lines/callout lines with the name of the sector/system/object depending on the layer.
+
+Tech stack, you may deviate if needed
+
+Vite + React + TypeScript
+react-three-fiber + @react-three/drei for 3D
+Zustand for state
+localStorage + JSON export/import for persistence
+Tailwind for UI panels
+PWA ready for mobile use
+
+Phased build order:
+
+Hex grid sector overview with clickable hexes
+Object list panel (editable, ordered, parent-child)
+System viewer pulling from that data
+Polish — transitions, camera zoom, hover tooltips
+Faction coloring and sector-level metadata
+
+Galaxy → Sector zoom
+A low-poly galaxy view as the entry point — think a flat swirling arm shape made of low-poly geometry with glowing cluster points representing sectors. Click a sector cluster → camera zooms in hard → hex grid fades in. Three layers total: Galaxy → Sector → System.
+Hex zoom transition
+From the hex grid, clicking a hex triggers a dramatic camera push toward that hex, stars/dots expanding as you close in — then the system renderer fades in at the end of the zoom. Sells the sense of actual space travel between scales.
+Why this works technically
+All three layers can live in the same Three.js scene or transition between scenes. The zoom is just a camera animation (lerp or spring via Drei's useSpring). The galaxy layer is cheap — a few hundred low-poly vertices and some particles.
+

@@ -22,9 +22,11 @@ interface Props {
   onSave: () => void;
   canSave: boolean;
   isEditing: boolean;
+  stepNames?: string[];
+  wizardLabel?: string;
 }
 
-const STEP_NAMES = [
+const DEFAULT_STEP_NAMES = [
   'Concept', 'Attributes', 'Background', 'Skills', 'Class', 'Foci', 'Psychics', 'Equipment', 'Review',
 ];
 
@@ -32,8 +34,9 @@ export default function WizardLayout({
   step, totalSteps, title, subtitle, children,
   onBack, onNext, onFinish, finishDisabled, nextLabel, nextDisabled,
   maxVisited, onStepClick, stepValidity, onOpenRules, onOpenHelp,
-  onExit, onSave, canSave, isEditing,
+  onExit, onSave, canSave, isEditing, stepNames, wizardLabel,
 }: Props) {
+  const names = stepNames ?? DEFAULT_STEP_NAMES;
   const pct = Math.round((step / totalSteps) * 100);
 
   return (
@@ -47,7 +50,7 @@ export default function WizardLayout({
         <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center gap-4 flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-amber-400 font-bold text-lg">SWN</span>
-            <span className="text-gray-400 text-sm">Character Creator</span>
+            <span className="text-gray-400 text-sm">{wizardLabel ?? 'Character Creator'}</span>
           </div>
           <div className="flex-1 max-w-xs">
             <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -92,7 +95,7 @@ export default function WizardLayout({
         {/* Step tabs — solid */}
         <div className="bg-gray-900 border-b border-gray-800 px-4 overflow-x-auto flex-shrink-0">
           <div className="flex gap-1 min-w-max py-1">
-            {STEP_NAMES.slice(0, totalSteps).map((name, i) => {
+            {names.slice(0, totalSteps).map((name, i) => {
               const stepNum = i + 1;
               const isCurrent = stepNum === step;
               const visited = stepNum <= maxVisited;

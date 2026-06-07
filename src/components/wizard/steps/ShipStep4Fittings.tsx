@@ -48,39 +48,40 @@ function BudgetBar({ derived }: { derived: DerivedShip }) {
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-3">
-      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Resource Budget</p>
+      <div className="flex flex-wrap gap-6">
 
-      {/* Power */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-400">Power</span>
-          <span className={`font-mono font-semibold ${overPower ? 'text-red-400' : 'text-gray-200'}`}>
-            {powerUsed} / {powerTotal}
-            {overPower && <span className="ml-1.5 text-xs text-red-500">over budget!</span>}
-          </span>
+        {/* Power */}
+        <div className="flex-1 min-w-40 space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-400 uppercase tracking-wide">Power</span>
+            <span className={`font-mono font-semibold ${overPower ? 'text-red-400' : 'text-gray-200'}`}>
+              {powerUsed} / {powerTotal}
+              {overPower && <span className="ml-1.5 text-xs text-red-500">over budget!</span>}
+            </span>
+          </div>
+          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${overPower ? 'bg-red-500' : 'bg-sky-500'}`}
+              style={{ width: `${Math.min(powerPct, 100)}%` }}
+            />
+          </div>
         </div>
-        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-300 ${overPower ? 'bg-red-500' : 'bg-sky-500'}`}
-            style={{ width: `${Math.min(powerPct, 100)}%` }}
-          />
-        </div>
-      </div>
 
-      {/* Mass */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-400">Mass</span>
-          <span className={`font-mono font-semibold ${overMass ? 'text-red-400' : 'text-gray-200'}`}>
-            {massUsed} / {massTotal}
-            {overMass && <span className="ml-1.5 text-xs text-red-500">over budget!</span>}
-          </span>
-        </div>
-        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-300 ${overMass ? 'bg-red-500' : 'bg-amber-500'}`}
-            style={{ width: `${Math.min(massPct, 100)}%` }}
-          />
+        {/* Mass */}
+        <div className="flex-1 min-w-40 space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-400 uppercase tracking-wide">Mass</span>
+            <span className={`font-mono font-semibold ${overMass ? 'text-red-400' : 'text-gray-200'}`}>
+              {massUsed} / {massTotal}
+              {overMass && <span className="ml-1.5 text-xs text-red-500">over budget!</span>}
+            </span>
+          </div>
+          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${overMass ? 'bg-red-500' : 'bg-lime-500'}`}
+              style={{ width: `${Math.min(massPct, 100)}%` }}
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -146,11 +147,10 @@ export default function ShipStep4Fittings({ ship, derived, onChange }: Props) {
           disabled={plusDisabled}
           onClick={onIncrement}
           title={plusDisabled ? 'Can only install once' : undefined}
-          className={`w-7 h-7 rounded text-sm flex items-center justify-center ${
-            plusDisabled
+          className={`w-7 h-7 rounded text-sm flex items-center justify-center ${plusDisabled
               ? 'bg-gray-800 text-gray-600 opacity-30 cursor-not-allowed'
               : 'bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300'
-          }`}
+            }`}
           aria-label="Increase quantity"
         >
           +
@@ -194,9 +194,8 @@ export default function ShipStep4Fittings({ ship, derived, onChange }: Props) {
                 return (
                   <tr
                     key={def.id}
-                    className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${
-                      isInstalled ? 'bg-sky-900/10' : ''
-                    }`}
+                    className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${isInstalled ? 'bg-sky-900/10' : ''
+                      }`}
                   >
                     {/* Name */}
                     <td className="py-2 pr-3 align-top">
@@ -311,9 +310,8 @@ export default function ShipStep4Fittings({ ship, derived, onChange }: Props) {
                 return (
                   <tr
                     key={def.id}
-                    className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${
-                      isInstalled ? 'bg-amber-900/10' : ''
-                    }`}
+                    className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${isInstalled ? 'bg-amber-900/10' : ''
+                      }`}
                   >
                     {/* Name */}
                     <td className="py-2 pr-3 align-top">

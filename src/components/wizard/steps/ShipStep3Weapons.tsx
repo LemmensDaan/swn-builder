@@ -64,11 +64,13 @@ function ApChip({ ap }: { ap: number }) {
 // ── Budget bar ────────────────────────────────────────────────────────────────
 
 function BudgetBar({ derived }: { derived: DerivedShip }) {
-  const { hardpointsUsed, hardpointsFree, hull, powerUsed, overHardpoints, overPower } = derived;
+  const { hardpointsUsed, hardpointsFree, hull, powerUsed, overHardpoints, overPower, overMass, massUsed } = derived;
   const totalHardpoints = hull.hardpoints;
-  const totalPower = hull.powerFree + powerUsed; // hull.powerFree = free remaining, so total = free + used
+  const totalPower = hull.powerFree;
+  const totalMass = hull.massFree;
   const hpPct = totalHardpoints > 0 ? Math.min(100, (hardpointsUsed / totalHardpoints) * 100) : 0;
   const pwrPct = totalPower > 0 ? Math.min(100, (powerUsed / totalPower) * 100) : 0;
+  const massPct = totalMass > 0 ? Math.min(100, (massUsed / totalMass) * 100) : 0;
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-3">
@@ -83,7 +85,7 @@ function BudgetBar({ derived }: { derived: DerivedShip }) {
           </div>
           <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-300 ${overHardpoints ? 'bg-red-500' : 'bg-amber-500'}`}
+              className={`h-full rounded-full transition-all duration-300 ${overHardpoints ? 'bg-red-500' : 'bg-orange-500'}`}
               style={{ width: `${hpPct}%` }}
             />
           </div>
@@ -91,11 +93,10 @@ function BudgetBar({ derived }: { derived: DerivedShip }) {
             <p className="text-xs text-red-400">Over hardpoint limit by {-hardpointsFree}</p>
           )}
         </div>
-
         {/* Power */}
         <div className="flex-1 min-w-40 space-y-1">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-400 uppercase tracking-wide">Power (total ship)</span>
+            <span className="text-gray-400 uppercase tracking-wide">Power</span>
             <span className={`font-mono font-semibold ${overPower ? 'text-red-400' : 'text-gray-200'}`}>
               {powerUsed} / {totalPower}
             </span>
@@ -108,6 +109,24 @@ function BudgetBar({ derived }: { derived: DerivedShip }) {
           </div>
           {overPower && (
             <p className="text-xs text-red-400">Over power limit by {-derived.powerFree}</p>
+          )}
+        </div>
+        {/* Mass */}
+        <div className="flex-1 min-w-40 space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-400 uppercase tracking-wide">Mass</span>
+            <span className={`font-mono font-semibold ${overMass ? 'text-red-400' : 'text-gray-200'}`}>
+              {massUsed} / {totalMass}
+            </span>
+          </div>
+          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${overMass ? 'bg-red-500' : 'bg-lime-500'}`}
+              style={{ width: `${massPct}%` }}
+            />
+          </div>
+          {overMass && (
+            <p className="text-xs text-red-400">Over mass limit by {-derived.massFree}</p>
           )}
         </div>
       </div>

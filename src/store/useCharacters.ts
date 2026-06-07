@@ -22,6 +22,9 @@ const LEGACY_LS_KEY  = 'swn-characters'; // v0.1: Character[] in localStorage
 
 function normalize(raw: Partial<Character>): Character {
   const defaults = emptyCharacter();
+  // Migrate old single assignedShipId → assignedShipIds array
+  const anyRaw = raw as Record<string, unknown>;
+  const legacyId = typeof anyRaw.assignedShipId === 'string' ? anyRaw.assignedShipId : undefined;
   return {
     ...defaults,
     ...raw,
@@ -34,6 +37,7 @@ function normalize(raw: Partial<Character>): Character {
     notes:               raw.notes               ?? '',
     retired:             raw.retired             ?? false,
     image:               raw.image               ?? undefined,
+    assignedShipIds:     raw.assignedShipIds      ?? (legacyId ? [legacyId] : []),
   } as Character;
 }
 
@@ -53,6 +57,7 @@ function normalizeShip(raw: Partial<Ship>): Ship {
     notes:       raw.notes       ?? '',
     currentCrew: raw.currentCrew ?? 1,
     image:       raw.image       ?? undefined,
+    customCrew:  raw.customCrew  ?? [],
   };
 }
 
@@ -153,6 +158,11 @@ export function useCharacters() {
 
   function removeShip(id: string) {
     setShips(prev => prev.filter(s => s.id !== id));
+    setCharacters(prev => prev.map(c =>
+      c.assignedShipIds?.includes(id)
+        ? { ...c, assignedShipIds: (c.assignedShipIds ?? []).filter(sid => sid !== id) }
+        : c
+    ));
   }
 
   /** Replace the entire character list and optionally the ship list — used by the import feature. */

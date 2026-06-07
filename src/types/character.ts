@@ -116,6 +116,9 @@ export interface Character {
 
   notes: string;
 
+  assignedShipIds?: string[];
+  pdfAttachment?: { name: string; data: string };
+
   // Advancement history — one record per level gained after level 1
   levelHistory: LevelRecord[];
   // Snapshot of skills as set by the wizard at level 1;

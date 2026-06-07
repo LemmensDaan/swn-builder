@@ -13,15 +13,15 @@ import type { Ship } from './types/ship';
 import { CURRENT_VERSION } from './types/appData';
 
 type View =
-  | { type: 'home' }
+  | { type: 'home'; activeTab?: 'characters' | 'ships' }
   | { type: 'wizard'; editId?: string }
   | { type: 'sheet'; id: string }
   | { type: 'ship-wizard'; editId?: string }
-  | { type: 'ship-sheet'; id: string };
+  | { type: 'ship-sheet'; id: string; activeTab?: 'characters' | 'ships' };
 
 export default function App() {
   const { characters, upsert, remove, setAll, loaded, ships, upsertShip, removeShip } = useCharacters();
-  const [view, setView] = useState<View>({ type: 'home' });
+  const [view, setView] = useState<View>({ type: 'home', activeTab: 'characters' });
   const [showRules, setShowRules] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
@@ -114,8 +114,26 @@ export default function App() {
           onOpenHelp={() => setShowHelp(true)}
           ships={ships}
           onNewShip={() => setView({ type: 'ship-wizard' })}
-          onOpenShip={id => setView({ type: 'ship-sheet', id })}
+          onOpenShip={id => setView({ type: 'ship-sheet', id, activeTab: view.activeTab })}
           onDeleteShip={id => removeShip(id)}
+          onRetireShip={id => {
+            const ship = ships.find(s => s.id === id);
+            if (ship) upsertShip({ ...ship, retired: true });
+          }}
+          onUnretireShip={id => {
+            const ship = ships.find(s => s.id === id);
+            if (ship) upsertShip({ ...ship, retired: false });
+          }}
+          onCopyShip={id => {
+            const ship = ships.find(s => s.id === id);
+            if (ship) upsertShip({ ...ship, id: crypto.randomUUID(), name: ship.name ? `${ship.name}-copy` : 'copy', retired: false });
+          }}
+          onShipImageChange={(id, dataUrl) => {
+            const ship = ships.find(s => s.id === id);
+            if (ship) upsertShip({ ...ship, image: dataUrl });
+          }}
+          initialActiveTab={view.activeTab}
+          onTabChange={tab => setView({ ...view, activeTab: tab })}
         />
       )}
 
@@ -132,11 +150,13 @@ export default function App() {
       {view.type === 'sheet' && viewingChar && (
         <CharacterSheet
           char={viewingChar}
+          ships={ships}
           onEdit={() => setView({ type: 'wizard', editId: viewingChar.id })}
           onBack={() => setView({ type: 'home' })}
           onOpenRules={() => setShowRules(true)}
           onOpenHelp={() => setShowHelp(true)}
           onUpdate={upsert}
+          onNavigateToShip={id => setView({ type: 'ship-sheet', id })}
         />
       )}
 
@@ -153,11 +173,14 @@ export default function App() {
       {view.type === 'ship-sheet' && viewingShip && (
         <ShipSheet
           ship={viewingShip}
+          characters={characters}
           onEdit={() => setView({ type: 'ship-wizard', editId: viewingShip.id })}
-          onBack={() => setView({ type: 'home' })}
+          onBack={() => setView({ type: 'home', activeTab: view.activeTab })}
           onOpenRules={() => setShowRules(true)}
           onOpenHelp={() => setShowHelp(true)}
           onUpdate={upsertShip}
+          onUpdateCharacter={upsert}
+          onNavigateToChar={id => setView({ type: 'sheet', id })}
         />
       )}
 

@@ -7,11 +7,7 @@
 - ready/stow for stacked items (including ammo), should follow rules of encumbrance as stated in swn source material. So it should be possible to stow separate items instead of a full stack, check on source material before editing
 - check inner workings of psychic before further editing the layout
 
-3.🔄️ Ship builder
-
-- tracker for character/ship
-pathbuilder lets you create your character but also use it as reference sheet and actual sheet.
-so i want to be able to keep track of hp, equipment, ammo, certain abilities,notes etc so that i do not have to have a physical sheet.
+3.🔄️ Ship builder ⚠️⏳
 
 4. Deluxe extras builders
 
@@ -22,7 +18,6 @@ Every created thing should have an export to pdf for downloading.
 We should leave some stuff empty for pdf so that when we print them we can manually edit our sheets with pencil. Think about stats, skills, equipment, credits etc.
 For example Shoot-0 -> should probably be Shoot- , where we then can fill in the number ourselves.
 
-- Import images for ship
 - Import file for backstory for quick reference. This file should also be able to be opened like the pdf of swn itself 
 (prob pdf, xml, md depending on what is automatically supported by android)
 

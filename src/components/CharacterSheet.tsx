@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Banknote, Bed, BookOpen, HelpCircle, LockKeyhole, Moon, Orbit, Package, SunMoon, Sunrise, Sunset } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Banknote, BookOpen, HelpCircle, LockKeyhole, Orbit, Package, FileText, Rocket } from 'lucide-react';
 import type { Character } from '../types/character';
 import { attrMod } from '../types/character';
+import type { Ship as ShipType } from '../types/ship';
+import { HULL_TYPES } from '../data/ships';
 import { ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../data/equipment';
 import { SKILLS } from '../data/skills';
 import { FOCI } from '../data/foci';
@@ -11,6 +13,14 @@ import LevelUp from './LevelUp';
 import AuditOverview from './wizard/AuditOverview';
 import Step8Equipment from './wizard/steps/Step8Equipment';
 import { useLockBodyScroll } from './HelpPage';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
 
 function gearCost(name: string): number {
   return (
@@ -32,11 +42,13 @@ function computeGearSpent(char: Character): number {
 
 interface Props {
   char: Character;
+  ships: ShipType[];
   onEdit: () => void;
   onBack: () => void;
   onOpenRules: () => void;
   onOpenHelp: () => void;
   onUpdate: (char: Character) => void;
+  onNavigateToShip?: (id: string) => void;
 }
 
 const ATTR_ORDER = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
@@ -55,7 +67,7 @@ const ENC_LEVELS: { level: string; text: string; penalty: string; cls: string }[
   { level: 'overloaded', text: 'Overloaded', penalty: 'Cannot move', cls: 'text-red-400' },
 ];
 
-export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOpenHelp, onUpdate }: Props) {
+export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRules, onOpenHelp, onUpdate, onNavigateToShip }: Props) {
   const attrs = char.attributes;
   const isPsychic = char.class === 'Psychic' || char.adventurerPartials?.includes('Partial Psychic');
   const totalAC = deriveAC(char).ac;
@@ -68,6 +80,9 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
   const [confirmEdit, setConfirmEdit] = useState(false);
   const [showGear, setShowGear] = useState(false);
   const [earnings, setEarnings] = useState('');
+  const [showPdf, setShowPdf] = useState(false);
+  const [showShipPicker, setShowShipPicker] = useState(false);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const nextLevelXp = xpForLevel(char.level + 1);
   const canLevelUp = char.xp >= nextLevelXp && char.level < 20;
@@ -108,6 +123,29 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
   }
   function addCredits(n: number) {
     onUpdate({ ...char, credits: Math.max(0, char.credits + n) });
+  }
+
+  function handlePdfUpload(file: File) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const data = e.target?.result as string;
+      onUpdate({ ...char, pdfAttachment: { name: file.name, data } });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removePdf() {
+    onUpdate({ ...char, pdfAttachment: undefined });
+    setShowPdf(false);
+  }
+
+  const assignedShipIds = char.assignedShipIds ?? [];
+  const assignedShips = ships.filter(s => assignedShipIds.includes(s.id));
+
+  function toggleShipAssignment(shipId: string) {
+    const ids = char.assignedShipIds ?? [];
+    const next = ids.includes(shipId) ? ids.filter(id => id !== shipId) : [...ids, shipId];
+    onUpdate({ ...char, assignedShipIds: next });
   }
 
   return (
@@ -168,6 +206,13 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
           </button>
         </div>
       </div>
+
+      {char.retired && (
+        <div className="bg-gray-700/60 border-b border-gray-600 px-4 py-2 flex items-center gap-2 text-sm text-gray-400">
+          <span className="text-gray-300 font-medium uppercase tracking-wide text-xs">Retired</span>
+          <span className="text-gray-500">— this character has been retired from active play.</span>
+        </div>
+      )}
 
       {detailed ? (
         <div className="flex-1 overflow-y-auto px-4 py-6 max-w-5xl mx-auto w-full">
@@ -624,9 +669,113 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
           </SheetSection>
         )}
 
+        {/* Ship Assignment */}
+        <SheetSection title="Ships" action={
+          ships.length > 0 ? (
+            <button
+              onClick={() => setShowShipPicker(true)}
+              className="px-2.5 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300 text-xs font-medium transition-colors"
+            >
+              + Assign
+            </button>
+          ) : undefined
+        }>
+          {assignedShips.length === 0 ? (
+            <div className="flex items-center gap-3">
+              <p className="text-gray-600 text-sm italic flex-1">Not assigned to any ship.</p>
+              {ships.filter(s => !s.retired).length > 0 && (
+                <button
+                  onClick={() => setShowShipPicker(true)}
+                  className="px-3 py-1.5 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300 text-xs font-medium transition-colors"
+                >
+                  Assign Ship
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {assignedShips.map(s => (
+                <div key={s.id} className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {s.retired && <span className="text-[10px] uppercase tracking-wide bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">Retired</span>}
+                      <span className="text-gray-200 font-medium text-sm">{s.name || 'Unnamed Ship'}</span>
+                      <span className="text-gray-500 text-xs">{HULL_TYPES.find(h => h.id === s.hullId)?.name ?? s.hullId}</span>
+                    </div>
+                    {s.location && <p className="text-xs text-gray-500 mt-0.5">{s.location}</p>}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {onNavigateToShip && (
+                      <button onClick={() => onNavigateToShip(s.id)}
+                        className="px-2.5 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300 text-xs font-medium transition-colors">
+                        View →
+                      </button>
+                    )}
+                    <button onClick={() => toggleShipAssignment(s.id)}
+                      className="px-2 py-1 rounded bg-gray-700 hover:bg-red-900/40 text-gray-400 hover:text-red-400 text-xs transition-colors">
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <button onClick={() => setShowShipPicker(true)}
+                className="mt-1 text-xs text-gray-500 hover:text-amber-300 transition-colors">
+                + Assign to another ship
+              </button>
+            </div>
+          )}
+        </SheetSection>
+
+        {/* Reference PDF */}
+        <SheetSection title="Reference PDF" action={
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={e => {
+                const file = e.target.files?.[0];
+                if (file) handlePdfUpload(file);
+                e.target.value = '';
+              }}
+            />
+            <button
+              onClick={() => pdfInputRef.current?.click()}
+              className="px-2.5 py-1 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300 text-xs font-medium transition-colors flex items-center gap-1"
+            >
+              <FileText size={13} />
+              {char.pdfAttachment ? 'Replace' : 'Upload PDF'}
+            </button>
+            {char.pdfAttachment && (
+              <button
+                onClick={removePdf}
+                className="px-2 py-1 rounded bg-gray-700 hover:bg-red-900/40 text-gray-400 hover:text-red-400 text-xs transition-colors"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        }>
+          {char.pdfAttachment ? (
+            <div className="flex items-center gap-3">
+              <FileText size={14} className="text-amber-400 flex-shrink-0" />
+              <span className="text-sm text-gray-300 truncate flex-1">{char.pdfAttachment.name}</span>
+              <button
+                onClick={() => setShowPdf(true)}
+                className="px-3 py-1.5 rounded bg-gray-700 hover:bg-amber-900/40 text-gray-300 hover:text-amber-300 text-xs font-medium transition-colors flex-shrink-0"
+              >
+                Open →
+              </button>
+            </div>
+          ) : (
+            <p className="text-gray-600 text-sm italic">No PDF attached. Upload a reference document (character sheet, rules, notes).</p>
+          )}
+        </SheetSection>
+
         {/* Notes — editable, saved immediately */}
         <SheetSection title="Notes">
-          <textarea
+          <input
             value={char.notes}
             onChange={e => onUpdate({ ...char, notes: e.target.value })}
             placeholder="Track goals, contacts, debts owed, plot threads…"
@@ -670,6 +819,62 @@ export default function CharacterSheet({ char, onEdit, onBack, onOpenRules, onOp
       {/* Gear editor — reuses the wizard's equipment step, edits live */}
       {showGear && (
         <GearEditor char={char} onUpdate={onUpdate} onClose={() => setShowGear(false)} />
+      )}
+
+      {/* PDF viewer modal */}
+      {showPdf && char.pdfAttachment && (
+        <CharacterPDFViewer
+          name={char.pdfAttachment.name}
+          data={char.pdfAttachment.data}
+          onClose={() => setShowPdf(false)}
+        />
+      )}
+
+      {/* Ship picker modal */}
+      {showShipPicker && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[80vh] flex flex-col">
+            <div className="flex-shrink-0">
+              <h3 className="text-gray-100 font-semibold text-lg mb-1">Assign to Ships</h3>
+              <p className="text-gray-500 text-xs">Click a ship to toggle assignment. Changes apply immediately.</p>
+            </div>
+            <div className="overflow-y-auto flex-1 space-y-2">
+              {ships.filter(s => !s.retired).length === 0 ? (
+                <p className="text-gray-500 text-sm italic">No active ships available.</p>
+              ) : (
+                ships.filter(s => !s.retired).map(s => {
+                  const hull = HULL_TYPES.find(h => h.id === s.hullId);
+                  const assigned = assignedShipIds.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => toggleShipAssignment(s.id)}
+                      className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                        assigned
+                          ? 'border-amber-600 bg-amber-900/20 text-amber-300'
+                          : 'border-gray-700 bg-gray-800/60 text-gray-200 hover:border-amber-700 hover:bg-gray-700/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{s.name || 'Unnamed Ship'}</span>
+                        {assigned && <span className="text-[10px] uppercase tracking-wide text-amber-400 font-bold">Assigned</span>}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">{hull?.name ?? s.hullId} · {hull?.class ?? ''}{s.location ? ` · ${s.location}` : ''}</div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <div className="flex justify-end flex-shrink-0 pt-2 border-t border-gray-700">
+              <button
+                onClick={() => setShowShipPicker(false)}
+                className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -750,39 +955,92 @@ function NotCarriedBtn({ active, onToggle }: { active: boolean; onToggle: () => 
   );
 }
 
-function StatRow({ label, value, big, small }: { label: string; value: string; big?: boolean; small?: boolean }) {
+function CharacterPDFViewer({ name, data, onClose }: { name: string; data: string; onClose: () => void }) {
+  useLockBodyScroll();
+  const [numPages, setNumPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [scale, setScale] = useState(1.2);
+  const [jumpInput, setJumpInput] = useState('1');
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  useEffect(() => {
+    if (!numPages) return;
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries
+          .filter(e => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) {
+          const page = Number((visible.target as HTMLElement).dataset.page);
+          if (page) { setCurrentPage(page); setJumpInput(String(page)); }
+        }
+      },
+      { root: scrollRef.current, threshold: 0.3 }
+    );
+    pageRefs.current.forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, [numPages, scale]);
+
+  const jumpTo = useCallback((page: number) => {
+    const clamped = Math.max(1, Math.min(numPages, page));
+    const el = pageRefs.current.get(clamped);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [numPages]);
+
   return (
-    <div className="flex items-baseline justify-between">
-      <span className={`text-gray-400 ${small ? 'text-xs' : 'text-sm'}`}>{label}</span>
-      <span className={`font-bold ${big ? 'text-xl text-gray-100' : small ? 'text-sm text-gray-300' : 'text-gray-100'}`}>
-        {value}
-      </span>
+    <div className="fixed inset-0 z-50 flex flex-col bg-gray-950">
+      <div className="bg-gray-900 border-b border-gray-700 px-4 py-2 flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <FileText size={16} className="text-amber-400 flex-shrink-0" />
+          <span className="text-amber-300 font-semibold text-sm truncate">{name}</span>
+        </div>
+        {numPages > 0 && (
+          <form onSubmit={e => { e.preventDefault(); jumpTo(Number(jumpInput)); }} className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="text-gray-500 text-xs">p.</span>
+            <input
+              type="number" min={1} max={numPages} value={jumpInput}
+              onChange={e => setJumpInput(e.target.value)}
+              className="w-14 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-center text-gray-100 text-sm"
+            />
+            <button type="submit" className="text-xs text-gray-500 hover:text-amber-300 transition-colors">Go</button>
+            <span className="text-gray-600 text-xs">/ {numPages}</span>
+          </form>
+        )}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={() => setScale(s => Math.max(0.5, +(s - 0.2).toFixed(1)))}
+            className="w-7 h-7 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm flex items-center justify-center">−</button>
+          <span className="text-gray-500 text-xs w-10 text-center">{Math.round(scale * 100)}%</span>
+          <button onClick={() => setScale(s => Math.min(3, +(s + 0.2).toFixed(1)))}
+            className="w-7 h-7 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm flex items-center justify-center">+</button>
+        </div>
+        <button onClick={onClose}
+          className="px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium flex-shrink-0">
+          ✕ Close
+        </button>
+      </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-gray-800">
+        <Document
+          file={data}
+          onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+          className="flex flex-col items-center py-4 gap-3"
+        >
+          {Array.from({ length: numPages }, (_, i) => i + 1).map(p => (
+            <div key={p} data-page={p} ref={el => { if (el) pageRefs.current.set(p, el); else pageRefs.current.delete(p); }}>
+              <Page pageNumber={p} scale={scale} renderTextLayer renderAnnotationLayer className="shadow-xl" />
+            </div>
+          ))}
+        </Document>
+        {numPages === 0 && (
+          <div className="flex items-center justify-center h-64 text-gray-500 text-sm">Loading PDF…</div>
+        )}
+      </div>
+      {numPages > 0 && (
+        <div className="bg-gray-900/80 border-t border-gray-800 py-1 flex justify-center">
+          <span className="text-xs text-gray-600">Page {currentPage} of {numPages}</span>
+        </div>
+      )}
     </div>
   );
 }
 
-/** Live current/max tracker with − / + steppers (clamped 0…max).
- *  dangerHigh: red when current === max (e.g. System Strain); otherwise red when 0 (e.g. HP). */
-function Tracker({ label, current, max, onChange, downLabel, upLabel, big, dangerHigh }: {
-  label: string; current: number; max: number; onChange: (v: number) => void;
-  downLabel?: string; upLabel?: string; big?: boolean; dangerHigh?: boolean;
-}) {
-  const set = (v: number) => onChange(Math.max(0, Math.min(max, v)));
-  const isDanger = dangerHigh ? current >= max : current === 0;
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-gray-400 text-sm">{label}</span>
-      <div className="flex items-center gap-1.5">
-        <button onClick={() => set(current - 1)} disabled={current <= 0}
-          className="w-6 h-6 rounded bg-gray-700 hover:bg-red-900/50 disabled:opacity-20 text-gray-300 text-sm flex items-center justify-center"
-          title={downLabel}>−</button>
-        <span className={`font-bold tabular-nums text-center ${big ? 'text-xl w-16' : 'text-base w-14'} ${isDanger ? 'text-red-400' : 'text-gray-100'}`}>
-          {current} / {max}
-        </span>
-        <button onClick={() => set(current + 1)} disabled={current >= max}
-          className="w-6 h-6 rounded bg-gray-700 hover:bg-green-900/50 disabled:opacity-20 text-gray-300 text-sm flex items-center justify-center"
-          title={upLabel}>+</button>
-      </div>
-    </div>
-  );
-}

@@ -1,8 +1,32 @@
 import { useRef, useState } from 'react';
-import { BookOpen, Camera, Download, FolderOpen, HelpCircle, Trash2, PersonStanding, Dna, Sparkles, ArrowBigUp, ScrollText, Skull, Ghost, ChevronDown, ChevronRight, HeartPulse, Copy, AlertTriangle, Anchor, Zap, Heart } from 'lucide-react';
+import { BookOpen, Download, FolderOpen, HelpCircle, PersonStanding, Dna, Sparkles, ArrowBigUp, ScrollText, Ghost, ChevronDown, ChevronRight, Navigation, AlertTriangle, Rocket, Zap } from 'lucide-react';
 import type { Character } from '../types/character';
 import type { Ship } from '../types/ship';
 import { HULL_TYPES } from '../data/ships';
+import PortraitEditor from './PortraitEditor';
+import ItemActions from './ItemActions';
+
+// Side-profile ship silhouette — represents the specific hull model/design
+function HullNameIcon({ size = 14, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      {/* Main hull body */}
+      <path d="M3 12 C3 10 5 9 8 9 L17 9 L21 12 L17 15 L8 15 C5 15 3 14 3 12 Z" />
+      {/* Bridge/cockpit */}
+      <path d="M10 9 L10 6.5 L14 6.5 L14 9" />
+    </svg>
+  );
+}
+
+// Double chevron — military rank insignia style, represents ship class tier
+function HullClassIcon({ size = 14, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="4,17 12,10 20,17" />
+      <polyline points="4,11 12,4 20,11" />
+    </svg>
+  );
+}
 
 interface Props {
   characters: Character[];
@@ -21,14 +45,20 @@ interface Props {
   onNewShip: () => void;
   onOpenShip: (id: string) => void;
   onDeleteShip: (id: string) => void;
+  onRetireShip: (id: string) => void;
+  onUnretireShip: (id: string) => void;
+  onCopyShip: (id: string) => void;
+  onShipImageChange: (id: string, dataUrl: string) => void;
+  initialActiveTab?: 'characters' | 'ships';
+  onTabChange: (tab: 'characters' | 'ships') => void;
 }
 
-export default function HomeScreen({ characters, onNew, onOpen, onDelete, onRetire, onUnretire, onCopy, onImageChange, onExport, onImport, onOpenRules, onOpenHelp, ships, onNewShip, onOpenShip, onDeleteShip }: Props) {
+export default function HomeScreen({ characters, onNew, onOpen, onDelete, onRetire, onUnretire, onCopy, onImageChange, onExport, onImport, onOpenRules, onOpenHelp, ships, onNewShip, onOpenShip, onDeleteShip, onRetireShip, onUnretireShip, onCopyShip, onShipImageChange, initialActiveTab = 'characters', onTabChange }: Props) {
   const [graveyardOpen, setGraveyardOpen] = useState(false);
   const [importPending, setImportPending] = useState<File | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'characters' | 'ships'>('characters');
+  const [activeTab, setActiveTab] = useState<'characters' | 'ships'>(initialActiveTab);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   async function confirmImport() {
@@ -134,8 +164,8 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
 
       <div className="flex-1 max-w-6xl mx-auto w-full px-6 py-8">
         <div className="flex gap-4 mb-8 border-b border-gray-800 pb-1">
-          <Tab label="Characters" active={activeTab === 'characters'} onClick={() => setActiveTab('characters')} />
-          <Tab label="Ships" active={activeTab === 'ships'} onClick={() => setActiveTab('ships')} />
+          <Tab label="Characters" active={activeTab === 'characters'} onClick={() => { setActiveTab('characters'); onTabChange('characters'); }} />
+          <Tab label="Ships" active={activeTab === 'ships'} onClick={() => { setActiveTab('ships'); onTabChange('ships'); }} />
           <Tab label="Factions" active={false} disabled />
         </div>
 
@@ -224,44 +254,65 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {ships.map(ship => (
-                  <ShipCard
-                    key={ship.id}
-                    ship={ship}
-                    onOpen={() => onOpenShip(ship.id)}
-                    onDelete={() => onDeleteShip(ship.id)}
-                  />
-                ))}
-                <button
-                  onClick={onNewShip}
-                  className="border-2 border-dashed border-gray-700 rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:border-amber-700 hover:bg-amber-900/10 transition-colors text-gray-600 hover:text-amber-400"
-                >
-                  <span className="text-3xl">+</span>
-                  <span className="text-sm font-medium">New Ship</span>
-                </button>
-              </div>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {ships.filter(s => !s.retired).map(ship => (
+                    <ShipCard
+                      key={ship.id}
+                      ship={ship}
+                      onOpen={() => onOpenShip(ship.id)}
+                      onDelete={() => onDeleteShip(ship.id)}
+                      onRetire={() => onRetireShip(ship.id)}
+                      onUnretire={() => onUnretireShip(ship.id)}
+                      onCopy={() => onCopyShip(ship.id)}
+                      onImageChange={dataUrl => onShipImageChange(ship.id, dataUrl)}
+                    />
+                  ))}
+                  <button
+                    onClick={onNewShip}
+                    className="border-2 border-dashed border-gray-700 rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:border-amber-700 hover:bg-amber-900/10 transition-colors text-gray-600 hover:text-amber-400"
+                  >
+                    <span className="text-3xl">+</span>
+                    <span className="text-sm font-medium">New Ship</span>
+                  </button>
+                </div>
+
+                {ships.some(s => s.retired) && (
+                  <div className="mt-10">
+                    <button
+                      onClick={() => setGraveyardOpen(v => !v)}
+                      className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors mb-4 group"
+                    >
+                      <Ghost size={16} className="text-gray-600 group-hover:text-gray-400 transition-colors" />
+                      <span className="text-sm font-medium">Decommissioned Fleet</span>
+                      <span className="text-xs text-gray-700 bg-gray-800 px-1.5 py-0.5 rounded-full ml-0.5">{ships.filter(s => s.retired).length}</span>
+                      {graveyardOpen ? <ChevronDown size={14} className="ml-1" /> : <ChevronRight size={14} className="ml-1" />}
+                    </button>
+                    {graveyardOpen && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {ships.filter(s => s.retired).map(ship => (
+                          <ShipCard
+                            key={ship.id}
+                            ship={ship}
+                            onOpen={() => onOpenShip(ship.id)}
+                            onDelete={() => onDeleteShip(ship.id)}
+                            onRetire={() => onRetireShip(ship.id)}
+                            onUnretire={() => onUnretireShip(ship.id)}
+                            onCopy={() => onCopyShip(ship.id)}
+                            onImageChange={dataUrl => onShipImageChange(ship.id, dataUrl)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
       </div>
     </div>
   );
-}
-
-// Output dimensions for the saved portrait
-const CROP_W = 240;
-const CROP_H = 320;
-
-interface PendingPortrait {
-  src: string;
-  naturalW: number;
-  naturalH: number;
-  /** Cover scale: factor applied so image fills CROP_W×CROP_H */
-  scale: number;
-  /** Scaled display size */
-  dispW: number;
-  dispH: number;
 }
 
 function CharacterCard({ char, onOpen, onDelete, onRetire, onUnretire, onCopy, onImageChange }: {
@@ -273,295 +324,97 @@ function CharacterCard({ char, onOpen, onDelete, onRetire, onUnretire, onCopy, o
   onCopy: () => void;
   onImageChange: (dataUrl: string) => void;
 }) {
-  const [confirmAction, setConfirmAction] = useState<'delete' | 'retire' | null>(null);
-  const [pending, setPending] = useState<PendingPortrait | null>(null);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef<{ startX: number; startY: number; offX: number; offY: number } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const classLabel = char.class === 'Adventurer' && char.adventurerPartials
     ? `Adventurer (${char.adventurerPartials.map(p => p.replace('Partial ', '')).join('/')})`
     : char.class;
 
-  function clamp(x: number, y: number, dispW: number, dispH: number) {
-    return {
-      x: Math.min(0, Math.max(x, CROP_W - dispW)),
-      y: Math.min(0, Math.max(y, CROP_H - dispH)),
-    };
-  }
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    const src = await new Promise<string>((res, rej) => {
-      const r = new FileReader();
-      r.onload = ev => res(ev.target!.result as string);
-      r.onerror = rej;
-      r.readAsDataURL(file);
-    });
-    const img = await new Promise<HTMLImageElement>((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = rej;
-      i.src = src;
-    });
-    const scale = Math.max(CROP_W / img.naturalWidth, CROP_H / img.naturalHeight);
-    const dispW = img.naturalWidth * scale;
-    const dispH = img.naturalHeight * scale;
-    setPending({ src, naturalW: img.naturalWidth, naturalH: img.naturalHeight, scale, dispW, dispH });
-    setOffset({ x: (CROP_W - dispW) / 2, y: (CROP_H - dispH) / 2 });
-  }
-
-  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setIsDragging(true);
-    dragRef.current = { startX: e.clientX, startY: e.clientY, offX: offset.x, offY: offset.y };
-  }
-
-  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!dragRef.current || !pending) return;
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
-    setOffset(clamp(dragRef.current.offX + dx, dragRef.current.offY + dy, pending.dispW, pending.dispH));
-  }
-
-  function onPointerUp() {
-    dragRef.current = null;
-    setIsDragging(false);
-  }
-
-  function confirmPortrait() {
-    if (!pending) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = CROP_W;
-    canvas.height = CROP_H;
-    const ctx = canvas.getContext('2d')!;
-    const img = new Image();
-    img.src = pending.src;
-    // offset is where the scaled image starts in the crop frame, so source rect:
-    const srcX = -offset.x / pending.scale;
-    const srcY = -offset.y / pending.scale;
-    const srcW = CROP_W / pending.scale;
-    const srcH = CROP_H / pending.scale;
-    ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, CROP_W, CROP_H);
-    onImageChange(canvas.toDataURL('image/jpeg', 0.85));
-    setPending(null);
-  }
-
   return (
-    <>
-      <div
-        onClick={onOpen}
-        className="glass-card rounded-xl cursor-pointer transition-all duration-200 hover:border-amber-600/60 hover:bg-gray-800/50 hover:shadow-lg hover:shadow-amber-900/20 hover:-translate-y-0.5 relative overflow-hidden flex"
-      >
-        {/* Left: props + actions */}
-        <div className="flex-1 p-5 flex flex-col min-w-0">
-          <div className="space-y-2.5 mb-4 flex-1">
-            <div className="flex items-center gap-2.5">
-              <PersonStanding size={15} className="text-amber-400 flex-shrink-0" />
-              <span className="font-bold text-gray-100 text-lg leading-tight truncate">{char.name || '(unnamed)'}</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <Dna size={14} className="text-sky-400 flex-shrink-0" />
-              <span className="text-sm text-sky-300/80 truncate">{char.species || 'Human'}</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <Sparkles size={14} className="text-amber-400 flex-shrink-0" />
-              <span className="text-sm text-amber-300/80 truncate">{classLabel}</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <ArrowBigUp size={14} className="text-emerald-400 flex-shrink-0" />
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-800/50">
-                Level {char.level}
-              </span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <ScrollText size={14} className="text-violet-400 flex-shrink-0" />
-              <span className="text-sm text-violet-300/80 truncate">{char.background || '—'}</span>
-            </div>
+    <div
+      onClick={onOpen}
+      className="glass-card rounded-xl cursor-pointer transition-all duration-200 hover:border-amber-600/60 hover:bg-gray-800/50 hover:shadow-lg hover:shadow-amber-900/20 hover:-translate-y-0.5 relative overflow-hidden flex"
+    >
+      {/* Left: info + actions */}
+      <div className="flex-1 p-5 flex flex-col min-w-0">
+        <div className="space-y-2.5 mb-4 flex-1">
+          <div className="flex items-center gap-2.5">
+            <PersonStanding size={15} className="text-amber-400 flex-shrink-0" />
+            <span className="font-bold text-gray-100 text-lg leading-tight truncate">{char.name || '(unnamed)'}</span>
           </div>
-
-          <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
-            {char.retired ? (
-              <button onClick={onUnretire} className="px-2.5 py-1.5 rounded bg-gray-700 hover:bg-emerald-900/50 text-gray-400 hover:text-emerald-300 transition-colors flex items-center" title="Unretire">
-                <HeartPulse size={14} />
-              </button>
-            ) : (
-              <button onClick={() => setConfirmAction('retire')} className="px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-amber-300 transition-colors flex items-center" title="Retire">
-                <Skull size={14} />
-              </button>
-            )}
-            <button onClick={onCopy} className="px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-sky-300 transition-colors flex items-center" title="Duplicate">
-              <Copy size={14} />
-            </button>
-            <div className="flex-1" />
-            <button onClick={() => setConfirmAction('delete')} className="px-2.5 py-1.5 rounded bg-gray-700 hover:bg-red-900/60 text-red-500 hover:text-red-400 transition-colors flex items-center" title="Delete">
-              <Trash2 size={14} />
-            </button>
+          <div className="flex items-center gap-2.5">
+            <Dna size={14} className="text-sky-400 flex-shrink-0" />
+            <span className="text-sm text-sky-300/80 truncate">{char.species || 'Human'}</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Sparkles size={14} className="text-orange-400 flex-shrink-0" />
+            <span className="text-sm text-orange-300/80 truncate">{classLabel}</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <ArrowBigUp size={14} className="text-emerald-400 flex-shrink-0" />
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-800/50">
+              Level {char.level}
+            </span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <ScrollText size={14} className="text-violet-400 flex-shrink-0" />
+            <span className="text-sm text-violet-300/80 truncate">{char.background || '—'}</span>
           </div>
         </div>
-
-        {/* Right: portrait */}
-        <div
-          className="relative w-28 flex-shrink-0 border-l border-gray-700/50 group/img"
-          onClick={e => e.stopPropagation()}
-        >
-          {char.image ? (
-            <img src={char.image} alt="portrait" className="w-full h-full object-cover object-top" />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-gray-800/30 gap-2">
-              <PersonStanding size={40} className="text-gray-700" />
-              <span className="text-[10px] text-gray-700 uppercase tracking-wide">No portrait</span>
-            </div>
-          )}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="absolute inset-0 flex flex-col items-center justify-end pb-3 gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity bg-gradient-to-t from-gray-950/80 via-gray-950/20 to-transparent cursor-pointer"
-            title="Upload portrait"
-          >
-            <Camera size={14} className="text-gray-300" />
-            <span className="text-[10px] text-gray-300 font-medium">Upload</span>
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-          {char.retired && (
-            <div className="absolute top-2 left-0 right-0 flex justify-center pointer-events-none">
-              <span className="flex items-center gap-1 bg-gray-900/90 text-gray-400 text-[10px] px-2 py-0.5 rounded-full border border-gray-700">
-                <Skull size={10} /> Retired
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Confirm overlay */}
-        {confirmAction && (
-          <div className="absolute inset-0 bg-gray-950/95 rounded-xl flex flex-col items-center justify-center gap-4 p-5 z-10" onClick={e => e.stopPropagation()}>
-            {confirmAction === 'delete' ? (
-              <>
-                <p className="text-gray-200 font-semibold text-center">Delete <span className="text-amber-300">{char.name || 'this character'}</span>?</p>
-                <p className="text-gray-500 text-xs text-center">This cannot be undone.</p>
-                <div className="flex gap-3">
-                  <button onClick={() => setConfirmAction(null)} className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium">Keep</button>
-                  <button onClick={onDelete} className="px-4 py-2 rounded bg-red-700 hover:bg-red-600 text-white text-sm font-semibold">Delete</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <Skull size={28} className="text-amber-400" />
-                <p className="text-gray-200 font-semibold text-center">Retire <span className="text-amber-300">{char.name || 'this character'}</span>?</p>
-                <p className="text-gray-500 text-xs text-center">Mark as dead or retired. They'll rest in the Graveyard.</p>
-                <div className="flex gap-3">
-                  <button onClick={() => setConfirmAction(null)} className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium">Keep</button>
-                  <button onClick={onRetire} className="px-4 py-2 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-semibold flex items-center gap-2">
-                    <Skull size={14} /> Retire
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        <ItemActions
+          itemType="character"
+          itemName={char.name}
+          retired={char.retired ?? false}
+          onDelete={onDelete}
+          onRetire={onRetire}
+          onUnretire={onUnretire}
+          onCopy={onCopy}
+        />
       </div>
 
-      {/* Portrait positioning modal — rendered outside the overflow-hidden card */}
-      {pending && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          onClick={() => setPending(null)}
-        >
-          <div
-            className="bg-gray-900 border border-gray-700 rounded-2xl p-6 flex flex-col gap-4 shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <div>
-              <p className="text-gray-100 font-semibold text-sm">Position portrait</p>
-              <p className="text-gray-500 text-xs mt-0.5">Drag to reposition, then save</p>
-            </div>
-
-            {/* Crop preview */}
-            <div
-              style={{ width: CROP_W, height: CROP_H }}
-              className={`relative overflow-hidden rounded-lg border border-gray-700 select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerLeave={onPointerUp}
-            >
-              <img
-                src={pending.src}
-                alt=""
-                draggable={false}
-                style={{
-                  position: 'absolute',
-                  left: offset.x,
-                  top: offset.y,
-                  width: pending.dispW,
-                  height: pending.dispH,
-                  userSelect: 'none',
-                  pointerEvents: 'none',
-                }}
-              />
-              {/* Rule-of-thirds grid overlay */}
-              <div className="absolute inset-0 pointer-events-none" style={{ opacity: 0.15 }}>
-                <div className="absolute top-1/3 left-0 right-0 h-px bg-white" />
-                <div className="absolute top-2/3 left-0 right-0 h-px bg-white" />
-                <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white" />
-                <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white" />
-              </div>
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setPending(null)}
-                className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmPortrait}
-                className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition-colors"
-              >
-                Save Portrait
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+      {/* Right: portrait editor */}
+      <PortraitEditor image={char.image} onImageChange={onImageChange} retired={char.retired} />
+    </div>
   );
 }
 
-function ShipCard({ ship, onOpen, onDelete }: {
+function ShipCard({ ship, onOpen, onDelete, onRetire, onUnretire, onCopy, onImageChange }: {
   ship: Ship;
   onOpen: () => void;
   onDelete: () => void;
+  onRetire: () => void;
+  onUnretire: () => void;
+  onCopy: () => void;
+  onImageChange: (dataUrl: string) => void;
 }) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
   const hull = HULL_TYPES.find(h => h.id === ship.hullId);
   const hullName = hull?.name ?? ship.hullId;
   const hullClass = hull?.class ?? '—';
-  const hpDanger = ship.hitPoints.current === 0;
 
   return (
     <div
       onClick={onOpen}
-      className="glass-card rounded-xl cursor-pointer transition-all duration-200 hover:border-amber-600/60 hover:bg-gray-800/50 hover:shadow-lg hover:shadow-amber-900/20 hover:-translate-y-0.5 relative overflow-hidden"
+      className="glass-card rounded-xl cursor-pointer transition-all duration-200 hover:border-amber-600/60 hover:bg-gray-800/50 hover:shadow-lg hover:shadow-amber-900/20 hover:-translate-y-0.5 relative overflow-hidden flex"
     >
-      <div className="p-5 flex flex-col min-w-0">
+      {/* Left: info + actions */}
+      <div className="flex-1 p-5 flex flex-col min-w-0">
         <div className="space-y-2.5 mb-4 flex-1">
           <div className="flex items-center gap-2.5">
-            <Anchor size={15} className="text-amber-400 flex-shrink-0" />
+            <Rocket size={15} className="text-amber-400 flex-shrink-0" />
             <span className="font-bold text-gray-100 text-lg leading-tight truncate">{ship.name || '(unnamed)'}</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <Anchor size={14} className="text-sky-400 flex-shrink-0" />
+            <HullNameIcon size={14} className="text-sky-400 flex-shrink-0" />
             <span className="text-sm text-sky-300/80 truncate">{hullName}</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-700/60 text-gray-300 border border-gray-600/50">
+            <HullClassIcon size={14} className="text-orange-400 flex-shrink-0" />
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-900/30 text-orange-300 border border-orange-800/40">
               {hullClass}
             </span>
+            {hull?.isStation && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-900/30 text-purple-300 border border-purple-800/40">
+                Station
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2.5">
             <Zap size={14} className="text-emerald-400 flex-shrink-0" />
@@ -570,36 +423,25 @@ function ShipCard({ ship, onOpen, onDelete }: {
             </span>
           </div>
           <div className="flex items-center gap-2.5">
-            <Heart size={14} className={hpDanger ? 'text-red-400 flex-shrink-0' : 'text-red-500/70 flex-shrink-0'} />
-            <span className={`text-sm font-medium ${hpDanger ? 'text-red-400' : 'text-gray-300'}`}>
-              {ship.hitPoints.current} / {ship.hitPoints.max} HP
+            <Navigation size={14} className="text-violet-400 flex-shrink-0" />
+            <span className="text-sm text-violet-300/80 truncate">
+              {ship.location || '—'}
             </span>
           </div>
         </div>
-
-        <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
-          <div className="flex-1" />
-          <button
-            onClick={() => setConfirmDelete(true)}
-            className="px-2.5 py-1.5 rounded bg-gray-700 hover:bg-red-900/60 text-red-500 hover:text-red-400 transition-colors flex items-center"
-            title="Delete"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
+        <ItemActions
+          itemType="ship"
+          itemName={ship.name}
+          retired={ship.retired ?? false}
+          onDelete={onDelete}
+          onRetire={onRetire}
+          onUnretire={onUnretire}
+          onCopy={onCopy}
+        />
       </div>
 
-      {/* Confirm delete overlay */}
-      {confirmDelete && (
-        <div className="absolute inset-0 bg-gray-950/95 rounded-xl flex flex-col items-center justify-center gap-4 p-5 z-10" onClick={e => e.stopPropagation()}>
-          <p className="text-gray-200 font-semibold text-center">Delete <span className="text-amber-300">{ship.name || 'this ship'}</span>?</p>
-          <p className="text-gray-500 text-xs text-center">This cannot be undone.</p>
-          <div className="flex gap-3">
-            <button onClick={() => setConfirmDelete(false)} className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium">Keep</button>
-            <button onClick={onDelete} className="px-4 py-2 rounded bg-red-700 hover:bg-red-600 text-white text-sm font-semibold">Delete</button>
-          </div>
-        </div>
-      )}
+      {/* Right: portrait editor */}
+      <PortraitEditor image={ship.image} onImageChange={onImageChange} retired={ship.retired} />
     </div>
   );
 }

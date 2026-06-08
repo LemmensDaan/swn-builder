@@ -94,8 +94,11 @@ function SectorTriangle({
     return galaxyColor(Math.min(dist / GALAXY_RADIUS, 1));
   }, [tri]);
 
-  // Hover: uniform brightness lift, keeps the original hue family
-  const hoverColor = useMemo(() => baseColor.clone().addScalar(0.2), [baseColor]);
+  // Hover: shift hue toward a visible blue-white so the center (already bright) still shows contrast
+  const hoverColor = useMemo(
+    () => new THREE.Color().lerpColors(baseColor, new THREE.Color('#99ddff'), 0.6),
+    [baseColor],
+  );
 
   const fillGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -113,6 +116,8 @@ function SectorTriangle({
     return { x, z, phase: Math.random() * Math.PI * 2, speed: 0.4 + Math.random() * 0.9 };
   }), [tri]);
 
+  const matRef       = useRef<THREE.MeshBasicMaterial>(null);
+  const lerpedColor  = useRef(baseColor.clone());
   const instancedRef = useRef<THREE.InstancedMesh>(null);
   const dodecaGeo    = useMemo(() => new THREE.DodecahedronGeometry(0.04, 0), []);
   const dodecaMat    = useMemo(() => new THREE.MeshBasicMaterial(), []);
@@ -129,13 +134,25 @@ function SectorTriangle({
     mesh.instanceMatrix.needsUpdate = true;
   }, [dots]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
+    // Smooth fill color + opacity animation
+    const mat = matRef.current;
+    if (mat) {
+      const speed = delta * 5;
+      lerpedColor.current.lerp(active ? hoverColor : baseColor, Math.min(speed, 1));
+      mat.color.copy(lerpedColor.current);
+      const pulse = active ? 0.08 * Math.sin(clock.elapsedTime * 2.8) : 0;
+      const targetOpacity = active ? 0.88 + pulse : 0.55;
+      mat.opacity += (targetOpacity - mat.opacity) * Math.min(speed, 1);
+    }
+
+    // Twinkling dodecahedra
     const mesh = instancedRef.current;
     if (!mesh) return;
     const t = clock.elapsedTime;
     dots.forEach((dot, i) => {
       const v = Math.max(0, Math.pow(Math.sin(t * dot.speed + dot.phase), 8));
-      const rest = 0.05; // barely visible at rest so the twinkle flash has real contrast
+      const rest = 0.05;
       _color.setRGB(
         Math.min(1, baseColor.r + rest + v),
         Math.min(1, baseColor.g + rest + v * 0.92),
@@ -155,9 +172,8 @@ function SectorTriangle({
         onClick={e => { e.stopPropagation(); onClick(); }}
       >
         <meshBasicMaterial
-          color={active ? hoverColor : baseColor}
+          ref={matRef}
           transparent
-          opacity={active ? 0.9 : 0.65}
           side={THREE.DoubleSide}
           depthWrite={false}
         />

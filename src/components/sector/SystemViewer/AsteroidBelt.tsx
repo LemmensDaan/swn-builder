@@ -4,8 +4,18 @@ import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
 import { getOrbitPosition } from './orbitUtils';
 
-const COUNT = 600;
+const COUNT = 1200;
 const dummy = new THREE.Object3D();
+
+// Generate random earth-tone color (gray-brown spectrum)
+function getEarthToneColor(): THREE.Color {
+  const tones = [
+    '#8C7B6B', '#9a8878', '#7a6a5a', '#6B6B5A', '#8B8B7A',
+    '#A09080', '#9A8A7A', '#7A7A6A', '#A5956B', '#8B8B63',
+    '#7B7B5A', '#9B8B6B', '#6B6B4A', '#8B8B8B', '#7A7A7A',
+  ];
+  return new THREE.Color(tones[Math.floor(Math.random() * tones.length)]);
+}
 
 interface Props { obj: SystemObject }
 
@@ -14,9 +24,10 @@ export default function AsteroidBelt({ obj }: Props) {
   const groupRef = useRef<THREE.Group>(null);
 
   const geo = useMemo(() => new THREE.IcosahedronGeometry(0.08, 0), []);
+  const beltColor = useMemo(() => getEarthToneColor(), [obj.id]);
   const mat = useMemo(
-    () => new THREE.MeshLambertMaterial({ color: obj.colors[0] ?? '#8C7B6B', flatShading: true }),
-    [obj.colors[0]],
+    () => new THREE.MeshLambertMaterial({ color: beltColor, flatShading: true }),
+    [beltColor],
   );
 
   useEffect(() => {

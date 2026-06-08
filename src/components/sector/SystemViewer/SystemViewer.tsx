@@ -1,14 +1,46 @@
-import { useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useState, useEffect, useRef } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { ChevronLeft, ChevronDown, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSectorStore } from '../../../store/useSectorStore';
 import SystemScene from './SystemScene';
+
+function CameraFollower({ selectedObjectId, objectPositionsRef, orbitControlsRef }: any) {
+  const lastPosRef = useRef<[number, number, number] | null>(null);
+
+  useFrame(() => {
+    if (!selectedObjectId || !orbitControlsRef.current) return;
+    const controls = orbitControlsRef.current;
+    const camera = controls.object;
+    const position = objectPositionsRef.current[selectedObjectId];
+    if (!position) return;
+
+    // Calculate object movement
+    const objectDelta = lastPosRef.current
+      ? new THREE.Vector3(
+          position[0] - lastPosRef.current[0],
+          position[1] - lastPosRef.current[1],
+          position[2] - lastPosRef.current[2]
+        )
+      : new THREE.Vector3(0, 0, 0);
+
+    // Move camera and target together by the object's movement
+    camera.position.add(objectDelta);
+    controls.target.add(objectDelta);
+    controls.update();
+
+    lastPosRef.current = position;
+  });
+  return null;
+}
 
 export default function SystemViewer() {
   const { activeSystemId, activeSectorId, systems, sectors, navigateBack, navigateHome } = useSectorStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const orbitControlsRef = useRef<any>(null);
+  const objectPositionsRef = useRef<Record<string, [number, number, number]>>({});
 
   const system = activeSystemId ? systems[activeSystemId] : null;
   const sector = sectors.find(s => s.id === activeSectorId);
@@ -18,12 +50,13 @@ export default function SystemViewer() {
   const sorted = [...system.objects].sort((a, b) => a.sortOrder - b.sortOrder);
   const objectById = Object.fromEntries(system.objects.map(o => [o.id, o]));
 
+
   // Auto-calculate camera distance based on system extent (furthest orbit)
   const furthestOrbit = Math.max(
     0,
     ...system.objects.filter(o => !o.parentId).map(o => o.orbitRadius)
   );
-  const camDistance = Math.max(35, furthestOrbit * 2.5 + 15); // Buffer for visibility
+  const camDistance = Math.max(80, furthestOrbit * 4.5 + 40); // Buffer for visibility
 
   return (
     <div className="flex h-full relative">
@@ -35,13 +68,15 @@ export default function SystemViewer() {
           gl={{ antialias: true }}
           onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#04070f'))}
         >
-          <SystemScene system={system} />
+          <CameraFollower selectedObjectId={selectedObjectId} objectPositionsRef={objectPositionsRef} orbitControlsRef={orbitControlsRef} />
+          <SystemScene system={system} selectedObjectId={selectedObjectId} onObjectClick={setSelectedObjectId} objectPositionsRef={objectPositionsRef} />
           <OrbitControls
+            ref={orbitControlsRef}
             enablePan
             enableZoom
             enableRotate
             minDistance={5}
-            maxDistance={Math.max(200, camDistance * 2)}
+            maxDistance={Math.max(400, camDistance * 3)}
           />
         </Canvas>
 
@@ -74,8 +109,8 @@ export default function SystemViewer() {
           onClick={() => setSidebarOpen(v => !v)}
           className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-400 text-xs transition-colors backdrop-blur"
         >
-          {sidebarOpen ? <ChevronRightIcon size={14} /> : <ChevronDown size={14} />}
           Objects
+          {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
         </button>
       </div>
 
@@ -88,23 +123,34 @@ export default function SystemViewer() {
               {sorted.length === 0 && (
                 <p className="text-gray-700 text-xs italic">No objects defined</p>
               )}
-              {sorted.map(obj => {
-                const parent = obj.parentId ? objectById[obj.parentId] : null;
-                return (
-                  <div key={obj.id} className={`flex items-center gap-2 py-1.5 px-2 rounded ${parent ? 'pl-5' : ''}`}>
-                    <div
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ background: obj.colors[0] }}
-                    />
-                    <div className="min-w-0">
-                      <p className="text-gray-200 text-xs font-medium truncate">{obj.name}</p>
-                      <p className="text-gray-600 text-[10px]">
-                        {obj.type}{parent ? ` › ${parent.name}` : ''}
-                      </p>
+              {/* Recursive tree renderer */}
+              {(() => {
+                const renderTree = (parentId: string | null, depth = 0) => {
+                  const children = sorted.filter(o => o.parentId === parentId);
+                  return children.map(obj => (
+                    <div key={obj.id}>
+                      <button
+                        onClick={() => setSelectedObjectId(obj.id)}
+                        className={`w-full flex items-center gap-2 py-1.5 px-2 rounded text-left transition-colors ${
+                          selectedObjectId === obj.id ? 'bg-gray-700/50' : 'hover:bg-gray-700/30'
+                        }`}
+                        style={{ paddingLeft: `${8 + depth * 12}px` }}
+                      >
+                        <div
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ background: obj.colors[0] }}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-gray-200 text-xs font-medium truncate">{obj.name}</p>
+                          <p className="text-gray-600 text-[10px]">{obj.type}</p>
+                        </div>
+                      </button>
+                      {renderTree(obj.id, depth + 1)}
                     </div>
-                  </div>
-                );
-              })}
+                  ));
+                };
+                return renderTree(null);
+              })()}
             </div>
           </div>
         </div>

@@ -87,23 +87,68 @@ function galaxyColor(d: number, scheme: ColorScheme): THREE.Color {
   return new THREE.Color(stops[stops.length - 1][1]);
 }
 
-// ─── Spiral arm brightness ────────────────────────────────────────────────────
-const K_WIND    = 4.5;
-const ARM_SIGMA = 0.60;
-const ARM_MIN   = 0.45;
+function colorRadius(d: number): number {
+  return d;
+}
 
-function armBrightness(x: number, z: number): number {
+// ─── Galaxy shape brightness ──────────────────────────────────────────────────
+
+// Parameters for the spiral-family styles.
+interface ShapeParams {
+  numArms:    number;
+  kWind:      number;
+  armSigma:   number;
+  armMin:     number;
+  barRadius?: number;
+  barSigma?:  number;
+}
+const SHAPE_PARAMS: Partial<Record<GalaxyPrefs['style'], ShapeParams>> = {
+  spiral: { numArms: 2, kWind: 4.5, armSigma: 0.60, armMin: 0.45 },
+  triple: { numArms: 3, kWind: 4.5, armSigma: 0.55, armMin: 0.45 },
+  quad:   { numArms: 4, kWind: 4.5, armSigma: 0.50, armMin: 0.45 },
+  barred: { numArms: 2, kWind: 4.5, armSigma: 0.55, armMin: 0.40, barRadius: 0.28, barSigma: 0.35 },
+};
+
+function galaxyBrightness(x: number, z: number, style: GalaxyPrefs['style']): number {
+  if (style === 'classic') return 1.0;
   const r = Math.sqrt(x * x + z * z);
+
+  // ── Lenticular: dominant bright bulge + very dim outer disc, no arms ─────────
+  if (style === 'lenticular') {
+    const d  = r / GALAXY_RADIUS;
+    if (d < 0.22) return 1.0;
+    const t  = Math.min(Math.max((d - 0.22) / 0.30, 0), 1);
+    const st = t * t * (3 - 2 * t);
+    return 1.0 * (1 - st) + 0.18 * st;
+  }
+
+  // ── Spiral family: protect bulge from arm modulation ─────────────────────────
   if (r < 1.5) return 1.0;
+  const p = SHAPE_PARAMS[style];
+  if (!p) return 1.0;
+
+  const { numArms, kWind, armSigma, armMin } = p;
   const actualAngle = Math.atan2(z, x);
-  const woundAngle  = K_WIND * Math.log(GALAXY_RADIUS / r);
+  const woundAngle  = kWind * Math.log(GALAXY_RADIUS / r);
+
   let minDiff = Math.PI;
-  for (let arm = 0; arm < 2; arm++) {
-    let diff = actualAngle - (arm * Math.PI + woundAngle);
+  for (let arm = 0; arm < numArms; arm++) {
+    let diff = actualAngle - (arm * (2 * Math.PI / numArms) + woundAngle);
     diff -= Math.round(diff / (2 * Math.PI)) * 2 * Math.PI;
     minDiff = Math.min(minDiff, Math.abs(diff));
   }
-  return ARM_MIN + (1 - ARM_MIN) * Math.exp(-(minDiff * minDiff) / (2 * ARM_SIGMA * ARM_SIGMA));
+  const spiralBri = armMin + (1 - armMin) * Math.exp(-(minDiff * minDiff) / (2 * armSigma * armSigma));
+
+  if (!p.barRadius) return spiralBri;
+
+  // Bar: Gaussian falloff from the 0°/180° axis, smoothstep-blended with arms
+  const barDiff = Math.abs(Math.sin(actualAngle));
+  const bSig    = p.barSigma ?? 0.35;
+  const barBri  = 0.38 + 0.62 * Math.exp(-(barDiff * barDiff) / (2 * bSig * bSig));
+  const R_BAR   = p.barRadius * GALAXY_RADIUS;
+  const t       = Math.min(Math.max(r / R_BAR, 0), 1);
+  const st      = t * t * (3 - 2 * t);
+  return barBri * (1 - st) + spiralBri * st;
 }
 
 // ─── Geometry builders ────────────────────────────────────────────────────────
@@ -128,8 +173,8 @@ function buildGalaxyGeometry(style: GalaxyPrefs['style'], colorScheme: ColorSche
     if (Math.max(e01, e12, e20) > 4.5) continue;
 
     const d    = Math.min(dist / GALAXY_RADIUS, 1);
-    const base = galaxyColor(d, colorScheme);
-    const bri  = style === 'spiral' ? armBrightness(cx, cz) : 1.0;
+    const base = galaxyColor(colorRadius(d), colorScheme);
+    const bri  = galaxyBrightness(cx, cz, style);
     const cr = base.r * bri, cg = base.g * bri, cb = base.b * bri;
 
     positions.push(x0, GALAXY_Y_VALS[i0], z0, x1, GALAXY_Y_VALS[i1], z1, x2, GALAXY_Y_VALS[i2], z2);
@@ -155,8 +200,8 @@ function buildSparkleData(style: GalaxyPrefs['style'], colorScheme: ColorScheme)
     const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
     const maxHalf = 1.6 * Math.sqrt(Math.max(0, 1 - d * d));
     const y = (Math.random() - 0.5) * 2 * maxHalf;
-    const c = galaxyColor(d, colorScheme);
-    const bri = style === 'spiral' ? armBrightness(x, z) : 1.0;
+    const c = galaxyColor(colorRadius(d), colorScheme);
+    const bri = galaxyBrightness(x, z, style);
     out.push({ x, y, z, r: c.r * bri, g: c.g * bri, b: c.b * bri });
   }
   return out;

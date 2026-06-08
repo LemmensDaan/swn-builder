@@ -41,9 +41,13 @@ function makeBlackHoleDiskTexture(): THREE.Texture {
   return new THREE.CanvasTexture(canvas);
 }
 
-interface Props { obj: SystemObject; children?: React.ReactNode }
+interface Props {
+  obj: SystemObject;
+  children?: React.ReactNode;
+  onPositionUpdate?: (pos: [number, number, number]) => void;
+}
 
-export default function StarObject({ obj, children }: Props) {
+export default function StarObject({ obj, children, onPositionUpdate }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -70,6 +74,10 @@ export default function StarObject({ obj, children }: Props) {
       const incRad = THREE.MathUtils.degToRad(obj.inclination);
       const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
       groupRef.current.position.set(x, y, z);
+      onPositionUpdate?.([x, y, z]);
+    } else if (groupRef.current && obj.orbitRadius === 0) {
+      // Star at center
+      onPositionUpdate?.([0, 0, 0]);
     }
 
     if (meshRef.current && !isBlackHole) {

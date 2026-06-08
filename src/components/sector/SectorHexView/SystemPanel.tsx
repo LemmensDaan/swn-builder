@@ -13,6 +13,7 @@ const QUICK_TYPES: { type: ObjectType; label: string }[] = [
   { type: 'GasGiant',     label: 'Gas Giant'},
   { type: 'Moon',         label: 'Moon'     },
   { type: 'AsteroidBelt', label: 'Belt'     },
+  { type: 'Comet',        label: 'Comet'    },
   { type: 'SpaceStation', label: 'Station'  },
   { type: 'JumpGate',     label: 'Gate'     },
   { type: 'BlackHole',    label: 'Black Hole'},

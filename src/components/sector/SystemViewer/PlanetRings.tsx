@@ -3,8 +3,18 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
 
-const COUNT = 1200;
+const COUNT = 2500;
 const dummy = new THREE.Object3D();
+
+// Generate random earth-tone color (gray-brown spectrum)
+function getEarthToneColor(): THREE.Color {
+  const tones = [
+    '#8C7B6B', '#9a8878', '#7a6a5a', '#6B6B5A', '#8B8B7A',
+    '#A09080', '#9A8A7A', '#7A7A6A', '#A5956B', '#8B8B63',
+    '#7B7B5A', '#9B8B6B', '#6B6B4A', '#8B8B8B', '#7A7A7A',
+  ];
+  return new THREE.Color(tones[Math.floor(Math.random() * tones.length)]);
+}
 
 interface Props {
   obj: SystemObject;
@@ -15,13 +25,8 @@ export default function PlanetRings({ obj }: Props) {
   const groupRef = useRef<THREE.Group>(null);
 
   const ringColor = useMemo(() => {
-    if (obj.secondaryColor) {
-      const c = new THREE.Color(obj.secondaryColor);
-      c.multiplyScalar(0.6); // darken for ring effect
-      return c;
-    }
-    return new THREE.Color('#8C7B6B');
-  }, [obj.secondaryColor]);
+    return getEarthToneColor();
+  }, [obj.id]);
 
   const geo = useMemo(() => new THREE.OctahedronGeometry(0.02, 0), []);
   const mat = useMemo(

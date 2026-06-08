@@ -1,8 +1,12 @@
 export const GALAXY_STYLES = [
-  { key: 'classic' as const, label: 'Classic', desc: 'Uniform disc'         },
-  { key: 'spiral'  as const, label: 'Spiral',  desc: 'Logarithmic arms'     },
+  { key: 'classic'    as const, label: 'Classic',    desc: 'Smooth disc galaxy'              },
+  // lenticular — hidden for now, implementation kept
+  { key: 'spiral'     as const, label: 'Spiral',     desc: 'Two logarithmic arms'            },
+  { key: 'triple'     as const, label: 'Three Arms', desc: 'Three-arm spiral'                },
+  { key: 'quad'       as const, label: 'Four Arms',  desc: 'Four-arm spiral'                 },
+  { key: 'barred'     as const, label: 'Barred',     desc: 'Central bar with two arms'       },
 ] as const;
-export type GalaxyStyle = 'classic' | 'spiral';
+export type GalaxyStyle = 'classic' | 'lenticular' | 'spiral' | 'triple' | 'quad' | 'barred';
 
 export const COLOR_SCHEMES = [
   { key: 'classic'  as const, label: 'Classic',  desc: 'Rose & twilight blue'        },

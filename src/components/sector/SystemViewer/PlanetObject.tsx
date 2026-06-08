@@ -31,9 +31,10 @@ function buildGeo(obj: SystemObject): THREE.BufferGeometry {
 interface Props {
   obj: SystemObject;
   children?: React.ReactNode;
+  onPositionUpdate?: (pos: [number, number, number]) => void;
 }
 
-export default function PlanetObject({ obj, children }: Props) {
+export default function PlanetObject({ obj, children, onPositionUpdate }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef  = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -54,7 +55,10 @@ export default function PlanetObject({ obj, children }: Props) {
     angleRef.current += delta * orbitSpeed;
     const incRad = THREE.MathUtils.degToRad(obj.inclination);
     const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
-    if (groupRef.current) groupRef.current.position.set(x, y, z);
+    if (groupRef.current) {
+      groupRef.current.position.set(x, y, z);
+      onPositionUpdate?.([x, y, z]);
+    }
     if (meshRef.current)  meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
   });
 

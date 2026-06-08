@@ -57,7 +57,7 @@ export default function PlanetObject({ obj, children }: Props) {
   useFrame((_, delta) => {
     angleRef.current += delta * orbitSpeed;
     const incRad = THREE.MathUtils.degToRad(obj.inclination);
-    const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
+    const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad, obj.eccentricity);
     if (groupRef.current) groupRef.current.position.set(x, y, z);
     if (meshRef.current)  meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
   });
@@ -66,11 +66,9 @@ export default function PlanetObject({ obj, children }: Props) {
 
   return (
     <>
-      {/* Orbit ring only for non-moons (moons show their ring inside parent group) */}
-      {!isMoon && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
+      {/* Orbit ring for planets and moons */}
+      {obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} eccentricity={obj.eccentricity} />}
       <group ref={groupRef}>
-        {/* Moon orbit ring is relative to its parent planet */}
-        {isMoon && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
         <mesh
           ref={meshRef}
           geometry={geo}

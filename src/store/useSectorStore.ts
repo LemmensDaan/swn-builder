@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import localforage from 'localforage';
 import type { Sector, StarSystem, SystemObject, Faction, HexCell } from '../types/sector';
 import { makeEmptyHexGrid, OBJECT_TYPE_DEFAULTS } from '../types/sector';
+import { GALAXY_TRIANGLES } from '../components/sector/GalaxyView/galaxyData';
 
 
 interface SectorState {
@@ -50,14 +51,12 @@ interface SectorActions {
 
 type SectorStore = SectorState & SectorActions;
 
-function randomGalaxyPos() {
-  // Random position in a rough ellipse so sectors scatter naturally
-  const angle = Math.random() * Math.PI * 2;
-  const r = 0.15 + Math.random() * 0.65;
-  return {
-    galaxyX: 0.5 + Math.cos(angle) * r * 0.9,
-    galaxyY: 0.5 + Math.sin(angle) * r * 0.45,
-  };
+function pickTriangleIndex(usedIndices: Set<number>): number {
+  const available = GALAXY_TRIANGLES
+    .map((_, i) => i)
+    .filter(i => !usedIndices.has(i));
+  if (available.length === 0) return Math.floor(Math.random() * GALAXY_TRIANGLES.length);
+  return available[Math.floor(Math.random() * available.length)];
 }
 
 function randBetween(min: number, max: number, rng: () => number): number {
@@ -75,13 +74,15 @@ export const useSectorStore = create<SectorStore>()(
 
       createSector(name) {
         const id = crypto.randomUUID();
+        const usedIndices = new Set(get().sectors.map(s => s.triangleIndex));
+        const triangleIndex = pickTriangleIndex(usedIndices);
         const sector: Sector = {
           id,
           name,
           hexes: makeEmptyHexGrid(),
           factions: [],
           notes: '',
-          ...randomGalaxyPos(),
+          triangleIndex,
         };
         set(s => ({ sectors: [...s.sectors, sector] }));
         return sector;
@@ -95,7 +96,6 @@ export const useSectorStore = create<SectorStore>()(
 
       deleteSector(id) {
         const { systems } = get();
-        // Remove all systems that belong to this sector
         const remainingSystems = Object.fromEntries(
           Object.entries(systems).filter(([, sys]) => sys.sectorId !== id)
         );
@@ -155,25 +155,59 @@ export const useSectorStore = create<SectorStore>()(
         const nextOrder = partial.sortOrder ?? (system ? Math.max(0, ...system.objects.map(o => o.sortOrder)) + 1 : 0);
 
         // Default parentId: if adding a non-star object and no parent specified,
-        // use the first star in the system as parent
+        // use the first star as parent UNLESS the system has 2+ stars (binary),
+        // in which case objects orbit the barycenter directly (no parent)
         let parentId = partial.parentId ?? null;
         if (!parentId && system && !['Star', 'BlackHole', 'NeutronStar'].includes(partial.type)) {
-          const star = system.objects.find(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
-          if (star) parentId = star.id;
+          const stars = system.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
+          // Only make objects children of stars in single-star systems
+          if (stars.length === 1) {
+            parentId = stars[0].id;
+          }
+          // In binary+ systems, objects orbit the barycenter (no parent, top-level)
         }
 
-        // Auto-calculate orbit radius based on sortOrder if not provided
-        // Use same formula as randomizer for consistent spacing
         const BASE_ORBIT = 5;
         const ORBIT_SPACING = 6.5;
-        const autoOrbitRadius = parentId
-          ? (defaults.orbitRadius ?? randBetween(0.6, 2.0, Math.random))  // Moons/stations: clearly smaller than planet orbits (min planet orbit ~5)
-          : BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 1.5;
+        const isStarType = ['Star', 'BlackHole', 'NeutronStar'].includes(partial.type);
 
-        // Randomize rotation speed (0.05-0.25), inclination (±8°), not too crazy
+        let autoOrbitRadius: number;
+        if (isStarType && system) {
+          const stars = system.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
+          if (stars.length >= 1) {
+            const sharedBinaryOrbit = randBetween(7, 11, Math.random);
+            stars.forEach(s => {
+              if (s.orbitRadius === 0) {
+                get().updateObject(systemId, s.id, { orbitRadius: sharedBinaryOrbit });
+              }
+            });
+            autoOrbitRadius = sharedBinaryOrbit;
+          } else {
+            autoOrbitRadius = 0;
+          }
+        } else {
+          autoOrbitRadius = parentId
+            ? (defaults.orbitRadius ?? randBetween(0.6, 2.0, Math.random))
+            : BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 1.5;
+        }
+
         const rng = Math.random;
         const autoRotationSpeed = (rng() * 0.2) + 0.05;
-        const autoInclination = (rng() - 0.5) * 2 * (parentId ? 3 : 8); // ±3° for children, ±8° for top-level
+        const autoInclination = (rng() - 0.5) * 2 * (parentId ? 3 : 8);
+
+        // For binary stars: use shared seed so they always oppose 180°
+        let seed: number;
+        if (isStarType && system) {
+          const stars = system.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
+          if (stars.length >= 1) {
+            // Binary companion: use same seed as first star for guaranteed 180° opposition
+            seed = stars[0].seed ?? 999;
+          } else {
+            seed = Math.floor(Math.random() * 999983);
+          }
+        } else {
+          seed = partial.seed ?? Math.floor(Math.random() * 999983);
+        }
 
         const obj: SystemObject = {
           id: partial.id ?? crypto.randomUUID(),
@@ -189,19 +223,36 @@ export const useSectorStore = create<SectorStore>()(
           notes: partial.notes ?? '',
           tags: partial.tags ?? [],
           factionId: partial.factionId ?? null,
-          // Planet renderer fields
           planetType: partial.planetType ?? defaults.planetType,
           primaryColor: partial.primaryColor ?? defaults.primaryColor,
           secondaryColor: partial.secondaryColor ?? defaults.secondaryColor,
           iceCaps: partial.iceCaps ?? defaults.iceCaps,
-          seed: partial.seed ?? Math.floor(Math.random() * 999983),
+          seed,
         };
-        set(s => ({
-          systems: {
-            ...s.systems,
-            [systemId]: { ...s.systems[systemId], objects: [...s.systems[systemId].objects, obj] },
-          },
-        }));
+        set(s => {
+          const updatedSystem = { ...s.systems[systemId], objects: [...s.systems[systemId].objects, obj] };
+
+          if (isStarType) {
+            const stars = updatedSystem.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
+            if (stars.length >= 2) {
+              const firstStarOrbit = stars[0].orbitRadius;
+              const secondStarOrbit = stars[1].orbitRadius;
+              if (firstStarOrbit !== secondStarOrbit) {
+                const targetOrbit = Math.max(firstStarOrbit, secondStarOrbit) || randBetween(7, 11, Math.random);
+                updatedSystem.objects = updatedSystem.objects.map(o =>
+                  stars.includes(o) ? { ...o, orbitRadius: targetOrbit } : o
+                );
+              }
+            }
+          }
+
+          return {
+            systems: {
+              ...s.systems,
+              [systemId]: updatedSystem,
+            },
+          };
+        });
         return obj;
       },
 
@@ -311,6 +362,24 @@ export const useSectorStore = create<SectorStore>()(
     }),
     {
       name: 'swn-sector-data',
+      version: 1,
+      migrate(persistedState, version) {
+        const state = persistedState as { sectors: Sector[]; systems: Record<string, StarSystem> };
+        if (version < 1) {
+          // Assign triangleIndex to any sectors saved before this field existed
+          const usedIndices = new Set<number>();
+          state.sectors = state.sectors.map(s => {
+            if (typeof s.triangleIndex === 'number') {
+              usedIndices.add(s.triangleIndex);
+              return s;
+            }
+            const idx = pickTriangleIndex(usedIndices);
+            usedIndices.add(idx);
+            return { ...s, triangleIndex: idx };
+          });
+        }
+        return state;
+      },
       storage: createJSONStorage(() => ({
         getItem: async (name: string) => localforage.getItem<string>(name),
         setItem: async (name: string, value: string) => localforage.setItem(name, value),

@@ -20,10 +20,14 @@ interface Props {
 export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Props) {
   const [expanded, setExpanded] = useState(false);
 
-  const validParents = allObjects.filter(o =>
-    o.id !== obj.id &&
-    !['Moon', 'AsteroidBelt'].includes(o.type)
-  );
+  // Stars can never be children; non-stars can only have non-star parents
+  const isStarType = ['Star', 'NeutronStar', 'BlackHole'].includes(obj.type);
+  const validParents = isStarType
+    ? []
+    : allObjects.filter(o =>
+        o.id !== obj.id &&
+        !['Moon', 'AsteroidBelt', 'Star', 'NeutronStar', 'BlackHole'].includes(o.type)
+      );
 
   return (
     <div className="rounded-lg bg-gray-800/60 border border-gray-700/50">
@@ -120,6 +124,14 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Pr
               className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
               value={obj.inclination}
               onChange={e => onChange({ inclination: parseFloat(e.target.value) || 0 })}
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-gray-500">Eccentricity</span>
+            <input type="number" step="0.01" min="0" max="0.99"
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+              value={obj.eccentricity}
+              onChange={e => onChange({ eccentricity: parseFloat(e.target.value) || 0 })}
             />
           </label>
           <label className="flex flex-col gap-0.5">

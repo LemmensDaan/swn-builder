@@ -3,6 +3,9 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
+import { getOrbitPosition } from './orbitUtils';
+import { mulberry32 } from './planetRenderer';
+import OrbitRing from './OrbitRing';
 
 function makeStarGlowTexture(): THREE.Texture {
   const size = 64;
@@ -21,6 +24,7 @@ function makeStarGlowTexture(): THREE.Texture {
 interface Props { obj: SystemObject; children?: React.ReactNode }
 
 export default function StarObject({ obj, children }: Props) {
+  const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
   const color = obj.colors[0] ?? '#FFF4C2';
@@ -28,23 +32,41 @@ export default function StarObject({ obj, children }: Props) {
   const isNeutron   = obj.type === 'NeutronStar';
   const glowTex = useMemo(() => makeStarGlowTexture(), []);
 
+  // Orbit setup (for binary stars)
+  let initialAngle = mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2;
+  // Secondary star (sortOrder 1) starts 180° opposite from primary
+  if (obj.sortOrder === 1) {
+    initialAngle += Math.PI;
+  }
+
+  const orbitSpeed = obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0;
+  const angleRef = useRef(initialAngle);
+
   useFrame((_, delta) => {
+    // Update orbit position if this star orbits (secondary in binary)
+    if (obj.orbitRadius > 0 && groupRef.current) {
+      angleRef.current += delta * orbitSpeed;
+      const incRad = THREE.MathUtils.degToRad(obj.inclination);
+      const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad, obj.eccentricity);
+      groupRef.current.position.set(x, y, z);
+    }
+
     if (meshRef.current && !isBlackHole) {
       meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.08);
     }
   });
 
   return (
-    <group>
-      {/* The only meaningful light source in the scene */}
-      <pointLight
+    <>
+      {/* Orbit ring for binary stars */}
+      {obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} eccentricity={obj.eccentricity} />}
+      <group ref={groupRef}>
+        {/* The only meaningful light source in the scene */}
+        <pointLight
         color={isBlackHole ? '#000000' : color}
         intensity={isBlackHole ? 0 : 120}
         distance={220}
         decay={1}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
       />
       {/* Soft glow behind the body */}
       {!isBlackHole && (
@@ -64,6 +86,8 @@ export default function StarObject({ obj, children }: Props) {
         ref={meshRef}
         onPointerEnter={() => setHovered(true)}
         onPointerLeave={() => setHovered(false)}
+        castShadow={false}
+        receiveShadow={false}
       >
         <icosahedronGeometry args={[obj.size, 2]} />
         <meshLambertMaterial
@@ -71,6 +95,7 @@ export default function StarObject({ obj, children }: Props) {
           emissive={isBlackHole ? '#000000' : color}
           emissiveIntensity={isBlackHole ? 0 : isNeutron ? 1.5 : 0.9}
           flatShading
+          toneMapped={false}
         />
       </mesh>
       {/* Hover label — plain monospace text, no box, no line */}
@@ -83,6 +108,7 @@ export default function StarObject({ obj, children }: Props) {
       )}
       {/* Children (planets, moons, stations) orbit in this star's local space */}
       {children}
-    </group>
+      </group>
+    </>
   );
 }

@@ -71,7 +71,7 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
       </div>
 
       {/* Header row 2: actions */}
-      <div className="flex items-center gap-1.5 px-4 pb-3 border-b border-gray-700/60">
+      <div className="flex items-center gap-2 px-4 pb-3 border-b border-gray-700/60">
         <button
           onClick={onViewSystem}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-800 hover:bg-sky-700 text-sky-200 text-xs font-medium transition-colors flex-shrink-0"
@@ -79,17 +79,19 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
           <Eye size={13} />
           View 3D
         </button>
-        <div className="flex items-center gap-1 ml-auto">
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className="text-[9px] text-gray-600 font-medium uppercase tracking-wider">Randomize</span>
           <select
             value={systemType}
             onChange={e => setSystemType(e.target.value as SystemType)}
-            className="text-[10px] bg-gray-900 border border-gray-700 rounded px-1 py-1 text-gray-400 outline-none"
+            className="text-[10px] bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-300 outline-none hover:border-gray-600 transition-colors"
+            title="Select system archetype, then click shuffle to randomize"
           >
             {SYSTEM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           <button
             onClick={handleRandomize}
-            title="Randomize system"
+            title="Randomize system with selected type"
             className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-amber-300 transition-colors"
           >
             <Shuffle size={13} />

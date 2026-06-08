@@ -6,10 +6,9 @@ import { AlertTriangle } from 'lucide-react';
 import { useSectorStore } from '../../../store/useSectorStore';
 import Starfield from '../shared/Starfield';
 import GalaxyMesh from './GalaxyMesh';
-import SectorPoint from './SectorPoint';
 
 export default function GalaxyView() {
-  const { sectors, createSector, updateSector, navigateToSector, deleteSector, systems } = useSectorStore();
+  const { sectors, createSector, navigateToSector, deleteSector, systems } = useSectorStore();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [naming, setNaming] = useState(false);
   const [newName, setNewName] = useState('');
@@ -32,16 +31,11 @@ export default function GalaxyView() {
       >
         <ambientLight intensity={0.08} />
         <Starfield count={1800} />
-        <GalaxyMesh />
-        {sectors.map(s => (
-          <SectorPoint
-            key={s.id}
-            sector={s}
-            pulsed={hoveredId === s.id}
-            onClick={() => navigateToSector(s.id)}
-            onDragEnd={(nx, ny) => updateSector(s.id, { galaxyX: nx, galaxyY: ny })}
-          />
-        ))}
+        <GalaxyMesh
+          sectors={sectors}
+          highlightedId={hoveredId}
+          onSectorClick={navigateToSector}
+        />
         <OrbitControls
           enablePan
           enableZoom

@@ -33,13 +33,21 @@ function buildGalaxyGeometry(): THREE.BufferGeometry {
   }
 
   // Layer 2 — area-uniform (sqrt bias): guarantees no sparse gaps in the outer disc.
-  // sqrt(random) distributes points evenly by area, not by radius, so outer rings
-  // get enough points to prevent large hole-forming triangles.
   for (let i = 0; i < 460; i++) {
     const r = Math.sqrt(Math.random()) * galaxyRadius;
     const a = Math.random() * Math.PI * 2;
     points.push([Math.cos(a) * r, Math.sin(a) * r]);
   }
+
+  // Pre-assign Y (thickness) per vertex — shared vertices across triangles must have
+  // the same Y position, otherwise adjacent triangles disconnect and create holes.
+  const yVals: number[] = points.map(([px, py]) => {
+    const r = Math.sqrt(px * px + py * py);
+    const d = r / galaxyRadius;
+    // Oblate ellipsoid profile: thick at centre, smoothly tapers to zero at rim
+    const maxHalf = 1.5 * Math.sqrt(Math.max(0, 1 - d * d));
+    return (Math.random() - 0.5) * 2 * maxHalf;
+  });
 
   const del = Delaunator.from(points, p => p[0], p => p[1]);
 
@@ -48,28 +56,25 @@ function buildGalaxyGeometry(): THREE.BufferGeometry {
 
   for (let i = 0; i < del.triangles.length; i += 3) {
     const i0 = del.triangles[i], i1 = del.triangles[i + 1], i2 = del.triangles[i + 2];
-    const [x0, y0] = points[i0], [x1, y1] = points[i1], [x2, y2] = points[i2];
+    const [x0, z0] = points[i0], [x1, z1] = points[i1], [x2, z2] = points[i2];
 
-    const cx = (x0 + x1 + x2) / 3, cy = (y0 + y1 + y2) / 3;
-    const dist = Math.sqrt(cx * cx + cy * cy);
+    const cx = (x0 + x1 + x2) / 3, cz = (z0 + z1 + z2) / 3;
+    const dist = Math.sqrt(cx * cx + cz * cz);
 
     // Drop triangles whose centroid falls outside the disc
     if (dist > galaxyRadius * 0.98) continue;
 
-    // Drop spike triangles: an elongated triangle has one very long edge.
-    // Max-edge filter catches these without creating holes the way area-filter does.
-    const e01 = Math.hypot(x1 - x0, y1 - y0);
-    const e12 = Math.hypot(x2 - x1, y2 - y1);
-    const e20 = Math.hypot(x0 - x2, y0 - y2);
+    // Drop spike triangles via max-edge filter
+    const e01 = Math.hypot(x1 - x0, z1 - z0);
+    const e12 = Math.hypot(x2 - x1, z2 - z1);
+    const e20 = Math.hypot(x0 - x2, z0 - z2);
     if (Math.max(e01, e12, e20) > 4.5) continue;
 
     const d = Math.min(dist / galaxyRadius, 1);
     const c = galaxyColor(d);
 
-    // Lens-shaped thickness: thick at center, tapers to zero at edge
-    const halfThick = 1.2 * Math.max(0, 1 - d * 1.1);
-    const zv = () => (Math.random() - 0.5) * halfThick;
-    positions.push(x0, zv(), y0, x1, zv(), y1, x2, zv(), y2);
+    // Use pre-assigned Y per vertex index — no gaps between adjacent triangles
+    positions.push(x0, yVals[i0], z0, x1, yVals[i1], z1, x2, yVals[i2], z2);
     for (let v = 0; v < 3; v++) colors.push(c.r, c.g, c.b);
   }
 
@@ -79,25 +84,26 @@ function buildGalaxyGeometry(): THREE.BufferGeometry {
   return geo;
 }
 
-// Sparkles: same dual-layer approach as mesh for consistent coverage
+// Sparkles: dual-layer density + oblate ellipsoid Y distribution for volume
 function buildSparkles(): THREE.BufferGeometry {
   const posList: number[] = [];
-  for (let i = 0; i < 2400; i++) {
-    // 40% center-biased, 60% area-uniform — matches mesh density gradient
-    const r = i < 960
-      ? Math.pow(Math.random(), 2.0) * galaxyRadius
-      : Math.sqrt(Math.random()) * galaxyRadius;
+  const colorList: number[] = [];
+  for (let i = 0; i < 5000; i++) {
+    const r = i < 2000
+      ? Math.pow(Math.random(), 2.0) * galaxyRadius   // center-biased
+      : Math.sqrt(Math.random()) * galaxyRadius;       // area-uniform
     const angle = Math.random() * Math.PI * 2;
     const d = r / galaxyRadius;
-    const halfThick = 1.0 * Math.max(0, 1 - d * 1.1);
-    posList.push(
-      Math.cos(angle) * r,
-      (Math.random() - 0.5) * halfThick,
-      Math.sin(angle) * r,
-    );
+    // Match the mesh's oblate ellipsoid profile so sparkles fill the same volume
+    const maxHalf = 1.6 * Math.sqrt(Math.max(0, 1 - d * d));
+    const y = (Math.random() - 0.5) * 2 * maxHalf;
+    posList.push(Math.cos(angle) * r, y, Math.sin(angle) * r);
+    const c = galaxyColor(d);
+    colorList.push(c.r, c.g, c.b);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(posList), 3));
+  geo.setAttribute('color',    new THREE.BufferAttribute(new Float32Array(colorList), 3));
   return geo;
 }
 
@@ -117,10 +123,10 @@ export default function GalaxyMesh() {
       </mesh>
       <points geometry={sparkleGeo}>
         <pointsMaterial
-          size={0.16}
-          color="#ffeeff"
+          vertexColors
+          size={0.14}
           transparent
-          opacity={0.7}
+          opacity={0.75}
           sizeAttenuation
           depthWrite={false}
         />

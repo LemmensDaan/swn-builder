@@ -47,7 +47,7 @@ export default function StarObject({ obj, children }: Props) {
     if (obj.orbitRadius > 0 && groupRef.current) {
       angleRef.current += delta * orbitSpeed;
       const incRad = THREE.MathUtils.degToRad(obj.inclination);
-      const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad, obj.eccentricity);
+      const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
       groupRef.current.position.set(x, y, z);
     }
 
@@ -59,7 +59,7 @@ export default function StarObject({ obj, children }: Props) {
   return (
     <>
       {/* Orbit ring for binary stars */}
-      {obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} eccentricity={obj.eccentricity} />}
+      {obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
         {/* The only meaningful light source in the scene */}
         <pointLight

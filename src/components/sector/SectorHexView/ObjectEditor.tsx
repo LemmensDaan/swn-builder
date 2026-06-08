@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Orbit, Info } from 'lucide-react';
 import type { SystemObject, ObjectType } from '../../../types/sector';
 import { OBJECT_TYPE_DEFAULTS } from '../../../types/sector';
 
@@ -19,6 +19,8 @@ interface Props {
 
 export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [orbitalExpanded, setOrbitalExpanded] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   // Stars can never be children; non-stars can only have non-star parents
   const isStarType = ['Star', 'NeutronStar', 'BlackHole'].includes(obj.type);
@@ -101,79 +103,102 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Pr
       </div>
 
       {expanded && (
-        <div className="px-3 pb-3 pt-1 grid grid-cols-2 gap-x-3 gap-y-2 text-xs border-t border-gray-700/50">
-          <label className="flex flex-col gap-0.5">
-            <span className="text-gray-500">Size</span>
-            <input type="number" step="0.1" min="0.1" max="10"
-              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-              value={obj.size}
-              onChange={e => onChange({ size: parseFloat(e.target.value) || 1 })}
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-gray-500">Orbit Radius</span>
-            <input type="number" step="0.5" min="0"
-              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-              value={obj.orbitRadius}
-              onChange={e => onChange({ orbitRadius: parseFloat(e.target.value) || 0 })}
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-gray-500">Inclination °</span>
-            <input type="number" step="1" min="-90" max="90"
-              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-              value={obj.inclination}
-              onChange={e => onChange({ inclination: parseFloat(e.target.value) || 0 })}
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-gray-500">Eccentricity</span>
-            <input type="number" step="0.01" min="0" max="0.99"
-              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-              value={obj.eccentricity}
-              onChange={e => onChange({ eccentricity: parseFloat(e.target.value) || 0 })}
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-gray-500">Rotation Speed</span>
-            <input type="number" step="0.01" min="0"
-              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-              value={obj.selfRotationSpeed}
-              onChange={e => onChange({ selfRotationSpeed: parseFloat(e.target.value) || 0 })}
-            />
-          </label>
-          {validParents.length > 0 && (
-            <label className="flex flex-col gap-0.5 col-span-2">
-              <span className="text-gray-500">Parent Object</span>
-              <select
-                className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-                value={obj.parentId ?? ''}
-                onChange={e => onChange({ parentId: e.target.value || null })}
-              >
-                <option value="">— None (orbits star) —</option>
-                {validParents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-          )}
-          <label className="flex flex-col gap-0.5 col-span-2">
-            <span className="text-gray-500">Notes</span>
-            <textarea
-              rows={2}
-              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none resize-none"
-              value={obj.notes}
-              onChange={e => onChange({ notes: e.target.value })}
-              placeholder="GM notes, world tags…"
-            />
-          </label>
-          <label className="flex flex-col gap-0.5 col-span-2">
-            <span className="text-gray-500">Tags (comma-separated)</span>
-            <input
-              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-              value={obj.tags.join(', ')}
-              onChange={e => onChange({ tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
-              placeholder="e.g. TL4, Hostile Biosphere"
-            />
-          </label>
+        <div className="px-3 pb-3 pt-1 border-t border-gray-700/50 space-y-2 text-xs">
+          {/* Orbital Properties Section */}
+          <div className="rounded bg-gray-900/30 border border-gray-700/30">
+            <button
+              onClick={() => setOrbitalExpanded(v => !v)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-gray-400 hover:text-gray-300 transition-colors"
+            >
+              {orbitalExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              <Orbit size={12} />
+              <span className="font-medium">Orbital Properties</span>
+            </button>
+            {orbitalExpanded && (
+              <div className="px-2 pb-2 grid grid-cols-2 gap-x-2 gap-y-2 border-t border-gray-700/30">
+                <label className="flex flex-col gap-0.5 pt-2">
+                  <span className="text-gray-500">Size</span>
+                  <input type="number" step="0.1" min="0.1" max="10"
+                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                    value={obj.size}
+                    onChange={e => onChange({ size: parseFloat(e.target.value) || 1 })}
+                  />
+                </label>
+                <label className="flex flex-col gap-0.5 pt-2">
+                  <span className="text-gray-500">Orbit Radius</span>
+                  <input type="number" step="0.5" min="0"
+                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                    value={obj.orbitRadius}
+                    onChange={e => onChange({ orbitRadius: parseFloat(e.target.value) || 0 })}
+                  />
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-gray-500">Inclination °</span>
+                  <input type="number" step="1" min="-90" max="90"
+                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                    value={obj.inclination}
+                    onChange={e => onChange({ inclination: parseFloat(e.target.value) || 0 })}
+                  />
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-gray-500">Rotation Speed</span>
+                  <input type="number" step="0.01" min="0"
+                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                    value={obj.selfRotationSpeed}
+                    onChange={e => onChange({ selfRotationSpeed: parseFloat(e.target.value) || 0 })}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* Details Section */}
+          <div className="rounded bg-gray-900/30 border border-gray-700/30">
+            <button
+              onClick={() => setDetailsExpanded(v => !v)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-gray-400 hover:text-gray-300 transition-colors"
+            >
+              {detailsExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              <Info size={12} />
+              <span className="font-medium">Details</span>
+            </button>
+            {detailsExpanded && (
+              <div className="px-2 pb-2 space-y-2 border-t border-gray-700/30 pt-2">
+                {validParents.length > 0 && (
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-gray-500">Parent Object</span>
+                    <select
+                      className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                      value={obj.parentId ?? ''}
+                      onChange={e => onChange({ parentId: e.target.value || null })}
+                    >
+                      <option value="">— None (orbits star) —</option>
+                      {validParents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </label>
+                )}
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-gray-500">Notes</span>
+                  <textarea
+                    rows={2}
+                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none resize-none"
+                    value={obj.notes}
+                    onChange={e => onChange({ notes: e.target.value })}
+                    placeholder="GM notes, world tags…"
+                  />
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-gray-500">Tags (comma-separated)</span>
+                  <input
+                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                    value={obj.tags.join(', ')}
+                    onChange={e => onChange({ tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
+                    placeholder="e.g. TL4, Hostile Biosphere"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

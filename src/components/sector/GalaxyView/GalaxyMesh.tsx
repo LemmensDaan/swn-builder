@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -49,25 +49,22 @@ function buildGalaxyGeometry(): THREE.BufferGeometry {
   return geo;
 }
 
-function buildSparkles(): THREE.BufferGeometry {
-  const posList: number[] = [];
-  const colorList: number[] = [];
+interface SparkleEntry { x: number; y: number; z: number; r: number; g: number; b: number; }
+
+function buildSparkleData(): SparkleEntry[] {
+  const out: SparkleEntry[] = [];
   for (let i = 0; i < 5000; i++) {
-    const r = i < 2000
+    const radius = i < 2000
       ? Math.pow(Math.random(), 2.0) * GALAXY_RADIUS
       : Math.sqrt(Math.random()) * GALAXY_RADIUS;
     const angle = Math.random() * Math.PI * 2;
-    const d = r / GALAXY_RADIUS;
+    const d = radius / GALAXY_RADIUS;
     const maxHalf = 1.6 * Math.sqrt(Math.max(0, 1 - d * d));
     const y = (Math.random() - 0.5) * 2 * maxHalf;
-    posList.push(Math.cos(angle) * r, y, Math.sin(angle) * r);
     const c = galaxyColor(d);
-    colorList.push(c.r, c.g, c.b);
+    out.push({ x: Math.cos(angle) * radius, y, z: Math.sin(angle) * radius, r: c.r, g: c.g, b: c.b });
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(posList), 3));
-  geo.setAttribute('color',    new THREE.BufferAttribute(new Float32Array(colorList), 3));
-  return geo;
+  return out;
 }
 
 const FILL_Y = 0.15;
@@ -97,6 +94,9 @@ function SectorTriangle({
     return galaxyColor(Math.min(dist / GALAXY_RADIUS, 1));
   }, [tri]);
 
+  // Hover: uniform brightness lift, keeps the original hue family
+  const hoverColor = useMemo(() => baseColor.clone().addScalar(0.2), [baseColor]);
+
   const fillGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute([
@@ -113,32 +113,37 @@ function SectorTriangle({
     return { x, z, phase: Math.random() * Math.PI * 2, speed: 0.4 + Math.random() * 0.9 };
   }), [tri]);
 
-  const dotColorBuf = useMemo(() => {
-    return new THREE.BufferAttribute(new Float32Array(DOT_COUNT * 3), 3);
-  }, []);
+  const instancedRef = useRef<THREE.InstancedMesh>(null);
+  const dodecaGeo    = useMemo(() => new THREE.DodecahedronGeometry(0.04, 0), []);
+  const dodecaMat    = useMemo(() => new THREE.MeshBasicMaterial(), []);
+  const _color       = useMemo(() => new THREE.Color(), []);
 
-  const dotsGeo = useMemo(() => {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(
-      dots.flatMap(d => [d.x, FILL_Y + 0.08, d.z]), 3,
-    ));
-    g.setAttribute('color', dotColorBuf);
-    return g;
-  }, [dots, dotColorBuf]);
+  useEffect(() => {
+    const mesh = instancedRef.current;
+    if (!mesh) return;
+    const matrix = new THREE.Matrix4();
+    dots.forEach((dot, i) => {
+      matrix.makeTranslation(dot.x, FILL_Y + 0.1, dot.z);
+      mesh.setMatrixAt(i, matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [dots]);
 
   useFrame(({ clock }) => {
+    const mesh = instancedRef.current;
+    if (!mesh) return;
     const t = clock.elapsedTime;
     dots.forEach((dot, i) => {
-      // sin^8: mostly off, sharp brief flash when cresting
       const v = Math.max(0, Math.pow(Math.sin(t * dot.speed + dot.phase), 8));
-      // Rest at baseColor; flash toward warm-white when twinkling
-      dotColorBuf.setXYZ(i,
-        Math.min(1, baseColor.r + v),
-        Math.min(1, baseColor.g + v * 0.92),
-        Math.min(1, baseColor.b + v * 0.72),
+      const rest = 0.05; // barely visible at rest so the twinkle flash has real contrast
+      _color.setRGB(
+        Math.min(1, baseColor.r + rest + v),
+        Math.min(1, baseColor.g + rest + v * 0.92),
+        Math.min(1, baseColor.b + rest + v * 0.72),
       );
+      mesh.setColorAt(i, _color);
     });
-    dotColorBuf.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   });
 
   return (
@@ -150,23 +155,14 @@ function SectorTriangle({
         onClick={e => { e.stopPropagation(); onClick(); }}
       >
         <meshBasicMaterial
-          color={baseColor}
+          color={active ? hoverColor : baseColor}
           transparent
-          opacity={active ? 0.85 : 0.65}
+          opacity={active ? 0.9 : 0.65}
           side={THREE.DoubleSide}
           depthWrite={false}
         />
       </mesh>
-      <points geometry={dotsGeo}>
-        <pointsMaterial
-          vertexColors
-          size={0.22}
-          transparent
-          opacity={1}
-          sizeAttenuation
-          depthWrite={false}
-        />
-      </points>
+      <instancedMesh ref={instancedRef} args={[dodecaGeo, dodecaMat, DOT_COUNT]} />
       {active && (
         <Html
           center
@@ -196,9 +192,25 @@ interface Props {
 }
 
 export default function GalaxyMesh({ sectors, highlightedId, onSectorClick }: Props) {
-  const groupRef    = useRef<THREE.Group>(null);
-  const meshGeo    = useMemo(() => buildGalaxyGeometry(), []);
-  const sparkleGeo = useMemo(() => buildSparkles(), []);
+  const groupRef      = useRef<THREE.Group>(null);
+  const sparkleRef    = useRef<THREE.InstancedMesh>(null);
+  const meshGeo       = useMemo(() => buildGalaxyGeometry(), []);
+  const sparkleData   = useMemo(() => buildSparkleData(), []);
+  const sparkleDodGeo = useMemo(() => new THREE.DodecahedronGeometry(0.04, 0), []);
+  const sparkleDodMat = useMemo(() => new THREE.MeshBasicMaterial(), []);
+
+  useEffect(() => {
+    const mesh = sparkleRef.current;
+    if (!mesh) return;
+    const matrix = new THREE.Matrix4();
+    const color  = new THREE.Color();
+    sparkleData.forEach(({ x, y, z, r, g, b }, i) => {
+      mesh.setMatrixAt(i, matrix.makeTranslation(x, y, z));
+      mesh.setColorAt(i, color.setRGB(r, g, b));
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [sparkleData]);
 
   useFrame((_, delta) => {
     if (groupRef.current) groupRef.current.rotation.y += delta * 0.05;
@@ -209,16 +221,7 @@ export default function GalaxyMesh({ sectors, highlightedId, onSectorClick }: Pr
       <mesh geometry={meshGeo}>
         <meshBasicMaterial vertexColors side={THREE.DoubleSide} />
       </mesh>
-      <points geometry={sparkleGeo}>
-        <pointsMaterial
-          vertexColors
-          size={0.14}
-          transparent
-          opacity={0.75}
-          sizeAttenuation
-          depthWrite={false}
-        />
-      </points>
+      <instancedMesh ref={sparkleRef} args={[sparkleDodGeo, sparkleDodMat, sparkleData.length]} />
       {sectors.map(s => {
         const tri = GALAXY_TRIANGLES[s.triangleIndex];
         if (!tri) return null;

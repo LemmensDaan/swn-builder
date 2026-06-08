@@ -103,7 +103,6 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
   const sharedSeed = 999; // Same seed for both binary companions = consistent 180° opposition
 
   const inclination = order === 0 ? 0 : (rng() - 0.5) * 2 * 15;
-  const eccentricity = orbitRad > 0 ? randBetween(0.1, 0.4, rng) : 0; // Binary stars can have eccentric orbits
   return {
     type,
     name: order === 0 ? 'Primary Star' : 'Secondary Star',
@@ -113,7 +112,6 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
     colors: [color] as [string],
     orbitRadius: orbitRad,
     inclination,
-    eccentricity,
     selfRotationSpeed: type === 'BlackHole' ? 0 : randBetween(0.05, 0.25, rng),
     notes: '', tags: [], factionId: null,
     seed: sharedSeed,
@@ -137,11 +135,6 @@ function makePlanet(planetType: PlanetType, order: number, parentId: string | nu
   const inclinationRange = isMoon ? 3 : 8;
   const inclination = (rng() - 0.5) * 2 * inclinationRange;
 
-  // Eccentricity: most orbits are nearly circular, but some are elliptical
-  // Planets: 40% chance of slight ellipticity; Moons: 10% chance
-  const hasEccentricity = isMoon ? rng() < 0.1 : rng() < 0.4;
-  const eccentricity = hasEccentricity ? randBetween(0.05, 0.35, rng) : 0;
-
   return {
     type,
     name: isMoon ? `Moon` : planetType,
@@ -151,7 +144,6 @@ function makePlanet(planetType: PlanetType, order: number, parentId: string | nu
     colors: [preset.primaryColor, preset.secondaryColor] as [string, string],
     orbitRadius: radius,
     inclination,
-    eccentricity,
     selfRotationSpeed: randBetween(0.05, 0.25, rng),
     planetType,
     primaryColor: preset.primaryColor,
@@ -163,8 +155,6 @@ function makePlanet(planetType: PlanetType, order: number, parentId: string | nu
 }
 
 function makeBelt(order: number, rng: () => number): Omit<SystemObject, 'id'> {
-  // Belts are often elliptical
-  const eccentricity = rng() < 0.6 ? randBetween(0.08, 0.4, rng) : 0;
   return {
     type: 'AsteroidBelt',
     name: 'Asteroid Belt',
@@ -174,15 +164,12 @@ function makeBelt(order: number, rng: () => number): Omit<SystemObject, 'id'> {
     colors: [pick(['#8C7B6B', '#9a8878', '#7a6a5a'], rng)] as [string],
     orbitRadius: orbitRadius(order, (rng() - 0.5) * 1.5),
     inclination: randBetween(-5, 5, rng),
-    eccentricity,
     selfRotationSpeed: 0,
     notes: '', tags: [], factionId: null,
   };
 }
 
 function makeStation(order: number, rng: () => number): Omit<SystemObject, 'id'> {
-  // Stations rarely have elliptical orbits
-  const eccentricity = rng() < 0.15 ? randBetween(0.05, 0.2, rng) : 0;
   return {
     type: 'SpaceStation',
     name: 'Orbital Station',
@@ -192,7 +179,6 @@ function makeStation(order: number, rng: () => number): Omit<SystemObject, 'id'>
     colors: [pick(['#B0C4DE', '#99AABB', '#AABBCC'], rng)] as [string],
     orbitRadius: orbitRadius(order, (rng() - 0.5)),
     inclination: 0,
-    eccentricity,
     selfRotationSpeed: randBetween(0.02, 0.08, rng),
     notes: '', tags: [], factionId: null,
   };

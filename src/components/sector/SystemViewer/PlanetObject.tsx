@@ -57,17 +57,15 @@ export default function PlanetObject({ obj, children }: Props) {
   useFrame((_, delta) => {
     angleRef.current += delta * orbitSpeed;
     const incRad = THREE.MathUtils.degToRad(obj.inclination);
-    const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad, obj.eccentricity);
+    const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
     if (groupRef.current) groupRef.current.position.set(x, y, z);
     if (meshRef.current)  meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
   });
 
-  const isMoon = obj.type === 'Moon';
-
   return (
     <>
       {/* Orbit ring for planets and moons */}
-      {obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} eccentricity={obj.eccentricity} />}
+      {obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
         <mesh
           ref={meshRef}

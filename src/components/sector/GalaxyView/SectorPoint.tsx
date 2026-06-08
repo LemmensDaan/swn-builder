@@ -23,7 +23,10 @@ export default function SectorPoint({ sector, pulsed, onClick, onDragEnd }: Prop
   const { camera, gl } = useThree();
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
 
-  const [wx, , wz] = galaxyToWorld(sector.galaxyX, sector.galaxyY);
+  // Use triangleIndex to generate reasonable galaxy coordinates
+  const galaxyX = (sector.triangleIndex % 10) / 10 + 0.05;
+  const galaxyY = Math.floor(sector.triangleIndex / 10) / 10 + 0.05;
+  const [wx, , wz] = galaxyToWorld(galaxyX, galaxyY);
   const active = hovered || pulsed;
 
   useFrame((_, delta) => {

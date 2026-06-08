@@ -26,7 +26,7 @@ export default function AsteroidBelt({ obj }: Props) {
     for (let i = 0; i < COUNT; i++) {
       const angle = (i / COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
       const r = obj.orbitRadius * (0.88 + Math.random() * 0.24);
-      const [x, y, z] = getOrbitPosition(angle, r, incRad, obj.eccentricity);
+      const [x, y, z] = getOrbitPosition(angle, r, incRad);
 
       dummy.position.set(x, y + (Math.random() - 0.5) * 0.4, z);
       dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
@@ -35,7 +35,7 @@ export default function AsteroidBelt({ obj }: Props) {
       meshRef.current.setMatrixAt(i, dummy.matrix);
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
-  }, [obj.orbitRadius, obj.inclination, obj.eccentricity]);
+  }, [obj.orbitRadius, obj.inclination]);
 
   useFrame((_, delta) => {
     if (groupRef.current) groupRef.current.rotation.y += delta * 0.012;

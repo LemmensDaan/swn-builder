@@ -42,7 +42,7 @@ export default function SpaceStation({ obj }: Props) {
   useFrame((_, delta) => {
     angleRef.current += delta * orbitSpeed;
     const incRad = THREE.MathUtils.degToRad(obj.inclination);
-    const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad, obj.eccentricity);
+    const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
     if (groupRef.current) groupRef.current.position.set(x, y, z);
     if (bodyRef.current)  bodyRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.04);
   });
@@ -51,7 +51,7 @@ export default function SpaceStation({ obj }: Props) {
 
   return (
     <>
-      <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} eccentricity={obj.eccentricity} />
+      <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />
       <group ref={groupRef}>
         <group
           ref={bodyRef}

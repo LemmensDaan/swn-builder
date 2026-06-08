@@ -1,7 +1,19 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
+// import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
+
+// function CameraLogger({ domRef }: { domRef: React.RefObject<HTMLDivElement> }) {
+//   const { camera } = useThree();
+//   useFrame(() => {
+//     if (domRef.current) {
+//       const p = camera.position;
+//       domRef.current.textContent = `[${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}]`;
+//     }
+//   });
+//   return null;
+// }
 import { AlertTriangle } from 'lucide-react';
 import { useSectorStore } from '../../../store/useSectorStore';
 import Starfield from '../shared/Starfield';
@@ -10,6 +22,7 @@ import GalaxyMesh from './GalaxyMesh';
 export default function GalaxyView() {
   const { sectors, createSector, navigateToSector, deleteSector, systems } = useSectorStore();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const camPosRef = useRef<HTMLDivElement>(null);
   const [naming, setNaming] = useState(false);
   const [newName, setNewName] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -25,10 +38,11 @@ export default function GalaxyView() {
   return (
     <div className="relative h-full">
       <Canvas
-        camera={{ position: [0, 30, 65], fov: 50 }}
+        camera={{ position: [-28, 3, -33], fov: 35 }}
         gl={{ antialias: true }}
         onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#03050d'))}
       >
+        {/* <CameraLogger domRef={camPosRef} /> */}
         <ambientLight intensity={0.08} />
         <Starfield count={1800} />
         <GalaxyMesh
@@ -47,6 +61,18 @@ export default function GalaxyView() {
           enableDamping
         />
       </Canvas>
+
+      {/* Camera debug overlay */}
+      <div
+        ref={camPosRef}
+        style={{
+          position: 'absolute', top: 8, right: 8,
+          fontFamily: 'monospace', fontSize: '10px',
+          color: 'rgba(120,160,220,0.55)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      />
 
       {/* Sector list panel — bottom-left, star-chart legend style */}
       <div

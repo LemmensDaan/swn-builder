@@ -38,7 +38,7 @@ function buildGalaxyData() {
   const yVals: number[] = points.map(([px, py]) => {
     const r = Math.sqrt(px * px + py * py);
     const d = r / GALAXY_RADIUS;
-    const maxHalf = 1.5 * Math.sqrt(Math.max(0, 1 - d * d));
+    const maxHalf = 0.35 * Math.sqrt(Math.max(0, 1 - d * d));
     return (rng() - 0.5) * 2 * maxHalf;
   });
 

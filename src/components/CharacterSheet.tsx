@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Banknote, BookOpen, HelpCircle, LockKeyhole, Orbit, Package, FileText, Rocket } from 'lucide-react';
+import { Banknote, BookOpen, HelpCircle, LockKeyhole, Orbit, Package, FileText } from 'lucide-react';
 import type { Character } from '../types/character';
 import { attrMod } from '../types/character';
 import type { Ship as ShipType } from '../types/ship';

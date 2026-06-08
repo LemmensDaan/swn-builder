@@ -1,0 +1,143 @@
+import { useRef, useState } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import * as THREE from 'three';
+import { useSectorStore } from '../../../store/useSectorStore';
+import Starfield from '../shared/Starfield';
+import HexGrid, { HEX_SIZE } from './HexGrid';
+import SystemPanel from './SystemPanel';
+import { GRID_COLS, GRID_ROWS } from '../../../types/sector';
+
+// Centre of the 10×8 grid in the even-q offset layout.
+// x: midpoint of q 0–9  →  HEX_SIZE * 1.5 * 4.5
+// z: r_avg = (even-col centre 3.5 + odd-col centre 4.0) / 2 = 3.75
+const GRID_CX = HEX_SIZE * (3 / 2) * 4.5;                        // ≈  7.43
+const GRID_CZ = -(HEX_SIZE * Math.sqrt(3) * 3.75);                // ≈ -7.14
+const GRID_CENTER = new THREE.Vector3(GRID_CX, 0, GRID_CZ);
+
+// 2.5D: fixed ~30° tilt from above (polarAngle = PI/6)
+// camera = center + (0, cos30°, sin30°) * distance  →  distance 22
+const CAM_DIST = 22;
+const CAM_POLAR = Math.PI / 6;  // 30° from straight-down
+const CAM_START = new THREE.Vector3(
+  GRID_CX,
+  CAM_DIST * Math.cos(CAM_POLAR),       // ≈ 19
+  GRID_CZ + CAM_DIST * Math.sin(CAM_POLAR), // ≈ -9.06 + 11 = 1.94
+);
+
+export default function SectorHexView() {
+  const { activeSectorId, sectors, systems, createSystem, clearHex, navigateToSystem } = useSectorStore();
+  const sector = sectors.find(s => s.id === activeSectorId);
+  const [selectedQ, setSelectedQ] = useState<number | null>(null);
+  const [selectedR, setSelectedR] = useState<number | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const controlsRef = useRef<any>(null);
+
+  if (!sector) return null;
+
+  const selectedHex = sector.hexes.find(h => h.q === selectedQ && h.r === selectedR);
+  const selectedSystem = selectedHex?.systemId ? systems[selectedHex.systemId] : undefined;
+
+  function handleSelectHex(q: number, r: number) {
+    if (selectedQ === q && selectedR === r) {
+      setPanelOpen(v => !v);
+      return;
+    }
+    setSelectedQ(q);
+    setSelectedR(r);
+    setPanelOpen(true);
+  }
+
+  function handleClosePanel() {
+    setPanelOpen(false);
+    setSelectedQ(null);
+    setSelectedR(null);
+  }
+
+  function handleCreateSystem() {
+    if (selectedQ === null || selectedR === null) return;
+    createSystem(sector?.id ?? '', selectedQ, selectedR, `System ${String(selectedQ).padStart(2,'0')}${String(selectedR).padStart(2,'0')}`);
+  }
+
+  function handleClearHex() {
+    if (selectedQ === null || selectedR === null) return;
+    clearHex(sector?.id ?? '', selectedQ, selectedR);
+  }
+
+  return (
+    <div className="flex h-full">
+      {/* 3D Canvas */}
+      <div className="flex-1 relative min-w-0">
+        <Canvas
+          camera={{ position: CAM_START.toArray(), fov: 50 }}
+          gl={{ antialias: true }}
+          onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#080c14'))}
+        >
+          <ambientLight intensity={0.35} />
+          <pointLight position={[0, 20, 0]} intensity={0.6} color="#8899cc" />
+          <Starfield count={1200} />
+          <HexGrid
+            sector={sector}
+            systems={systems}
+            selectedQ={selectedQ}
+            selectedR={selectedR}
+            onSelectHex={handleSelectHex}
+          />
+          <OrbitControls
+            ref={controlsRef}
+            target={GRID_CENTER.toArray() as [number, number, number]}
+            enablePan
+            enableZoom
+            enableRotate={false}
+            minPolarAngle={CAM_POLAR}
+            maxPolarAngle={CAM_POLAR}
+            minDistance={5}
+            maxDistance={40}
+          />
+        </Canvas>
+
+        {/* Sector name overlay */}
+        <div className="absolute top-4 left-4 pointer-events-none">
+          <h2 className="text-amber-400 text-lg font-bold tracking-wide drop-shadow-lg">
+            {sector.name}
+          </h2>
+          <p className="text-gray-500 text-xs mt-0.5">
+            {Object.values(systems).filter(s => s.sectorId === sector.id).length} / {GRID_COLS * GRID_ROWS} systems
+          </p>
+        </div>
+      </div>
+
+      {/* Right panel */}
+      {panelOpen && (
+        <div className="w-80 flex-shrink-0 flex flex-col border-l border-gray-700/60">
+          {selectedSystem ? (
+            <SystemPanel
+              system={selectedSystem}
+              sectorId={sector.id}
+              onClose={handleClosePanel}
+              onViewSystem={() => navigateToSystem(selectedSystem.id)}
+              onDeleteSystem={() => { handleClearHex(); handleClosePanel(); }}
+            />
+          ) : (
+            <div className="flex flex-col h-full bg-gray-900/95 backdrop-blur p-4">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-gray-400 text-sm font-medium">
+                  Hex {String(selectedQ!).padStart(2,'0')}{String(selectedR!).padStart(2,'0')}
+                </span>
+                <button onClick={handleClosePanel} className="text-gray-600 hover:text-gray-300">×</button>
+              </div>
+              <p className="text-gray-600 text-xs mb-4">Empty sector hex. Create a star system here?</p>
+              <button
+                onClick={handleCreateSystem}
+                className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium transition-colors"
+              >
+                + Create System
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+    </div>
+  );
+}

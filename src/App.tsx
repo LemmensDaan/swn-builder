@@ -11,13 +11,15 @@ import HelpPage from './components/HelpPage';
 import type { Character } from './types/character';
 import type { Ship } from './types/ship';
 import { CURRENT_VERSION } from './types/appData';
+import SectorViewer from './components/sector/SectorViewer';
 
 type View =
-  | { type: 'home'; activeTab?: 'characters' | 'ships' }
+  | { type: 'home'; activeTab?: 'characters' | 'ships' | 'sector' }
   | { type: 'wizard'; editId?: string }
   | { type: 'sheet'; id: string }
   | { type: 'ship-wizard'; editId?: string }
-  | { type: 'ship-sheet'; id: string; activeTab?: 'characters' | 'ships' };
+  | { type: 'ship-sheet'; id: string; activeTab?: 'characters' | 'ships' | 'sector' }
+  | { type: 'sector' };
 
 export default function App() {
   const { characters, upsert, remove, setAll, loaded, ships, upsertShip, removeShip } = useCharacters();
@@ -133,7 +135,10 @@ export default function App() {
             if (ship) upsertShip({ ...ship, image: dataUrl });
           }}
           initialActiveTab={view.activeTab}
-          onTabChange={tab => setView({ ...view, activeTab: tab })}
+          onTabChange={tab => {
+            if (tab === 'sector') { setView({ type: 'sector' }); return; }
+            setView({ ...view, activeTab: tab as 'characters' | 'ships' });
+          }}
         />
       )}
 
@@ -182,6 +187,10 @@ export default function App() {
           onUpdateCharacter={upsert}
           onNavigateToChar={id => setView({ type: 'sheet', id })}
         />
+      )}
+
+      {view.type === 'sector' && (
+        <SectorViewer onBack={() => setView({ type: 'home', activeTab: 'sector' })} />
       )}
 
       {showRules && <PDFViewer onClose={() => setShowRules(false)} />}

@@ -49,8 +49,8 @@ interface Props {
   onUnretireShip: (id: string) => void;
   onCopyShip: (id: string) => void;
   onShipImageChange: (id: string, dataUrl: string) => void;
-  initialActiveTab?: 'characters' | 'ships';
-  onTabChange: (tab: 'characters' | 'ships') => void;
+  initialActiveTab?: 'characters' | 'ships' | 'sector';
+  onTabChange: (tab: 'characters' | 'ships' | 'sector') => void;
 }
 
 export default function HomeScreen({ characters, onNew, onOpen, onDelete, onRetire, onUnretire, onCopy, onImageChange, onExport, onImport, onOpenRules, onOpenHelp, ships, onNewShip, onOpenShip, onDeleteShip, onRetireShip, onUnretireShip, onCopyShip, onShipImageChange, initialActiveTab = 'characters', onTabChange }: Props) {
@@ -58,7 +58,7 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
   const [importPending, setImportPending] = useState<File | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'characters' | 'ships'>(initialActiveTab);
+  const [activeTab, setActiveTab] = useState<'characters' | 'ships' | 'sector'>(initialActiveTab);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   async function confirmImport() {
@@ -166,7 +166,7 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
         <div className="flex gap-4 mb-8 border-b border-gray-800 pb-1">
           <Tab label="Characters" active={activeTab === 'characters'} onClick={() => { setActiveTab('characters'); onTabChange('characters'); }} />
           <Tab label="Ships" active={activeTab === 'ships'} onClick={() => { setActiveTab('ships'); onTabChange('ships'); }} />
-          <Tab label="Factions" active={false} disabled />
+          <Tab label="Sector" active={activeTab === 'sector'} onClick={() => { setActiveTab('sector'); onTabChange('sector'); }} />
         </div>
 
         {activeTab === 'characters' && (

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Trash2, Orbit, Info } from 'lucide-react';
-import type { SystemObject, ObjectType } from '../../../types/sector';
+import { ChevronDown, ChevronRight, Trash2, Orbit, Info, Palette, Pencil } from 'lucide-react';
+import type { SystemObject, ObjectType, PlanetType } from '../../../types/sector';
 import { OBJECT_TYPE_DEFAULTS } from '../../../types/sector';
+import { PLANET_PRESETS } from '../SystemViewer/planetRenderer';
 
 const OBJECT_TYPES: ObjectType[] = [
   'Star', 'NeutronStar', 'BlackHole',
@@ -21,6 +22,8 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Pr
   const [expanded, setExpanded] = useState(false);
   const [orbitalExpanded, setOrbitalExpanded] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
+
+  const isPlanet = ['Planet', 'GasGiant', 'Moon'].includes(obj.type);
 
   // Stars can never be children; non-stars can only have non-star parents
   const isStarType = ['Star', 'NeutronStar', 'BlackHole'].includes(obj.type);
@@ -95,7 +98,7 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Pr
         </select>
 
         <button onClick={() => setExpanded(v => !v)} className="text-gray-500 hover:text-gray-300">
-          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <Pencil size={14} />
         </button>
         <button onClick={onRemove} className="text-gray-600 hover:text-red-400 transition-colors">
           <Trash2 size={13} />
@@ -104,6 +107,79 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Pr
 
       {expanded && (
         <div className="px-3 pb-3 pt-1 border-t border-gray-700/50 space-y-2 text-xs">
+          {/* Parent Object */}
+          {validParents.length > 0 && (
+            <label className="flex flex-col gap-0.5">
+              <span className="text-gray-500">Parent Object</span>
+              <select
+                className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                value={obj.parentId ?? ''}
+                onChange={e => onChange({ parentId: e.target.value || null })}
+              >
+                <option value="">— None (orbits star) —</option>
+                {validParents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </label>
+          )}
+
+          {/* Planet Type */}
+          {isPlanet && (
+            <label className="flex flex-col gap-0.5">
+              <span className="text-gray-500">Planet Type</span>
+              <select
+                className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                value={obj.planetType ?? 'Barren'}
+                onChange={e => {
+                  const ptype = e.target.value as PlanetType;
+                  const preset = PLANET_PRESETS[ptype];
+                  onChange({
+                    planetType: ptype,
+                    colors: [preset.primaryColor, preset.secondaryColor] as [string, string],
+                    iceCaps: preset.iceCaps,
+                    rings: preset.rings,
+                    ringInclination: preset.rings ? (Math.random() * 130 - 65) : 0,
+                  });
+                }}
+              >
+                <option value="Terran">Terran</option>
+                <option value="Arid">Arid</option>
+                <option value="Ocean">Ocean</option>
+                <option value="Ice">Ice</option>
+                <option value="GasGiant">Gas Giant</option>
+                <option value="Toxic">Toxic</option>
+                <option value="Barren">Barren</option>
+                <option value="Volcanic">Volcanic</option>
+              </select>
+            </label>
+          )}
+
+          {/* Ice Caps + Rings (side by side for planets) */}
+          {isPlanet && (
+            <div className="flex gap-3">
+              <label className="flex items-center gap-2 py-1 flex-1">
+                <input
+                  type="checkbox"
+                  checked={obj.iceCaps ?? false}
+                  onChange={e => onChange({ iceCaps: e.target.checked })}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <span className="text-gray-500 text-sm">Ice Caps</span>
+              </label>
+              <label className="flex items-center gap-2 py-1 flex-1">
+                <input
+                  type="checkbox"
+                  checked={obj.rings ?? false}
+                  onChange={e => onChange({
+                    rings: e.target.checked,
+                    ringInclination: e.target.checked ? (Math.random() * 130 - 65) : 0
+                  })}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <span className="text-gray-500 text-sm">Rings</span>
+              </label>
+            </div>
+          )}
+
           {/* Orbital Properties Section */}
           <div className="rounded bg-gray-900/30 border border-gray-700/30">
             <button
@@ -152,53 +228,28 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Pr
             )}
           </div>
 
-          {/* Details Section */}
-          <div className="rounded bg-gray-900/30 border border-gray-700/30">
-            <button
-              onClick={() => setDetailsExpanded(v => !v)}
-              className="w-full flex items-center gap-2 px-2 py-1.5 text-gray-400 hover:text-gray-300 transition-colors"
-            >
-              {detailsExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              <Info size={12} />
-              <span className="font-medium">Details</span>
-            </button>
-            {detailsExpanded && (
-              <div className="px-2 pb-2 space-y-2 border-t border-gray-700/30 pt-2">
-                {validParents.length > 0 && (
-                  <label className="flex flex-col gap-0.5">
-                    <span className="text-gray-500">Parent Object</span>
-                    <select
-                      className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-                      value={obj.parentId ?? ''}
-                      onChange={e => onChange({ parentId: e.target.value || null })}
-                    >
-                      <option value="">— None (orbits star) —</option>
-                      {validParents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </label>
-                )}
-                <label className="flex flex-col gap-0.5">
-                  <span className="text-gray-500">Notes</span>
-                  <textarea
-                    rows={2}
-                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none resize-none"
-                    value={obj.notes}
-                    onChange={e => onChange({ notes: e.target.value })}
-                    placeholder="GM notes, world tags…"
-                  />
-                </label>
-                <label className="flex flex-col gap-0.5">
-                  <span className="text-gray-500">Tags (comma-separated)</span>
-                  <input
-                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-                    value={obj.tags.join(', ')}
-                    onChange={e => onChange({ tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
-                    placeholder="e.g. TL4, Hostile Biosphere"
-                  />
-                </label>
-              </div>
-            )}
-          </div>
+          {/* Tags */}
+          <label className="flex flex-col gap-0.5">
+            <span className="text-gray-500">Tags (comma-separated)</span>
+            <input
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+              value={obj.tags.join(', ')}
+              onChange={e => onChange({ tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
+              placeholder="e.g. TL4, Hostile Biosphere"
+            />
+          </label>
+
+          {/* Notes */}
+          <label className="flex flex-col gap-0.5">
+            <span className="text-gray-500">Notes</span>
+            <textarea
+              rows={2}
+              className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none resize-none"
+              value={obj.notes}
+              onChange={e => onChange({ notes: e.target.value })}
+              placeholder="GM notes, world tags…"
+            />
+          </label>
         </div>
       )}
     </div>

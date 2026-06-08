@@ -7,19 +7,110 @@ import {
   GALAXY_RADIUS, GALAXY_DEL, GALAXY_POINTS, GALAXY_Y_VALS, GALAXY_TRIANGLES,
   type GalaxyTriangle,
 } from './galaxyData';
+import type { GalaxyPrefs, ColorScheme } from './galaxyPrefs';
 
-function galaxyColor(d: number): THREE.Color {
-  if (d < 0.06) return new THREE.Color('#fffef5');
-  if (d < 0.18) return new THREE.Color().lerpColors(new THREE.Color('#fffef5'), new THREE.Color('#ffbbdd'), (d - 0.06) / 0.12);
-  if (d < 0.35) return new THREE.Color().lerpColors(new THREE.Color('#ffbbdd'), new THREE.Color('#cc8899'), (d - 0.18) / 0.17);
-  if (d < 0.55) return new THREE.Color().lerpColors(new THREE.Color('#cc8899'), new THREE.Color('#4455aa'), (d - 0.35) / 0.20);
-  if (d < 0.78) return new THREE.Color().lerpColors(new THREE.Color('#4455aa'), new THREE.Color('#111144'), (d - 0.55) / 0.23);
-  return new THREE.Color().lerpColors(new THREE.Color('#111144'), new THREE.Color('#050510'), (d - 0.78) / 0.22);
+// ─── Color schemes ────────────────────────────────────────────────────────────
+// Each entry: [normRadiusEnd, hexColor]. First stop = flat core, rest = lerp bands.
+// Design rule: each scheme crosses 3+ distinct hue families so rings read as depth.
+const SCHEME_STOPS: Record<ColorScheme, [number, string][]> = {
+  // Warm pink core → rose midband → cool blue outer — the original
+  classic: [
+    [0.06, '#fffef5'], [0.18, '#ffbbdd'], [0.35, '#cc8899'],
+    [0.55, '#4455aa'], [0.78, '#111144'], [1.00, '#050510'],
+  ],
+  // Mint-white core → vivid cyan → teal → shifts to ocean blue outer
+  nebula: [
+    [0.05, '#f0fffd'], [0.14, '#88ffee'], [0.26, '#22ddbb'],
+    [0.40, '#0daa88'], [0.54, '#1166aa'], [0.70, '#07304a'],
+    [0.86, '#020d14'], [1.00, '#010809'],
+  ],
+  // Cream core → vivid gold → amber → shifts to deep crimson outer
+  quasar: [
+    [0.05, '#fffdf0'], [0.14, '#ffeebb'], [0.26, '#ffcc44'],
+    [0.40, '#ff8822'], [0.54, '#cc3300'], [0.70, '#551100'],
+    [0.86, '#180500'], [1.00, '#070200'],
+  ],
+  // Silver-white core → soft lavender → purple → shifts to deep indigo outer
+  void: [
+    [0.05, '#f2f2ff'], [0.14, '#d0d0ff'], [0.26, '#aa99ff'],
+    [0.40, '#7755dd'], [0.54, '#3322aa'], [0.70, '#110f55'],
+    [0.86, '#050418'], [1.00, '#020110'],
+  ],
+  // Pale-green core → vivid lime → forest green → shifts to violet outer
+  aurora: [
+    [0.05, '#f0fff2'], [0.14, '#bbffcc'], [0.26, '#33ee77'],
+    [0.40, '#22bb66'], [0.54, '#1144aa'], [0.70, '#440f99'],
+    [0.86, '#19063a'], [1.00, '#080214'],
+  ],
+  // Ivory core → warm peach → vivid red-orange → deep blood-red outer
+  ember: [
+    [0.05, '#fff8f5'], [0.14, '#ffc8a8'], [0.26, '#ff6633'],
+    [0.40, '#ee1100'], [0.54, '#880800'], [0.70, '#350300'],
+    [0.86, '#100100'], [1.00, '#060000'],
+  ],
+  // Barely-blue white core → sky → azure → shifts to deep cobalt outer
+  cerulean: [
+    [0.05, '#f0f8ff'], [0.14, '#bbddff'], [0.26, '#55aaff'],
+    [0.40, '#2277ee'], [0.54, '#0044bb'], [0.70, '#001a66'],
+    [0.86, '#00071a'], [1.00, '#000308'],
+  ],
+  // Yellow-lime core → vivid chartreuse → rich green → deep emerald outer
+  jade: [
+    [0.05, '#f5fff0'], [0.14, '#ccff99'], [0.26, '#55ee33'],
+    [0.40, '#1a9922'], [0.54, '#0d6633'], [0.70, '#052e18'],
+    [0.86, '#020e08'], [1.00, '#010604'],
+  ],
+  // Barely-pink core → vivid coral → fuchsia → shifts to deep violet outer
+  twilight: [
+    [0.05, '#fff5f8'], [0.14, '#ffc0d0'], [0.26, '#ff6688'],
+    [0.40, '#ee2277'], [0.54, '#7722aa'], [0.70, '#221166'],
+    [0.86, '#080520'], [1.00, '#030210'],
+  ],
+  // Warm-white core → soft gold → vivid copper → bronze-sienna outer (never bleeds red)
+  copper: [
+    [0.05, '#fefaf0'], [0.14, '#ffeea8'], [0.26, '#ee9933'],
+    [0.40, '#aa5522'], [0.54, '#6b3311'], [0.70, '#2e1508'],
+    [0.86, '#0d0503'], [1.00, '#060201'],
+  ],
+};
+
+function galaxyColor(d: number, scheme: ColorScheme): THREE.Color {
+  const stops = SCHEME_STOPS[scheme];
+  if (d < stops[0][0]) return new THREE.Color(stops[0][1]);
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [d0, c0] = stops[i];
+    const [d1, c1] = stops[i + 1];
+    if (d < d1) {
+      return new THREE.Color().lerpColors(new THREE.Color(c0), new THREE.Color(c1), (d - d0) / (d1 - d0));
+    }
+  }
+  return new THREE.Color(stops[stops.length - 1][1]);
 }
 
-function buildGalaxyGeometry(): THREE.BufferGeometry {
+// ─── Spiral arm brightness ────────────────────────────────────────────────────
+const K_WIND    = 4.5;
+const ARM_SIGMA = 0.60;
+const ARM_MIN   = 0.45;
+
+function armBrightness(x: number, z: number): number {
+  const r = Math.sqrt(x * x + z * z);
+  if (r < 1.5) return 1.0;
+  const actualAngle = Math.atan2(z, x);
+  const woundAngle  = K_WIND * Math.log(GALAXY_RADIUS / r);
+  let minDiff = Math.PI;
+  for (let arm = 0; arm < 2; arm++) {
+    let diff = actualAngle - (arm * Math.PI + woundAngle);
+    diff -= Math.round(diff / (2 * Math.PI)) * 2 * Math.PI;
+    minDiff = Math.min(minDiff, Math.abs(diff));
+  }
+  return ARM_MIN + (1 - ARM_MIN) * Math.exp(-(minDiff * minDiff) / (2 * ARM_SIGMA * ARM_SIGMA));
+}
+
+// ─── Geometry builders ────────────────────────────────────────────────────────
+
+function buildGalaxyGeometry(style: GalaxyPrefs['style'], colorScheme: ColorScheme): THREE.BufferGeometry {
   const positions: number[] = [];
-  const colors: number[] = [];
+  const colors: number[]    = [];
 
   for (let i = 0; i < GALAXY_DEL.triangles.length; i += 3) {
     const i0 = GALAXY_DEL.triangles[i], i1 = GALAXY_DEL.triangles[i + 1], i2 = GALAXY_DEL.triangles[i + 2];
@@ -36,11 +127,13 @@ function buildGalaxyGeometry(): THREE.BufferGeometry {
     const e20 = Math.hypot(x0 - x2, z0 - z2);
     if (Math.max(e01, e12, e20) > 4.5) continue;
 
-    const d = Math.min(dist / GALAXY_RADIUS, 1);
-    const c = galaxyColor(d);
+    const d    = Math.min(dist / GALAXY_RADIUS, 1);
+    const base = galaxyColor(d, colorScheme);
+    const bri  = style === 'spiral' ? armBrightness(cx, cz) : 1.0;
+    const cr = base.r * bri, cg = base.g * bri, cb = base.b * bri;
 
     positions.push(x0, GALAXY_Y_VALS[i0], z0, x1, GALAXY_Y_VALS[i1], z1, x2, GALAXY_Y_VALS[i2], z2);
-    for (let v = 0; v < 3; v++) colors.push(c.r, c.g, c.b);
+    for (let v = 0; v < 3; v++) colors.push(cr, cg, cb);
   }
 
   const geo = new THREE.BufferGeometry();
@@ -51,7 +144,7 @@ function buildGalaxyGeometry(): THREE.BufferGeometry {
 
 interface SparkleEntry { x: number; y: number; z: number; r: number; g: number; b: number; }
 
-function buildSparkleData(): SparkleEntry[] {
+function buildSparkleData(style: GalaxyPrefs['style'], colorScheme: ColorScheme): SparkleEntry[] {
   const out: SparkleEntry[] = [];
   for (let i = 0; i < 5000; i++) {
     const radius = i < 2000
@@ -59,13 +152,17 @@ function buildSparkleData(): SparkleEntry[] {
       : Math.sqrt(Math.random()) * GALAXY_RADIUS;
     const angle = Math.random() * Math.PI * 2;
     const d = radius / GALAXY_RADIUS;
+    const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
     const maxHalf = 1.6 * Math.sqrt(Math.max(0, 1 - d * d));
     const y = (Math.random() - 0.5) * 2 * maxHalf;
-    const c = galaxyColor(d);
-    out.push({ x: Math.cos(angle) * radius, y, z: Math.sin(angle) * radius, r: c.r, g: c.g, b: c.b });
+    const c = galaxyColor(d, colorScheme);
+    const bri = style === 'spiral' ? armBrightness(x, z) : 1.0;
+    out.push({ x, y, z, r: c.r * bri, g: c.g * bri, b: c.b * bri });
   }
   return out;
 }
+
+// ─── Sector triangle overlay ──────────────────────────────────────────────────
 
 const FILL_Y = 0.15;
 const DOT_COUNT = 6;
@@ -78,23 +175,22 @@ function randomInTriangle(tri: GalaxyTriangle): [number, number] {
 }
 
 function SectorTriangle({
-  tri, name, pulsed, onClick,
+  tri, name, pulsed, colorScheme, onClick,
 }: {
   tri: GalaxyTriangle;
   name: string;
   pulsed: boolean;
+  colorScheme: ColorScheme;
   onClick: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const active = hovered || pulsed;
 
-  // Color from the galaxy palette at this triangle's radial position
   const baseColor = useMemo(() => {
     const dist = Math.sqrt(tri.cx * tri.cx + tri.cz * tri.cz);
-    return galaxyColor(Math.min(dist / GALAXY_RADIUS, 1));
-  }, [tri]);
+    return galaxyColor(Math.min(dist / GALAXY_RADIUS, 1), colorScheme);
+  }, [tri, colorScheme]);
 
-  // Hover: shift hue toward a visible blue-white so the center (already bright) still shows contrast
   const hoverColor = useMemo(
     () => new THREE.Color().lerpColors(baseColor, new THREE.Color('#99ddff'), 0.6),
     [baseColor],
@@ -135,7 +231,6 @@ function SectorTriangle({
   }, [dots]);
 
   useFrame(({ clock }, delta) => {
-    // Smooth fill color + opacity animation
     const mat = matRef.current;
     if (mat) {
       const speed = delta * 5;
@@ -146,7 +241,6 @@ function SectorTriangle({
       mat.opacity += (targetOpacity - mat.opacity) * Math.min(speed, 1);
     }
 
-    // Twinkling dodecahedra
     const mesh = instancedRef.current;
     if (!mesh) return;
     const t = clock.elapsedTime;
@@ -155,8 +249,8 @@ function SectorTriangle({
       const rest = 0.05;
       _color.setRGB(
         Math.min(1, baseColor.r + rest + v),
-        Math.min(1, baseColor.g + rest + v * 0.92),
-        Math.min(1, baseColor.b + rest + v * 0.72),
+        Math.min(1, baseColor.g + rest + v),
+        Math.min(1, baseColor.b + rest + v),
       );
       mesh.setColorAt(i, _color);
     });
@@ -201,17 +295,20 @@ function SectorTriangle({
   );
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
+
 interface Props {
   sectors: Sector[];
   highlightedId: string | null;
   onSectorClick: (id: string) => void;
+  prefs: GalaxyPrefs;
 }
 
-export default function GalaxyMesh({ sectors, highlightedId, onSectorClick }: Props) {
+export default function GalaxyMesh({ sectors, highlightedId, onSectorClick, prefs }: Props) {
   const groupRef      = useRef<THREE.Group>(null);
   const sparkleRef    = useRef<THREE.InstancedMesh>(null);
-  const meshGeo       = useMemo(() => buildGalaxyGeometry(), []);
-  const sparkleData   = useMemo(() => buildSparkleData(), []);
+  const meshGeo       = useMemo(() => buildGalaxyGeometry(prefs.style, prefs.colorScheme), [prefs.style, prefs.colorScheme]);
+  const sparkleData   = useMemo(() => buildSparkleData(prefs.style, prefs.colorScheme), [prefs.style, prefs.colorScheme]);
   const sparkleDodGeo = useMemo(() => new THREE.DodecahedronGeometry(0.04, 0), []);
   const sparkleDodMat = useMemo(() => new THREE.MeshBasicMaterial(), []);
 
@@ -247,6 +344,7 @@ export default function GalaxyMesh({ sectors, highlightedId, onSectorClick }: Pr
             tri={tri}
             name={s.name}
             pulsed={highlightedId === s.id}
+            colorScheme={prefs.colorScheme}
             onClick={() => onSectorClick(s.id)}
           />
         );

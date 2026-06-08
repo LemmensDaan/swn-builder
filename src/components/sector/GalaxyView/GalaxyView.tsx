@@ -14,15 +14,30 @@ import * as THREE from 'three';
 //   });
 //   return null;
 // }
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Sliders } from 'lucide-react';
 import { useSectorStore } from '../../../store/useSectorStore';
 import Starfield from '../shared/Starfield';
 import GalaxyMesh from './GalaxyMesh';
+import GalaxyPrefsPanel from './GalaxyPrefsPanel';
+import { loadPrefs, savePrefs, type GalaxyPrefs } from './galaxyPrefs';
 
 export default function GalaxyView() {
   const { sectors, createSector, navigateToSector, deleteSector, systems } = useSectorStore();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [savedPrefs, setSavedPrefs] = useState<GalaxyPrefs>(loadPrefs);
+  const [draftPrefs, setDraftPrefs] = useState<GalaxyPrefs | null>(null);
   const camPosRef = useRef<HTMLDivElement>(null);
+
+  const activePrefs = draftPrefs ?? savedPrefs;
+
+  function handleOpenPrefs() { setDraftPrefs({ ...savedPrefs }); }
+  function handleClosePrefs() { setDraftPrefs(null); }
+  function handleSavePrefs() {
+    if (!draftPrefs) return;
+    savePrefs(draftPrefs);
+    setSavedPrefs(draftPrefs);
+    setDraftPrefs(null);
+  }
   const [naming, setNaming] = useState(false);
   const [newName, setNewName] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -49,6 +64,7 @@ export default function GalaxyView() {
           sectors={sectors}
           highlightedId={hoveredId}
           onSectorClick={navigateToSector}
+          prefs={activePrefs}
         />
         <OrbitControls
           enablePan
@@ -73,6 +89,44 @@ export default function GalaxyView() {
           userSelect: 'none',
         }}
       />
+
+      {/* Settings icon — bottom-right */}
+      <button
+        onClick={handleOpenPrefs}
+        title="Galaxy appearance"
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          right: 20,
+          background: 'rgba(4,8,18,0.72)',
+          border: '1px solid rgba(70,90,160,0.30)',
+          backdropFilter: 'blur(6px)',
+          borderRadius: 6,
+          width: 32,
+          height: 32,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          color: 'rgba(90,120,195,0.60)',
+          transition: 'color 0.14s, background 0.14s',
+          zIndex: 10,
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(170,190,255,0.9)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(10,18,40,0.88)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(90,120,195,0.60)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(4,8,18,0.72)'; }}
+      >
+        <Sliders size={13} />
+      </button>
+
+      {/* Galaxy preferences panel */}
+      {draftPrefs && (
+        <GalaxyPrefsPanel
+          prefs={draftPrefs}
+          onChange={setDraftPrefs}
+          onSave={handleSavePrefs}
+          onClose={handleClosePrefs}
+        />
+      )}
 
       {/* Sector list panel — bottom-left, star-chart legend style */}
       <div

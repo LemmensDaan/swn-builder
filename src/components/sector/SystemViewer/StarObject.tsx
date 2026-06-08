@@ -21,6 +21,26 @@ function makeStarGlowTexture(): THREE.Texture {
   return new THREE.CanvasTexture(canvas);
 }
 
+function makeBlackHoleDiskTexture(): THREE.Texture {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  const cx = size / 2, cy = size / 2;
+  // Radial gradient: bright hot inner disk fading to dim outer edges
+  const g = ctx.createRadialGradient(cx, cy, 30, cx, cy, size / 2);
+  g.addColorStop(0,   'rgba(255, 120, 40, 0.95)');  // event horizon - hot orange
+  g.addColorStop(0.25, 'rgba(200, 80, 30, 0.85)');  // inner disk
+  g.addColorStop(0.5,  'rgba(120, 40, 15, 0.6)');   // mid disk
+  g.addColorStop(0.8,  'rgba(60, 20, 8, 0.3)');     // outer disk
+  g.addColorStop(1,    'rgba(40, 10, 5, 0)');       // fade to black
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+
+  return new THREE.CanvasTexture(canvas);
+}
+
 interface Props { obj: SystemObject; children?: React.ReactNode }
 
 export default function StarObject({ obj, children }: Props) {
@@ -31,6 +51,7 @@ export default function StarObject({ obj, children }: Props) {
   const isBlackHole = obj.type === 'BlackHole';
   const isNeutron   = obj.type === 'NeutronStar';
   const glowTex = useMemo(() => makeStarGlowTexture(), []);
+  const bhDiskTex = useMemo(() => makeBlackHoleDiskTexture(), []);
 
   // Orbit setup (for binary stars)
   let initialAngle = mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2;
@@ -63,23 +84,33 @@ export default function StarObject({ obj, children }: Props) {
       <group ref={groupRef}>
         {/* The only meaningful light source in the scene */}
         <pointLight
-        color={isBlackHole ? '#000000' : color}
-        intensity={isBlackHole ? 0 : 120}
-        distance={220}
+        color={isBlackHole ? '#ff6620' : color}
+        intensity={isBlackHole ? 80 : 120}
+        distance={isBlackHole ? 180 : 220}
         decay={1}
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
       />
       {/* Soft glow behind the body */}
       {!isBlackHole && (
-        <sprite scale={[obj.size * 6, obj.size * 6, 1]}>
+        <sprite scale={[obj.size * 5, obj.size * 5, 1]}>
           <spriteMaterial map={glowTex} color={color} transparent depthWrite={false} />
         </sprite>
       )}
-      {/* Black hole accretion disc effect */}
+      {/* Black hole accretion disc: glowing disk sprite */}
       {isBlackHole && (
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[obj.size * 1.4, obj.size * 2.8, 48]} />
-          <meshBasicMaterial color="#cc4400" transparent opacity={0.6} side={THREE.DoubleSide} />
-        </mesh>
+        <>
+          {/* Disk sprite (top-down view) */}
+          <sprite scale={[obj.size * 5.2, obj.size * 5.2, 1]} position={[0, -0.05, 0]} rotation={[0, 0, 0]}>
+            <spriteMaterial map={bhDiskTex} transparent depthWrite={false} toneMapped={false} />
+          </sprite>
+          {/* Event horizon sphere — barely visible dark core */}
+          <mesh position={[0, 0, 0]}>
+            <icosahedronGeometry args={[obj.size * 0.85, 1]} />
+            <meshBasicMaterial color="#000000" toneMapped={false} />
+          </mesh>
+        </>
       )}
       {/* Main body: IcosahedronGeometry detail 2, flatShading, MeshLambertMaterial */}
       <mesh

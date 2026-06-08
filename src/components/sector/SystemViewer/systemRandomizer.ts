@@ -135,6 +135,31 @@ function makePlanet(planetType: PlanetType, order: number, parentId: string | nu
   const inclinationRange = isMoon ? 3 : 8;
   const inclination = (rng() - 0.5) * 2 * inclinationRange;
 
+  // Randomize ice caps: higher chance for cold planets, lower for hot/dry
+  let iceCaps: boolean;
+  if (isMoon) {
+    iceCaps = rng() < 0.4; // moons: 40% chance
+  } else if (['Ice', 'Barren'].includes(planetType)) {
+    iceCaps = rng() < 0.75; // cold planets: 75% chance
+  } else if (['Terran', 'Ocean'].includes(planetType)) {
+    iceCaps = rng() < 0.5; // habitable: 50% chance
+  } else {
+    iceCaps = rng() < 0.15; // hot/toxic: 15% chance
+  }
+
+  // Randomize rings: gas giants commonly have them, others rarely
+  let rings: boolean;
+  if (isMoon) {
+    rings = false; // moons never have rings
+  } else if (isGas) {
+    rings = rng() < 0.7; // gas giants: 70% chance
+  } else {
+    rings = rng() < 0.05; // rocky planets: 5% chance (rare)
+  }
+
+  // Ring inclination: independent tilt, widely varied (±65°)
+  const ringInclination = rings ? randBetween(-65, 65, rng) : undefined;
+
   return {
     type,
     name: isMoon ? `Moon` : planetType,
@@ -148,7 +173,9 @@ function makePlanet(planetType: PlanetType, order: number, parentId: string | nu
     planetType,
     primaryColor: preset.primaryColor,
     secondaryColor: preset.secondaryColor,
-    iceCaps: preset.iceCaps,
+    iceCaps,
+    rings,
+    ringInclination,
     seed: Math.floor(rng() * 999983),
     notes: '', tags: [], factionId: null,
   };

@@ -4,30 +4,26 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
 import OrbitRing from './OrbitRing';
+import PlanetRings from './PlanetRings';
 import { generatePlanetGeometry, PLANET_PRESETS, mulberry32 } from './planetRenderer';
 import { getOrbitPosition } from './orbitUtils';
 
 function buildGeo(obj: SystemObject): THREE.BufferGeometry {
-  // If planet renderer data is available, use it
-  if (obj.planetType && obj.seed !== undefined && obj.primaryColor && obj.secondaryColor) {
-    return generatePlanetGeometry(
-      obj.seed,
-      obj.planetType,
-      obj.primaryColor,
-      obj.secondaryColor,
-      obj.iceCaps ?? false,
-      obj.size,
-    );
-  }
-  // Fallback: two-color from colors[]
-  const preset = PLANET_PRESETS['Barren'];
-  const seed = Math.abs((obj.name.charCodeAt(0) ?? 42) * 137 + (obj.sortOrder * 31));
+  // Use planet type and colors from the object
+  const planetType = obj.planetType ?? 'Barren';
+  const preset = PLANET_PRESETS[planetType];
+  const seed = obj.seed ?? Math.abs((obj.name.charCodeAt(0) ?? 42) * 137 + (obj.sortOrder * 31));
+
+  // Prefer colors[] from color swatches, fall back to preset
+  const primaryColor = obj.colors[0] ?? obj.primaryColor ?? preset.primaryColor;
+  const secondaryColor = obj.colors[1] ?? obj.colors[0] ?? obj.secondaryColor ?? preset.secondaryColor;
+
   return generatePlanetGeometry(
     seed,
-    'Barren',
-    obj.colors[0] ?? preset.primaryColor,
-    obj.colors[1] ?? obj.colors[0] ?? preset.secondaryColor,
-    false,
+    planetType,
+    primaryColor,
+    secondaryColor,
+    obj.iceCaps ?? false,
     obj.size,
   );
 }
@@ -51,7 +47,7 @@ export default function PlanetObject({ obj, children }: Props) {
   const geo = useMemo(
     () => buildGeo(obj),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [obj.seed, obj.size, obj.planetType, obj.primaryColor, obj.secondaryColor, obj.colors[0], obj.colors[1]],
+    [obj.seed, obj.size, obj.planetType, obj.primaryColor, obj.secondaryColor, obj.iceCaps, obj.colors[0], obj.colors[1]],
   );
 
   useFrame((_, delta) => {
@@ -75,8 +71,9 @@ export default function PlanetObject({ obj, children }: Props) {
           onPointerEnter={() => setHovered(true)}
           onPointerLeave={() => setHovered(false)}
         >
-          <meshLambertMaterial vertexColors flatShading />
+          <meshLambertMaterial vertexColors flatShading shadowSide={THREE.BackSide} />
         </mesh>
+        {obj.rings && <PlanetRings obj={obj} />}
         {/* Hover label — monospace text, no line, no box */}
         {hovered && (
           <Html

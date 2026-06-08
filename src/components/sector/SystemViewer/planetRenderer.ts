@@ -15,18 +15,19 @@ export interface PlanetPreset {
   primaryColor: string;
   secondaryColor: string;
   iceCaps: boolean;
+  rings: boolean;
   detail: 0 | 1 | 2;
 }
 
 export const PLANET_PRESETS: Record<PlanetType, PlanetPreset> = {
-  Terran:   { primaryColor: '#3a7bd5', secondaryColor: '#3d9e3d', iceCaps: true,  detail: 2 },
-  Arid:     { primaryColor: '#c8a05a', secondaryColor: '#8b4513', iceCaps: false, detail: 1 },
-  Ocean:    { primaryColor: '#1a5ca8', secondaryColor: '#2a7acc', iceCaps: true,  detail: 2 },
-  Ice:      { primaryColor: '#c8dde8', secondaryColor: '#8899aa', iceCaps: true,  detail: 1 },
-  GasGiant: { primaryColor: '#d4924a', secondaryColor: '#c1783b', iceCaps: false, detail: 2 },
-  Toxic:    { primaryColor: '#7ab528', secondaryColor: '#3d6b10', iceCaps: false, detail: 1 },
-  Barren:   { primaryColor: '#777777', secondaryColor: '#555555', iceCaps: false, detail: 1 },
-  Volcanic: { primaryColor: '#333333', secondaryColor: '#cc4400', iceCaps: false, detail: 1 },
+  Terran:   { primaryColor: '#3a7bd5', secondaryColor: '#3d9e3d', iceCaps: true,  rings: false, detail: 2 },
+  Arid:     { primaryColor: '#c8a05a', secondaryColor: '#8b4513', iceCaps: false, rings: false, detail: 1 },
+  Ocean:    { primaryColor: '#1a5ca8', secondaryColor: '#2a7acc', iceCaps: true,  rings: false, detail: 2 },
+  Ice:      { primaryColor: '#c8dde8', secondaryColor: '#8899aa', iceCaps: true,  rings: false, detail: 1 },
+  GasGiant: { primaryColor: '#d4924a', secondaryColor: '#c1783b', iceCaps: false, rings: true,  detail: 2 },
+  Toxic:    { primaryColor: '#7ab528', secondaryColor: '#3d6b10', iceCaps: false, rings: false, detail: 1 },
+  Barren:   { primaryColor: '#777777', secondaryColor: '#555555', iceCaps: false, rings: false, detail: 1 },
+  Volcanic: { primaryColor: '#333333', secondaryColor: '#cc4400', iceCaps: false, rings: false, detail: 1 },
 };
 
 export function generatePlanetGeometry(

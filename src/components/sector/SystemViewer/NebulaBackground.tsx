@@ -11,7 +11,7 @@ function makeCloudTex(
     stops: [number, string][];
     alpha?: number;
   }>,
-  edgeFade = 0.18,
+  edgeFade = 0.20,
 ): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
@@ -30,8 +30,7 @@ function makeCloudTex(
     ctx.fill();
     ctx.restore();
   }
-
-  // Erase all 4 borders so the plane geometry never shows a hard rectangular edge.
+  // Erase all 4 borders so plane geometry edges never appear as hard rectangles.
   ctx.globalCompositeOperation = 'destination-out';
   const hg = ctx.createLinearGradient(0, 0, w, 0);
   hg.addColorStop(0,            'rgba(0,0,0,1)');
@@ -40,7 +39,6 @@ function makeCloudTex(
   hg.addColorStop(1,            'rgba(0,0,0,1)');
   ctx.fillStyle = hg;
   ctx.fillRect(0, 0, w, h);
-
   const vg = ctx.createLinearGradient(0, 0, 0, h);
   vg.addColorStop(0,            'rgba(0,0,0,1)');
   vg.addColorStop(edgeFade,     'rgba(0,0,0,0)');
@@ -48,7 +46,6 @@ function makeCloudTex(
   vg.addColorStop(1,            'rgba(0,0,0,1)');
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, w, h);
-
   ctx.globalCompositeOperation = 'source-over';
   return new THREE.CanvasTexture(c);
 }
@@ -58,105 +55,136 @@ type V3 = [number, number, number];
 export default function NebulaBackground() {
   const groupRef = useRef<THREE.Group>(null);
 
-  // Keep nebula centred on camera so it acts as background regardless of camera pan.
-  // The group carries no rotation, so planes stay in fixed world directions.
+  // Follow camera position only — no rotation copy, so planes keep fixed world directions.
   useFrame(({ camera }) => {
     groupRef.current?.position.copy(camera.position);
   });
 
-  const layers = useMemo(() => {
-    // ── Textures ──────────────────────────────────────────────────────────────
+  const tex = useMemo(() => {
+    // ── 1. Very faint deep-blue ambient haze ─────────────────────────────────
+    const blueAmbient = makeCloudTex(1024, 512, [
+      { cx: 0.50, cy: 0.56, rx: 0.36, ry: 0.34,
+        stops: [[0, 'rgba(13,22,92,0.20)'], [0.65, 'rgba(7,14,58,0.07)'], [1, 'rgba(3,7,28,0)']] },
+      { cx: 0.28, cy: 0.62, rx: 0.25, ry: 0.27,
+        stops: [[0, 'rgba(10,18,80,0.11)'], [1, 'rgba(3,7,28,0)']] },
+      { cx: 0.72, cy: 0.60, rx: 0.23, ry: 0.25,
+        stops: [[0, 'rgba(10,18,78,0.09)'], [1, 'rgba(3,7,28,0)']] },
+    ], 0.22);
 
-    // Wide blue/indigo ambient haze — fills the galactic-centre hemisphere
-    const blueHaze = makeCloudTex(1024, 256, [
-      { cx: 0.5,  cy: 0.5, rx: 0.70, ry: 1.20, stops: [[0, 'rgba(35,65,180,0.38)'], [1, 'rgba(10,18,80,0)']] },
-      { cx: 0.25, cy: 0.5, rx: 0.40, ry: 0.90, stops: [[0, 'rgba(28,75,160,0.22)'], [1, 'rgba(10,18,80,0)']] },
-      { cx: 0.75, cy: 0.5, rx: 0.38, ry: 0.90, stops: [[0, 'rgba(45,58,200,0.22)'], [1, 'rgba(10,18,80,0)']] },
-    ]);
+    // ── 2. Wide pale blue-white outer band — the diffuse galactic plane glow ─
+    const outerGlow = makeCloudTex(1024, 128, [
+      { cx: 0.50, cy: 0.50, rx: 0.36, ry: 0.36,
+        stops: [[0, 'rgba(105,125,208,0.33)'], [0.6, 'rgba(55,75,155,0.09)'], [1, 'rgba(22,32,88,0)']] },
+      { cx: 0.28, cy: 0.50, rx: 0.20, ry: 0.33,
+        stops: [[0, 'rgba(88,108,192,0.19)'], [1, 'rgba(22,32,88,0)']] },
+      { cx: 0.72, cy: 0.50, rx: 0.20, ry: 0.30,
+        stops: [[0, 'rgba(92,112,196,0.16)'], [1, 'rgba(22,32,88,0)']] },
+    ], 0.20);
 
-    // Main orange/yellow core glow — galactic centre brightness
-    const coreGlow = makeCloudTex(1024, 512, [
-      { cx: 0.50, cy: 0.55, rx: 0.55, ry: 0.42,
-        stops: [[0, 'rgba(255,175,45,0.48)'], [0.5, 'rgba(255,95,18,0.16)'], [1, 'rgba(200,55,0,0)']] },
-      { cx: 0.50, cy: 0.50, rx: 0.20, ry: 0.22,
-        stops: [[0, 'rgba(255,248,205,0.92)'], [0.4, 'rgba(255,195,75,0.52)'], [1, 'rgba(255,115,18,0)']] },
-      { cx: 0.28, cy: 0.52, rx: 0.28, ry: 0.22,
-        stops: [[0, 'rgba(255,115,28,0.42)'], [1, 'rgba(200,48,5,0)']] },
-      { cx: 0.73, cy: 0.50, rx: 0.30, ry: 0.20,
-        stops: [[0, 'rgba(230,95,22,0.36)'], [1, 'rgba(175,38,5,0)']] },
-    ]);
+    // ── 3. Warm cream/white core — galactic nucleus light bleeding through ────
+    const coreGlow = makeCloudTex(512, 128, [
+      { cx: 0.50, cy: 0.48, rx: 0.25, ry: 0.36,
+        stops: [[0, 'rgba(238,228,212,0.65)'], [0.45, 'rgba(172,168,202,0.24)'], [1, 'rgba(68,72,138,0)']] },
+      { cx: 0.50, cy: 0.44, rx: 0.11, ry: 0.27,
+        stops: [[0, 'rgba(255,254,246,0.76)'], [0.5, 'rgba(188,184,214,0.19)'], [1, 'rgba(68,72,138,0)']] },
+      { cx: 0.60, cy: 0.50, rx: 0.15, ry: 0.28,
+        stops: [[0, 'rgba(208,202,222,0.30)'], [1, 'rgba(68,72,138,0)']] },
+    ], 0.22);
 
-    // Deep red/crimson dense cloud
-    const redCloud = makeCloudTex(512, 256, [
-      { cx: 0.40, cy: 0.55, rx: 0.50, ry: 0.60,
-        stops: [[0, 'rgba(155,28,8,0.58)'], [0.5, 'rgba(115,18,5,0.26)'], [1, 'rgba(75,8,0,0)']] },
-      { cx: 0.68, cy: 0.38, rx: 0.38, ry: 0.50,
-        stops: [[0, 'rgba(135,22,7,0.48)'], [1, 'rgba(75,8,0,0)']] },
-      { cx: 0.20, cy: 0.40, rx: 0.22, ry: 0.35,
-        stops: [[0, 'rgba(175,48,14,0.32)'], [1, 'rgba(75,8,0,0)']] },
-    ]);
+    // ── 4. Dark dust lane — absorbs band light (NormalBlending blocks emission) ─
+    const dustLane = makeCloudTex(512, 128, [
+      { cx: 0.47, cy: 0.42, rx: 0.33, ry: 0.38,
+        stops: [[0, 'rgba(2,1,5,0.92)'], [0.5, 'rgba(2,1,5,0.40)'], [1, 'rgba(2,1,5,0)']] },
+      { cx: 0.65, cy: 0.33, rx: 0.24, ry: 0.34,
+        stops: [[0, 'rgba(2,1,6,0.82)'], [1, 'rgba(2,1,6,0)']] },
+      { cx: 0.24, cy: 0.50, rx: 0.18, ry: 0.30,
+        stops: [[0, 'rgba(2,1,5,0.65)'], [1, 'rgba(2,1,5,0)']] },
+    ], 0.20);
 
-    // Dark absorption cloud — rendered with NormalBlending so it darkens emission behind it
-    const darkCloud = makeCloudTex(512, 256, [
-      { cx: 0.48, cy: 0.50, rx: 0.38, ry: 0.46,
-        stops: [[0, 'rgba(3,1,7,0.82)'], [0.55, 'rgba(3,1,7,0.32)'], [1, 'rgba(3,1,7,0)']] },
-      { cx: 0.70, cy: 0.37, rx: 0.28, ry: 0.35,
-        stops: [[0, 'rgba(5,2,9,0.72)'], [1, 'rgba(3,1,7,0)']] },
-      { cx: 0.22, cy: 0.60, rx: 0.20, ry: 0.28,
-        stops: [[0, 'rgba(3,1,7,0.62)'], [1, 'rgba(3,1,7,0)']] },
-    ]);
+    // ── 5. Bright point glow textures (star clusters / nebulae in the band) ──
+    const mkPt = (r: number, g: number, b: number) =>
+      makeCloudTex(64, 64, [{
+        cx: 0.5, cy: 0.5, rx: 0.40, ry: 0.40,
+        stops: [
+          [0,    'rgba(255,255,255,1.0)'],
+          [0.14, `rgba(${r},${g},${b},0.72)`],
+          [0.38, `rgba(${Math.round(r*0.4)},${Math.round(g*0.4)},${Math.round(b*0.4)},0.14)`],
+          [1,    'rgba(0,0,0,0)'],
+        ],
+      }], 0.05);
 
-    // Purple/violet nebulosity on the flanks
-    const purpleCloud = makeCloudTex(512, 512, [
-      { cx: 0.50, cy: 0.50, rx: 0.55, ry: 0.50,
-        stops: [[0, 'rgba(115,45,215,0.36)'], [0.5, 'rgba(75,28,155,0.16)'], [1, 'rgba(35,8,75,0)']] },
-      { cx: 0.30, cy: 0.60, rx: 0.35, ry: 0.40,
-        stops: [[0, 'rgba(95,38,185,0.26)'], [1, 'rgba(35,8,75,0)']] },
-      { cx: 0.70, cy: 0.35, rx: 0.30, ry: 0.35,
-        stops: [[0, 'rgba(135,55,195,0.22)'], [1, 'rgba(35,8,75,0)']] },
-    ]);
-
-    const ADD = THREE.AdditiveBlending;
-    const NRM = THREE.NormalBlending;
-
-    // ── Layer descriptors ─────────────────────────────────────────────────────
-    // pos/rot are group-local (group follows camera world pos, no rotation copy).
-    // Toward -Z = galactic centre direction; +Z = dark empty space.
-    // renderOrder determines paint order when depthTest=false.
-    return [
-      // Wide blue haze — fills the galactic-centre hemisphere
-      { tex: blueHaze,    pos: [   0, -48, -362] as V3, rot: [ 0.12,  0.00,  0.00] as V3, w: 720, h: 210, op: 1.0, bl: ADD, ro: -70 },
-      { tex: blueHaze,    pos: [-210, -22, -302] as V3, rot: [ 0.05,  0.30, -0.05] as V3, w: 510, h: 165, op: 0.60, bl: ADD, ro: -69 },
-      { tex: blueHaze,    pos: [ 210, -32, -302] as V3, rot: [ 0.05, -0.30,  0.05] as V3, w: 510, h: 165, op: 0.60, bl: ADD, ro: -68 },
-      // Main orange/yellow core glow
-      { tex: coreGlow,    pos: [   0, -12, -362] as V3, rot: [ 0.06,  0.00,  0.00] as V3, w: 630, h: 315, op: 1.0, bl: ADD, ro: -65 },
-      // Deep red/crimson clouds
-      { tex: redCloud,    pos: [  32,  26, -332] as V3, rot: [-0.06, -0.08,  0.10] as V3, w: 345, h: 202, op: 0.90, bl: ADD, ro: -60 },
-      { tex: redCloud,    pos: [ -52,  12, -322] as V3, rot: [ 0.04,  0.12, -0.06] as V3, w: 285, h: 162, op: 0.72, bl: ADD, ro: -59 },
-      // Dark absorption cloud — darkens the bright emission behind it
-      { tex: darkCloud,   pos: [  16,  20, -328] as V3, rot: [ 0.03,  0.00,  0.05] as V3, w: 315, h: 178, op: 1.0, bl: NRM, ro: -55 },
-      // Purple/violet flanks
-      { tex: purpleCloud, pos: [-192, -16, -302] as V3, rot: [ 0.04,  0.22,  0.00] as V3, w: 285, h: 285, op: 0.75, bl: ADD, ro: -50 },
-      { tex: purpleCloud, pos: [ 215, -22, -312] as V3, rot: [ 0.02, -0.18,  0.00] as V3, w: 265, h: 265, op: 0.65, bl: ADD, ro: -50 },
-      // Wisp of purple drifting above the galactic plane
-      { tex: purpleCloud, pos: [ -28,  92, -312] as V3, rot: [-0.26,  0.05,  0.03] as V3, w: 325, h: 162, op: 0.38, bl: ADD, ro: -49 },
-    ];
+    return {
+      blueAmbient, outerGlow, coreGlow, dustLane,
+      white:  mkPt(200, 218, 255),
+      cyan:   mkPt( 55, 215, 238),
+      pink:   mkPt(228,  85, 175),
+      yellow: mkPt(218, 196,  65),
+    };
   }, []);
+
+  const ADD = THREE.AdditiveBlending;
+  const NRM = THREE.NormalBlending;
+
+  // Bright point sources placed along the galactic band (group-local coords)
+  const pts: Array<{ tex: THREE.CanvasTexture; pos: V3; sz: number }> = [
+    { tex: tex.white,  pos: [-160,   5, -346], sz: 52 },
+    { tex: tex.white,  pos: [  60,  10, -342], sz: 40 },
+    { tex: tex.cyan,   pos: [-280,   3, -350], sz: 34 },
+    { tex: tex.pink,   pos: [ 355,  -3, -344], sz: 30 },
+    { tex: tex.yellow, pos: [-445,  -8, -336], sz: 24 },
+    { tex: tex.white,  pos: [ 510,   3, -340], sz: 32 },
+    { tex: tex.white,  pos: [ 205,   8, -338], sz: 26 },
+    { tex: tex.white,  pos: [ -55,  12, -340], sz: 22 },
+    { tex: tex.cyan,   pos: [ 420,   5, -344], sz: 20 },
+    { tex: tex.white,  pos: [-370,   2, -348], sz: 28 },
+  ];
 
   return (
     <group ref={groupRef}>
-      {layers.map((l, i) => (
-        <mesh key={i} position={l.pos} rotation={l.rot} renderOrder={l.ro}>
-          <planeGeometry args={[l.w, l.h]} />
-          <meshBasicMaterial
-            map={l.tex}
-            transparent
-            opacity={l.op}
-            blending={l.bl}
-            depthWrite={false}
-            depthTest={false}
-            side={THREE.DoubleSide}
-          />
+      {/* Deep-blue ambient fill — covers most of the galactic-centre hemisphere */}
+      <mesh position={[0, -60, -390]} renderOrder={-75}>
+        <planeGeometry args={[2200, 1400]} />
+        <meshBasicMaterial map={tex.blueAmbient} transparent opacity={1.0}
+          blending={ADD} depthWrite={false} depthTest={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[-300, -40, -360]} rotation={[0, 0.15, 0]} renderOrder={-74}>
+        <planeGeometry args={[1500, 900]} />
+        <meshBasicMaterial map={tex.blueAmbient} transparent opacity={0.42}
+          blending={ADD} depthWrite={false} depthTest={false} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Wide pale blue-white galactic band outer glow */}
+      <mesh position={[0, 0, -375]} renderOrder={-70}>
+        <planeGeometry args={[2000, 420]} />
+        <meshBasicMaterial map={tex.outerGlow} transparent opacity={1.0}
+          blending={ADD} depthWrite={false} depthTest={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, -14, -358]} rotation={[0.03, 0, 0]} renderOrder={-69}>
+        <planeGeometry args={[1800, 360]} />
+        <meshBasicMaterial map={tex.outerGlow} transparent opacity={0.52}
+          blending={ADD} depthWrite={false} depthTest={false} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Warm cream/white galactic core glow */}
+      <mesh position={[0, 5, -355]} renderOrder={-65}>
+        <planeGeometry args={[1500, 360]} />
+        <meshBasicMaterial map={tex.coreGlow} transparent opacity={1.0}
+          blending={ADD} depthWrite={false} depthTest={false} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Dark dust lane — NormalBlending so it blocks the emission light behind it */}
+      <mesh position={[0, 14, -345]} renderOrder={-60}>
+        <planeGeometry args={[1400, 340]} />
+        <meshBasicMaterial map={tex.dustLane} transparent opacity={1.0}
+          blending={NRM} depthWrite={false} depthTest={false} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Bright nebula point sources along the band */}
+      {pts.map((p, i) => (
+        <mesh key={i} position={p.pos} renderOrder={-55}>
+          <planeGeometry args={[p.sz, p.sz]} />
+          <meshBasicMaterial map={p.tex} transparent opacity={1.0}
+            blending={ADD} depthWrite={false} depthTest={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
     </group>

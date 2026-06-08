@@ -352,10 +352,25 @@ interface Props {
 export default function GalaxyMesh({ sectors, highlightedId, onSectorClick, prefs }: Props) {
   const groupRef      = useRef<THREE.Group>(null);
   const sparkleRef    = useRef<THREE.InstancedMesh>(null);
+  // const transitionRef = useRef(0);
+  // const prevStyleRef = useRef(prefs.style);
+  // const directionRef = useRef(1);
+
   const meshGeo       = useMemo(() => buildGalaxyGeometry(prefs.style, prefs.colorScheme), [prefs.style, prefs.colorScheme]);
   const sparkleData   = useMemo(() => buildSparkleData(prefs.style, prefs.colorScheme), [prefs.style, prefs.colorScheme]);
   const sparkleDodGeo = useMemo(() => new THREE.DodecahedronGeometry(0.04, 0), []);
   const sparkleDodMat = useMemo(() => new THREE.MeshBasicMaterial(), []);
+
+  // useEffect(() => {
+  //   if (prefs.style !== prevStyleRef.current) {
+  //     const styles = ['classic', 'lenticular', 'spiral', 'triple', 'quad', 'barred'] as const;
+  //     const prevIdx = styles.indexOf(prevStyleRef.current);
+  //     const newIdx = styles.indexOf(prefs.style);
+  //     directionRef.current = newIdx > prevIdx ? 1 : -1;
+  //     prevStyleRef.current = prefs.style;
+  //     transitionRef.current = 1;
+  //   }
+  // }, [prefs.style]);
 
   useEffect(() => {
     const mesh = sparkleRef.current;
@@ -369,6 +384,44 @@ export default function GalaxyMesh({ sectors, highlightedId, onSectorClick, pref
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, [sparkleData]);
+
+  // Commented out slide animation - uncomment to re-enable:
+  // useEffect(() => {
+  //   if (prefs.style !== prevStyleRef.current) {
+  //     const styles = ['classic', 'lenticular', 'spiral', 'triple', 'quad', 'barred'] as const;
+  //     const prevIdx = styles.indexOf(prevStyleRef.current);
+  //     const newIdx = styles.indexOf(prefs.style);
+  //     directionRef.current = newIdx > prevIdx ? 1 : -1;
+  //     prevStyleRef.current = prefs.style;
+  //     transitionRef.current = 1;
+  //   }
+  // }, [prefs.style]);
+  //
+  // useFrame((_, delta) => {
+  //   if (groupRef.current) {
+  //     groupRef.current.rotation.y += delta * 0.05;
+  //
+  //     const duration = 0.8;
+  //     const dir = directionRef.current;
+  //
+  //     if (transitionRef.current > 0) {
+  //       transitionRef.current = Math.max(0, transitionRef.current - delta / duration);
+  //       const t = transitionRef.current;
+  //
+  //       if (t > 0.5) {
+  //         // First half: slide out old galaxy
+  //         const outProgress = (1 - t) / 0.5;  // 0 to 1
+  //         const eased = outProgress * outProgress * (3 - 2 * outProgress);
+  //         groupRef.current.position.x = eased * 80 * dir;
+  //       } else {
+  //         // Second half: slide in new galaxy
+  //         const inProgress = t / 0.5;  // 1 to 0
+  //         const eased = inProgress * inProgress * (3 - 2 * inProgress);
+  //         groupRef.current.position.x = -(eased * 80 * dir);
+  //       }
+  //     }
+  //   }
+  // });
 
   useFrame((_, delta) => {
     if (groupRef.current) groupRef.current.rotation.y += delta * 0.05;

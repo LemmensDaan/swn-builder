@@ -51,15 +51,20 @@ export default function PlanetObject({ obj, children, onPositionUpdate }: Props)
     [obj.seed, obj.size, obj.planetType, obj.primaryColor, obj.secondaryColor, obj.iceCaps, obj.colors[0], obj.colors[1]],
   );
 
+  const _worldPos = useMemo(() => new THREE.Vector3(), []);
+
   useFrame((_, delta) => {
     angleRef.current += delta * orbitSpeed;
     const incRad = THREE.MathUtils.degToRad(obj.inclination);
     const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
     if (groupRef.current) {
       groupRef.current.position.set(x, y, z);
-      onPositionUpdate?.([x, y, z]);
+      // Force matrix update so getWorldPosition reflects any parent movement this frame.
+      groupRef.current.updateWorldMatrix(true, false);
+      groupRef.current.getWorldPosition(_worldPos);
+      onPositionUpdate?.([_worldPos.x, _worldPos.y, _worldPos.z]);
     }
-    if (meshRef.current)  meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
+    if (meshRef.current) meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
   });
 
   return (

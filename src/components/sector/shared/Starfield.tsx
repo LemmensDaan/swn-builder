@@ -55,7 +55,6 @@ export default function Starfield({ count = 900 }: { count?: number }) {
           opacity={0.85}
           alphaTest={0.01}
           depthWrite={false}
-          depthTest={false}
         />
       </points>
     </group>

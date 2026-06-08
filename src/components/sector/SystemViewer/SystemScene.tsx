@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import type { StarSystem } from '../../../types/sector';
 import Starfield from '../shared/Starfield';
-import NebulaBackground from './NebulaBackground';
 import StarObject from './StarObject';
 import PlanetObject from './PlanetObject';
 import AsteroidBelt from './AsteroidBelt';
@@ -50,7 +49,6 @@ export default function SystemScene({ system, objectPositionsRef }: Props) {
       {/* Fallback when no star defined yet */}
       {!hasStar && <pointLight position={[0, 0, 0]} intensity={100} distance={250} decay={1} />}
       <Starfield count={900} />
-      <NebulaBackground />
       {stars.map(s => (
         <StarObject
           key={s.id}

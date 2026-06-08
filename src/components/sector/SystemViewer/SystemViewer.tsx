@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -8,6 +8,13 @@ import SystemScene from './SystemScene';
 
 function CameraFollower({ selectedObjectId, objectPositionsRef, orbitControlsRef }: any) {
   const lastPosRef = useRef<[number, number, number] | null>(null);
+  const targetInitializedRef = useRef(false);
+
+  // Reset saved position and re-initialize target whenever the tracked object changes
+  useEffect(() => {
+    lastPosRef.current = null;
+    targetInitializedRef.current = false;
+  }, [selectedObjectId]);
 
   useFrame(() => {
     if (!selectedObjectId || !orbitControlsRef.current) return;
@@ -15,6 +22,15 @@ function CameraFollower({ selectedObjectId, objectPositionsRef, orbitControlsRef
     const camera = controls.object;
     const position = objectPositionsRef.current[selectedObjectId];
     if (!position) return;
+
+    // On first frame with this object, snap camera target to object position
+    if (!targetInitializedRef.current) {
+      controls.target.set(position[0], position[1], position[2]);
+      targetInitializedRef.current = true;
+      lastPosRef.current = position;
+      controls.update();
+      return;
+    }
 
     // Calculate object movement
     const objectDelta = lastPosRef.current

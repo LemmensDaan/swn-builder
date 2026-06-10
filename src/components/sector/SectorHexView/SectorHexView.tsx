@@ -98,7 +98,7 @@ function CameraZoomController({
 
 
 export default function SectorHexView() {
-  const { activeSectorId, sectors, systems, createSystem, clearHex, navigateToSystem } = useSectorStore();
+  const { activeSectorId, sectors, systems, createSystem, clearHex, navigateToSystem, layer } = useSectorStore();
   const sector = sectors.find(s => s.id === activeSectorId);
   const [selectedQ, setSelectedQ] = useState<number | null>(null);
   const [selectedR, setSelectedR] = useState<number | null>(null);
@@ -122,7 +122,22 @@ export default function SectorHexView() {
   const handleZoomComplete = useCallback(() => {
     const id = pendingSystemId.current;
     if (id) navigateToSystem(id);
+    // zoomTarget intentionally NOT cleared here — hex cells must stay at opacity 0
+    // during the 400ms CSS fade-out, clearing it would flash them back to full opacity
   }, [navigateToSystem]);
+
+  // When returning to sector: reset hex opacity, clear zoom state, restore camera
+  useEffect(() => {
+    if (layer === 'sector') {
+      zoomProgressRef.current = 0;  // hex cells read this in useFrame — immediate on next tick
+      setZoomTarget(null);
+      if (controlsRef.current) {
+        controlsRef.current.object.position.copy(CAM_START);
+        controlsRef.current.target.copy(GRID_CENTER);
+        controlsRef.current.update();
+      }
+    }
+  }, [layer]);
 
   if (!sector) return null;
 

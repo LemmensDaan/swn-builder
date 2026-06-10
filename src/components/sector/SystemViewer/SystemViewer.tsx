@@ -63,8 +63,8 @@ function CameraIntroAnimator({
   const progress = useRef(0);
   const done = useRef(false);
 
-  const endPos = new THREE.Vector3(0, camDistance * 0.4, camDistance);
-  const startPos = endPos.clone().multiplyScalar(7);
+  const endPos = new THREE.Vector3(0, camDistance * 0.4 * 0.6, camDistance * 0.6);
+  const startPos = endPos.clone().multiplyScalar(12);
 
   useFrame((_, delta) => {
     if (done.current) return;
@@ -114,7 +114,7 @@ export default function SystemViewer() {
       {/* 3D Canvas */}
       <div className="flex-1 relative">
         <Canvas
-          camera={{ position: [0, camDistance * 0.4 * 7, camDistance * 7], fov: 60 }}
+          camera={{ position: [0, camDistance * 0.4 * 0.6 * 12, camDistance * 0.6 * 12], fov: 60 }}
           shadows
           gl={{ antialias: true }}
           onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#04070f'))}

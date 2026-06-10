@@ -65,9 +65,11 @@ export function hexToWorld(q: number, r: number, size: number): [number, number]
   return [x, -y];
 }
 
-const HEX_BASE_COLOR     = new THREE.Color('#1a2035');
-const HEX_OCCUPIED_COLOR = new THREE.Color('#1e3040');
-const EMISSIVE_NONE      = new THREE.Color(0, 0, 0);
+const HEX_BASE_COLOR        = new THREE.Color('#0d1018');
+const HEX_BASE_HOVER_COLOR  = new THREE.Color('#1a2035');
+const HEX_OCCUPIED_COLOR    = new THREE.Color('#1e3040');
+const EMISSIVE_GLOW         = new THREE.Color('#ea580c');
+const EMISSIVE_NONE         = new THREE.Color(0, 0, 0);
 
 interface Props {
   cell: HexCellType;
@@ -93,10 +95,6 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
     return HEX_BASE_COLOR;
   }, [faction, system]);
 
-  const starEmissive = useMemo(() => {
-    const c = system?.objects[0]?.primaryColor ?? system?.objects[0]?.colors[0];
-    return new THREE.Color(c ?? '#ea580c');
-  }, [system]);
 
   useFrame((state, delta) => {
     if (!meshRef.current || !matRef.current) return;
@@ -105,12 +103,15 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
     const targetY = selected ? 0.18 : hovered ? 0.08 : 0;
     meshRef.current.position.y += (targetY - meshRef.current.position.y) * Math.min(delta * 12, 1);
 
-    // Pulsing emissive for selected, steady dim glow for hover — both use the star's own color
+    // Empty tile hover: lighten the fill color
+    matRef.current.color.copy(hovered && !system && !faction ? HEX_BASE_HOVER_COLOR : color);
+
+    // Pulsing emissive for selected, steady dim glow for hover
     if (selected) {
-      matRef.current.emissive = starEmissive;
+      matRef.current.emissive = EMISSIVE_GLOW;
       matRef.current.emissiveIntensity = 0.45 + 0.25 * Math.sin(state.clock.elapsedTime * 2.5);
     } else if (hovered) {
-      matRef.current.emissive = starEmissive;
+      matRef.current.emissive = EMISSIVE_GLOW;
       matRef.current.emissiveIntensity = 0.3;
     } else {
       matRef.current.emissive = EMISSIVE_NONE;
@@ -147,17 +148,28 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
 
       <HexBorder hexSize={hexSize} zoomProgressRef={zoomProgressRef} />
 
-      {/* Star dot */}
-      {system && (
+      {/* Star dot — black holes get an orange ring instead of a filled circle */}
+      {system && (system.objects[0]?.type === 'BlackHole' ? (
+        <group position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh>
+            <circleGeometry args={[hexSize * 0.07, 16]} />
+            <meshBasicMaterial color="#000000" />
+          </mesh>
+          <mesh>
+            <ringGeometry args={[hexSize * 0.07, hexSize * 0.13, 16]} />
+            <meshStandardMaterial color="#ff6620" emissive="#ff6620" emissiveIntensity={0.9} toneMapped={false} />
+          </mesh>
+        </group>
+      ) : (
         <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[hexSize * 0.12, 12]} />
+          <circleGeometry args={[hexSize * 0.12, 16]} />
           <meshStandardMaterial
             color={system.objects[0]?.primaryColor ?? system.objects[0]?.colors[0] ?? '#FFF4C2'}
             emissive={system.objects[0]?.primaryColor ?? system.objects[0]?.colors[0] ?? '#FFF4C2'}
             emissiveIntensity={0.8}
           />
         </mesh>
-      )}
+      ))}
 
       {/* Hover-only system name */}
       {system && hovered && (

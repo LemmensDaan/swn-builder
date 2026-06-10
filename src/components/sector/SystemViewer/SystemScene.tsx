@@ -29,13 +29,17 @@ export default function SystemScene({ system, objectPositionsRef, previewMode, i
   useFrame(() => {
     if (!fadeGroupRef.current || !introOpacityRef) return;
     const opacity = introOpacityRef.current;
-    if (opacity >= 1) return;
     fadeGroupRef.current.traverse(child => {
       if (child.userData?.isStar) return;
       const c = child as any;
       if (c.material) {
         const mats: THREE.Material[] = Array.isArray(c.material) ? c.material : [c.material];
-        mats.forEach(m => { m.transparent = true; m.opacity = opacity; });
+        mats.forEach(m => {
+          // Save each material's authored opacity on first touch so we scale back to it, not 1.0
+          if (m.userData.originalOpacity === undefined) m.userData.originalOpacity = m.opacity;
+          m.transparent = true;
+          m.opacity = m.userData.originalOpacity * opacity;
+        });
       }
     });
   });

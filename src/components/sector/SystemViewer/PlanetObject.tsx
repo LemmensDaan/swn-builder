@@ -32,9 +32,10 @@ interface Props {
   obj: SystemObject;
   children?: React.ReactNode;
   onPositionUpdate?: (pos: [number, number, number]) => void;
+  onClick?: (id: string) => void;
 }
 
-export default function PlanetObject({ obj, children, onPositionUpdate }: Props) {
+export default function PlanetObject({ obj, children, onPositionUpdate, onClick }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef  = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -77,8 +78,9 @@ export default function PlanetObject({ obj, children, onPositionUpdate }: Props)
           geometry={geo}
           castShadow
           receiveShadow
-          onPointerEnter={() => setHovered(true)}
-          onPointerLeave={() => setHovered(false)}
+          onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+          onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
+          onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
         >
           <meshLambertMaterial vertexColors flatShading shadowSide={THREE.BackSide} />
         </mesh>

@@ -7,9 +7,13 @@ import OrbitRing from './OrbitRing';
 import { getOrbitPosition } from './orbitUtils';
 import { loadModel } from './modelLoader';
 
-interface Props { obj: SystemObject }
+interface Props {
+  obj: SystemObject;
+  onPositionUpdate?: (pos: [number, number, number]) => void;
+  onClick?: (id: string) => void;
+}
 
-export default function SpaceStation({ obj }: Props) {
+export default function SpaceStation({ obj, onPositionUpdate, onClick }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const bodyRef  = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
@@ -18,6 +22,7 @@ export default function SpaceStation({ obj }: Props) {
   const orbitSpeed = obj.orbitRadius > 0 ? 0.2 / Math.sqrt(obj.orbitRadius) : 0;
   const color = obj.colors[0] ?? '#B0C4DE';
   const s = obj.size;
+  const _worldPos = useRef(new THREE.Vector3());
 
   useEffect(() => {
     loadModel('/models/Sputnik satellite.glb')
@@ -43,7 +48,12 @@ export default function SpaceStation({ obj }: Props) {
     angleRef.current += delta * orbitSpeed;
     const incRad = THREE.MathUtils.degToRad(obj.inclination);
     const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
-    if (groupRef.current) groupRef.current.position.set(x, y, z);
+    if (groupRef.current) {
+      groupRef.current.position.set(x, y, z);
+      groupRef.current.updateWorldMatrix(true, false);
+      groupRef.current.getWorldPosition(_worldPos.current);
+      onPositionUpdate?.([_worldPos.current.x, _worldPos.current.y, _worldPos.current.z]);
+    }
     if (bodyRef.current)  bodyRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.04);
   });
 
@@ -55,8 +65,9 @@ export default function SpaceStation({ obj }: Props) {
       <group ref={groupRef}>
         <group
           ref={bodyRef}
-          onPointerEnter={() => setHovered(true)}
-          onPointerLeave={() => setHovered(false)}
+          onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+          onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
+          onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
         >
           {/* Custom model or procedural fallback */}
           {!modelLoaded && (

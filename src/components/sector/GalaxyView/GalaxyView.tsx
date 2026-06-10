@@ -15,7 +15,7 @@ import * as THREE from 'three';
 // }
 import { AlertTriangle, Sliders } from 'lucide-react';
 import { useSectorStore } from '../../../store/useSectorStore';
-import Starfield from '../shared/Starfield';
+import BackgroundGalaxies from './BackgroundGalaxies';
 import GalaxyMesh, { type GalaxyMeshHandle } from './GalaxyMesh';
 import GalaxyPrefsPanel from './GalaxyPrefsPanel';
 import { loadPrefs, savePrefs, type GalaxyPrefs } from './galaxyPrefs';
@@ -150,7 +150,7 @@ export default function GalaxyView() {
       >
         {/* <CameraLogger domRef={camPosRef} /> */}
         <ambientLight intensity={0.08} />
-        <Starfield count={1800} />
+        <BackgroundGalaxies />
         <GalaxyMesh
           ref={galaxyMeshRef}
           sectors={sectors}
@@ -158,6 +158,7 @@ export default function GalaxyView() {
           onSectorClick={handleSectorClick}
           prefs={activePrefs}
           pauseRotation={isZooming}
+          isZooming={isZooming}
         />
         <CameraZoomController
           target={zoomTarget}

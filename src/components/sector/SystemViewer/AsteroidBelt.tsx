@@ -17,11 +17,17 @@ function getEarthToneColor(): THREE.Color {
   return new THREE.Color(tones[Math.floor(Math.random() * tones.length)]);
 }
 
-interface Props { obj: SystemObject }
+interface Props {
+  obj: SystemObject;
+  onPositionUpdate?: (pos: [number, number, number]) => void;
+  onClick?: (id: string) => void;
+}
 
-export default function AsteroidBelt({ obj }: Props) {
+export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const groupRef = useRef<THREE.Group>(null);
+  const focusMarker = useRef(new THREE.Object3D());
+  const _wp = useRef(new THREE.Vector3());
 
   const geo = useMemo(() => new THREE.IcosahedronGeometry(0.08, 0), []);
   const beltColor = useMemo(() => getEarthToneColor(), [obj.id]);
@@ -29,6 +35,16 @@ export default function AsteroidBelt({ obj }: Props) {
     () => new THREE.MeshLambertMaterial({ color: beltColor, flatShading: true }),
     [beltColor],
   );
+
+  // Place the focus marker at angle=0 on the belt ring so it orbits with the group
+  useEffect(() => {
+    if (!groupRef.current) return;
+    const incRad = THREE.MathUtils.degToRad(obj.inclination);
+    const [fx, fy, fz] = getOrbitPosition(0, obj.orbitRadius, incRad);
+    focusMarker.current.position.set(fx, fy, fz);
+    groupRef.current.add(focusMarker.current);
+    return () => { groupRef.current?.remove(focusMarker.current); };
+  }, [obj.orbitRadius, obj.inclination]);
 
   useEffect(() => {
     if (!meshRef.current) return;
@@ -49,12 +65,24 @@ export default function AsteroidBelt({ obj }: Props) {
   }, [obj.orbitRadius, obj.inclination]);
 
   useFrame((_, delta) => {
-    if (groupRef.current) groupRef.current.rotation.y += delta * 0.012;
+    if (!groupRef.current) return;
+    groupRef.current.rotation.y += delta * 0.012;
+    focusMarker.current.updateWorldMatrix(true, false);
+    focusMarker.current.getWorldPosition(_wp.current);
+    onPositionUpdate?.([_wp.current.x, _wp.current.y, _wp.current.z]);
   });
 
   return (
     <group ref={groupRef}>
-      <instancedMesh ref={meshRef} args={[geo, mat, COUNT]} castShadow receiveShadow />
+      <instancedMesh
+        ref={meshRef}
+        args={[geo, mat, COUNT]}
+        castShadow
+        receiveShadow
+        onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
+        onPointerEnter={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+        onPointerLeave={() => { document.body.style.cursor = 'auto'; }}
+      />
     </group>
   );
 }

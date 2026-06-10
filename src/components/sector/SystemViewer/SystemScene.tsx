@@ -18,7 +18,7 @@ interface Props {
   introOpacityRef?: React.MutableRefObject<number>;
 }
 
-export default function SystemScene({ system, objectPositionsRef, previewMode, introOpacityRef }: Props) {
+export default function SystemScene({ system, selectedObjectId: _selectedObjectId, onObjectClick, objectPositionsRef, previewMode, introOpacityRef }: Props) {
   const sorted = [...system.objects].sort((a, b) => a.sortOrder - b.sortOrder);
   const stars   = sorted.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
   const topLevel = sorted.filter(o => !o.parentId && !['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
@@ -52,14 +52,15 @@ export default function SystemScene({ system, objectPositionsRef, previewMode, i
       }
     };
 
-    if (obj.type === 'AsteroidBelt') return previewMode ? null : <AsteroidBelt key={obj.id} obj={obj} />;
-    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={obj} onPositionUpdate={positionUpdate} />;
-    if (obj.type === 'SpaceStation' || obj.type === 'JumpGate') return <SpaceStation key={obj.id} obj={obj} />;
+    if (obj.type === 'AsteroidBelt') return previewMode ? null : <AsteroidBelt key={obj.id} obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />;
+    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />;
+    if (obj.type === 'SpaceStation' || obj.type === 'JumpGate') return <SpaceStation key={obj.id} obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />;
     return (
       <PlanetObject
         key={obj.id}
         obj={obj}
         onPositionUpdate={positionUpdate}
+        onClick={onObjectClick}
       >
         {children.map(c => renderObject(c))}
       </PlanetObject>

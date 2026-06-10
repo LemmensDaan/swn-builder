@@ -220,12 +220,13 @@ function randomInTriangle(tri: GalaxyTriangle): [number, number] {
 }
 
 function SectorTriangle({
-  tri, name, pulsed, colorScheme, onClick,
+  tri, name, pulsed, colorScheme, isZooming, onClick,
 }: {
   tri: GalaxyTriangle;
   name: string;
   pulsed: boolean;
   colorScheme: ColorScheme;
+  isZooming: boolean;
   onClick: (worldPos: THREE.Vector3) => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -331,6 +332,8 @@ function SectorTriangle({
             color: 'rgba(255,240,180,0.95)',
             whiteSpace: 'nowrap',
             textShadow: '0 1px 4px #000',
+            opacity: isZooming ? 0 : 1,
+            transition: 'opacity 0.25s ease',
           }}>
             {name}
           </div>
@@ -348,6 +351,7 @@ interface Props {
   onSectorClick: (id: string, worldPos: THREE.Vector3) => void;
   prefs: GalaxyPrefs;
   pauseRotation?: boolean;
+  isZooming?: boolean;
 }
 
 export interface GalaxyMeshHandle {
@@ -355,7 +359,7 @@ export interface GalaxyMeshHandle {
 }
 
 const GalaxyMesh = forwardRef<GalaxyMeshHandle, Props>(function GalaxyMesh(
-  { sectors, highlightedId, onSectorClick, prefs, pauseRotation },
+  { sectors, highlightedId, onSectorClick, prefs, pauseRotation, isZooming = false },
   ref,
 ) {
   const groupRef      = useRef<THREE.Group>(null);
@@ -460,6 +464,7 @@ const GalaxyMesh = forwardRef<GalaxyMeshHandle, Props>(function GalaxyMesh(
             name={s.name}
             pulsed={highlightedId === s.id}
             colorScheme={prefs.colorScheme}
+            isZooming={isZooming}
             onClick={(pos) => onSectorClick(s.id, pos)}
           />
         );

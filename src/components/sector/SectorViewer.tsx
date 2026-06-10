@@ -46,7 +46,7 @@ export default function SectorViewer({ onBack }: Props) {
       </div>
 
       {/* Layer content */}
-      <div className="relative flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0" style={{ background: '#080c14' }}>
         {layer === 'galaxy' && <GalaxyView />}
 
         {/* SectorHexView and SystemViewer crossfade — both kept alive during transition */}

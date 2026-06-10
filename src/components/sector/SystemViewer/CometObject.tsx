@@ -9,6 +9,7 @@ import OrbitRing from './OrbitRing';
 interface Props {
   obj: SystemObject;
   onPositionUpdate?: (pos: [number, number, number]) => void;
+  onClick?: (id: string) => void;
 }
 
 function getEllipticalOrbitPosition(
@@ -61,7 +62,7 @@ const fragmentShader = `
 const HEAD_COLOR = new THREE.Color('#ffffff');
 const TAIL_COLOR = new THREE.Color('#110022');
 
-export default function CometObject({ obj, onPositionUpdate }: Props) {
+export default function CometObject({ obj, onPositionUpdate, onClick }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const particleTrailRef = useRef<THREE.InstancedMesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -289,8 +290,9 @@ export default function CometObject({ obj, onPositionUpdate }: Props) {
 
       <group ref={groupRef}>
         <mesh
-          onPointerEnter={() => setHovered(true)}
-          onPointerLeave={() => setHovered(false)}
+          onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+          onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
+          onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
           castShadow
           receiveShadow
         >

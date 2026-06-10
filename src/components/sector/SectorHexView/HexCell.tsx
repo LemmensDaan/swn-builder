@@ -68,7 +68,7 @@ export function hexToWorld(q: number, r: number, size: number): [number, number]
 const HEX_BASE_COLOR        = new THREE.Color('#0d1018');
 const HEX_BASE_HOVER_COLOR  = new THREE.Color('#1a2035');
 const HEX_OCCUPIED_COLOR    = new THREE.Color('#1e3040');
-const EMISSIVE_GLOW         = new THREE.Color('#ea580c');
+const EMISSIVE_GLOW         = new THREE.Color('#fb923c');
 const EMISSIVE_NONE         = new THREE.Color(0, 0, 0);
 
 interface Props {
@@ -85,6 +85,7 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
+  const dotGroupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
   const shape = useMemo(() => buildHexShape(hexSize * 0.92), [hexSize]);
@@ -123,11 +124,23 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
       const opacity = Math.max(0, Math.min(1, 1 - (u - 0.1) / 0.35));
       groupRef.current.traverse(child => {
         const c = child as any;
+        if (c.userData?.isStarDot) return;  // handled separately below
         if (c.isMesh && c.material) {
           c.material.transparent = true;
           c.material.opacity = opacity;
         }
       });
+      // Star dot fades faster — gone by u=0.15, well before the hex tile
+      if (dotGroupRef.current) {
+        const dotOpacity = Math.max(0, Math.min(1, 1 - u / 0.15));
+        dotGroupRef.current.traverse(child => {
+          const c = child as any;
+          if (c.isMesh && c.material) {
+            c.material.transparent = true;
+            c.material.opacity = dotOpacity;
+          }
+        });
+      }
     }
   });
 
@@ -149,27 +162,31 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
       <HexBorder hexSize={hexSize} zoomProgressRef={zoomProgressRef} />
 
       {/* Star dot — black holes get an orange ring instead of a filled circle */}
-      {system && (system.objects[0]?.type === 'BlackHole' ? (
-        <group position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <mesh>
-            <circleGeometry args={[hexSize * 0.07, 16]} />
-            <meshBasicMaterial color="#000000" />
-          </mesh>
-          <mesh>
-            <ringGeometry args={[hexSize * 0.07, hexSize * 0.13, 16]} />
-            <meshStandardMaterial color="#ff6620" emissive="#ff6620" emissiveIntensity={0.9} toneMapped={false} />
-          </mesh>
+      {system && (
+        <group ref={dotGroupRef}>
+          {system.objects[0]?.type === 'BlackHole' ? (
+            <group position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <mesh userData={{ isStarDot: true }}>
+                <circleGeometry args={[hexSize * 0.07, 16]} />
+                <meshBasicMaterial color="#000000" />
+              </mesh>
+              <mesh userData={{ isStarDot: true }}>
+                <ringGeometry args={[hexSize * 0.07, hexSize * 0.13, 16]} />
+                <meshStandardMaterial color="#ff6620" emissive="#ff6620" emissiveIntensity={0.9} toneMapped={false} />
+              </mesh>
+            </group>
+          ) : (
+            <mesh userData={{ isStarDot: true }} position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <circleGeometry args={[hexSize * 0.12, 16]} />
+              <meshStandardMaterial
+                color={system.objects[0]?.primaryColor ?? system.objects[0]?.colors[0] ?? '#FFF4C2'}
+                emissive={system.objects[0]?.primaryColor ?? system.objects[0]?.colors[0] ?? '#FFF4C2'}
+                emissiveIntensity={0.8}
+              />
+            </mesh>
+          )}
         </group>
-      ) : (
-        <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[hexSize * 0.12, 16]} />
-          <meshStandardMaterial
-            color={system.objects[0]?.primaryColor ?? system.objects[0]?.colors[0] ?? '#FFF4C2'}
-            emissive={system.objects[0]?.primaryColor ?? system.objects[0]?.colors[0] ?? '#FFF4C2'}
-            emissiveIntensity={0.8}
-          />
-        </mesh>
-      ))}
+      )}
 
       {/* Hover-only system name */}
       {system && hovered && (

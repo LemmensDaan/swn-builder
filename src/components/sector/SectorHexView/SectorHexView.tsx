@@ -171,13 +171,12 @@ export default function SectorHexView() {
   }
 
   return (
-    <div className="flex h-full">
-      {/* 3D Canvas */}
-      <div className="flex-1 relative min-w-0">
+    <div className="relative h-full">
+      {/* 3D Canvas — always fills full container; panel overlays it absolutely */}
+      <div className="h-full relative">
         <Canvas
           camera={{ position: CAM_START.toArray(), fov: 50 }}
-          gl={{ antialias: true }}
-          onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#080c14'))}
+          gl={{ antialias: true, alpha: true }}
         >
           <ambientLight intensity={0.35} />
           <pointLight position={[0, 20, 0]} intensity={0.6} color="#8899cc" />
@@ -220,9 +219,9 @@ export default function SectorHexView() {
         </div>
       </div>
 
-      {/* Right panel */}
+      {/* Right panel — absolute overlay so it never resizes the canvas */}
       {panelOpen && (
-        <div className="w-80 flex-shrink-0 flex flex-col border-l border-gray-700/60">
+        <div className="absolute right-0 top-0 bottom-0 w-80 flex flex-col border-l border-gray-700/60 bg-gray-900/95 backdrop-blur">
           {selectedSystem ? (
             <SystemPanel
               system={selectedSystem}
@@ -242,7 +241,7 @@ export default function SectorHexView() {
               <p className="text-gray-600 text-xs mb-4">Empty sector hex. Create a star system here?</p>
               <button
                 onClick={handleCreateSystem}
-                className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium transition-colors"
+                className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-sky-600 text-white text-sm font-medium transition-colors"
               >
                 + Create System
               </button>

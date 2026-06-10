@@ -118,3 +118,5 @@ sector -> add space stations.
 -> deep space stations (bigger and different model than orbiting)
 
 3d view, add pins to object for information (should be added as wel as overview in sector view)
+
+double rings planet (treasure planet)

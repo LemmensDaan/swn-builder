@@ -7,40 +7,75 @@ import { useSectorStore } from '../../../store/useSectorStore';
 import SystemScene from './SystemScene';
 
 
-function CameraFollower({ selectedObjectId, objectPositionsRef, orbitControlsRef }: any) {
+function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsRef, orbitControlsRef }: any) {
   const lastPosRef = useRef<[number, number, number] | null>(null);
-  const targetInitializedRef = useRef(false);
+  const trackingRef = useRef(false);
+  const flyProgressRef = useRef(0);
+
+  // Pre-allocated vectors — avoids per-frame GC pressure
+  const flyStartCamPos = useRef(new THREE.Vector3());
+  const flyStartTarget = useRef(new THREE.Vector3());
+  const v_objPos = useRef(new THREE.Vector3());
+  const v_dir = useRef(new THREE.Vector3());
+  const v_targetCamPos = useRef(new THREE.Vector3());
+  const v_delta = useRef(new THREE.Vector3());
 
   useEffect(() => {
     lastPosRef.current = null;
-    targetInitializedRef.current = false;
+    trackingRef.current = false;
+    flyProgressRef.current = 0;
   }, [selectedObjectId]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!selectedObjectId || !orbitControlsRef.current) return;
     const controls = orbitControlsRef.current;
     const camera = controls.object;
     const position = objectPositionsRef.current[selectedObjectId];
     if (!position) return;
 
-    if (!targetInitializedRef.current) {
-      controls.target.set(position[0], position[1], position[2]);
-      targetInitializedRef.current = true;
-      lastPosRef.current = position;
+    v_objPos.current.set(position[0], position[1], position[2]);
+    const closeDistance = Math.max(3, (selectedObjectSize ?? 1) * 10);
+
+    if (!trackingRef.current) {
+      // Capture start on the very first frame of this selection
+      if (flyProgressRef.current === 0) {
+        flyStartCamPos.current.copy(camera.position);
+        flyStartTarget.current.copy(controls.target);
+      }
+
+      flyProgressRef.current = Math.min(1, flyProgressRef.current + delta * 1.4);
+      const t = 1 - Math.pow(1 - flyProgressRef.current, 3); // ease-out cubic
+
+      // Land at closeDistance from object, preserving the current camera direction
+      v_dir.current.subVectors(flyStartCamPos.current, flyStartTarget.current);
+      if (v_dir.current.lengthSq() < 0.001) v_dir.current.set(0, 0.4, 1);
+      v_dir.current.normalize().multiplyScalar(closeDistance);
+      v_targetCamPos.current.addVectors(v_objPos.current, v_dir.current);
+
+      camera.position.lerpVectors(flyStartCamPos.current, v_targetCamPos.current, t);
+      controls.target.lerpVectors(flyStartTarget.current, v_objPos.current, t);
       controls.update();
+
+      if (flyProgressRef.current >= 1) {
+        trackingRef.current = true;
+        lastPosRef.current = position;
+      }
       return;
     }
 
-    const objectDelta = lastPosRef.current
-      ? new THREE.Vector3(
-          position[0] - lastPosRef.current[0],
-          position[1] - lastPosRef.current[1],
-          position[2] - lastPosRef.current[2]
-        )
-      : new THREE.Vector3(0, 0, 0);
+    // Tracking phase — keep camera locked onto orbiting object
+    if (!lastPosRef.current) {
+      lastPosRef.current = position;
+      return;
+    }
 
-    camera.position.add(objectDelta);
-    controls.target.add(objectDelta);
+    v_delta.current.set(
+      position[0] - lastPosRef.current[0],
+      position[1] - lastPosRef.current[1],
+      position[2] - lastPosRef.current[2],
+    );
+    camera.position.add(v_delta.current);
+    controls.target.add(v_delta.current);
     controls.update();
 
     lastPosRef.current = position;
@@ -63,7 +98,7 @@ function CameraIntroAnimator({
   const progress = useRef(0);
   const done = useRef(false);
 
-  const endPos = new THREE.Vector3(0, camDistance * 0.4 * 0.6, camDistance * 0.6);
+  const endPos = new THREE.Vector3(0, camDistance * 0.4 * 0.4, camDistance * 0.4);
   const startPos = endPos.clone().multiplyScalar(12);
 
   useFrame((_, delta) => {
@@ -101,6 +136,10 @@ export default function SystemViewer() {
 
   if (!system) return null;
 
+  const selectedObjectSize = selectedObjectId
+    ? (system.objects.find(o => o.id === selectedObjectId)?.size ?? 1)
+    : 1;
+
   const sorted = [...system.objects].sort((a, b) => a.sortOrder - b.sortOrder);
 
   const furthestOrbit = Math.max(
@@ -112,12 +151,11 @@ export default function SystemViewer() {
   return (
     <div className="flex h-full relative">
       {/* 3D Canvas */}
-      <div className="flex-1 relative">
+      <div className="flex-1 min-w-0 relative">
         <Canvas
-          camera={{ position: [0, camDistance * 0.4 * 0.6 * 12, camDistance * 0.6 * 12], fov: 60 }}
+          camera={{ position: [0, camDistance * 0.4 * 0.4 * 12, camDistance * 0.4 * 12], fov: 60 }}
           shadows
-          gl={{ antialias: true }}
-          onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#04070f'))}
+          gl={{ antialias: true, alpha: true }}
         >
           {!introComplete && (
             <CameraIntroAnimator
@@ -126,7 +164,7 @@ export default function SystemViewer() {
               onDone={() => setIntroComplete(true)}
             />
           )}
-          <CameraFollower selectedObjectId={selectedObjectId} objectPositionsRef={objectPositionsRef} orbitControlsRef={orbitControlsRef} />
+          <CameraFollower selectedObjectId={selectedObjectId} selectedObjectSize={selectedObjectSize} objectPositionsRef={objectPositionsRef} orbitControlsRef={orbitControlsRef} />
           <SystemScene
             system={system}
             selectedObjectId={selectedObjectId}
@@ -169,21 +207,21 @@ export default function SystemViewer() {
           </h2>
         </div>
 
-        {/* Sidebar toggle */}
-        <button
-          onClick={() => setSidebarOpen(v => !v)}
-          className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-400 text-xs transition-colors backdrop-blur"
-        >
-          Objects
-          {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-        </button>
       </div>
 
-      {/* Collapsible sidebar */}
-      {sidebarOpen && (
-        <div className="w-56 flex-shrink-0 bg-gray-900/90 backdrop-blur border-l border-gray-700/60 overflow-y-auto">
-          <div className="px-3 py-3">
-            <p className="text-gray-600 text-[10px] font-medium tracking-wider uppercase mb-2">System Objects</p>
+      {/* Collapsible sidebar — flex sibling, never floats over canvas */}
+      {sidebarOpen ? (
+        <div className="w-56 flex-shrink-0 bg-gray-900/90 backdrop-blur border-l border-gray-700/60 flex flex-col">
+          <div className="px-3 py-3 flex items-center justify-between border-b border-gray-700/40 flex-shrink-0">
+            <p className="text-gray-600 text-[10px] font-medium tracking-wider uppercase">Astrogation</p>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1 -mr-1 rounded text-gray-600 hover:text-gray-300 hover:bg-gray-700/50 transition-colors"
+            >
+              <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="px-3 py-2 overflow-y-auto flex-1">
             <div className="space-y-0.5">
               {sorted.length === 0 && (
                 <p className="text-gray-700 text-xs italic">No objects defined</p>
@@ -218,6 +256,13 @@ export default function SystemViewer() {
             </div>
           </div>
         </div>
+      ) : (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="flex-shrink-0 flex items-start justify-center pt-3 w-8 bg-gray-900/80 hover:bg-gray-800 border-l border-gray-700/60 text-gray-600 hover:text-gray-300 transition-colors"
+        >
+          <ChevronLeft size={14} />
+        </button>
       )}
     </div>
   );

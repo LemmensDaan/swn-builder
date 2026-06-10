@@ -118,5 +118,24 @@ sector -> add space stations.
 -> deep space stations (bigger and different model than orbiting)
 
 3d view, add pins to object for information (should be added as wel as overview in sector view)
+-> when focused on object -> click again on object to open radial menu (that opens playfully), radial menu should be separated circles
+ current options could be 
+  - add pin
+  - add comment to object
+  - faction?
+  - move ship -> ship selection -> ship should then enter it like exiting hyperspace
 
-double rings planet (treasure planet)
+- randomize full sector?
+
+easter eggs / achievements?
+- clicking on passing by ships (like planet express)
+- doing something that unlocks double rings planet (treasure planet)
+- hyperjump the ship
+- create char
+- level char
+- create ship
+- add yourself + another crew member on a ship
+- retire character
+- retire ship
+- create binary system
+- 

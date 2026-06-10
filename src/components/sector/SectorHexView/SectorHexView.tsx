@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useSectorStore } from '../../../store/useSectorStore';
 import Starfield from '../shared/Starfield';
 import HexGrid, { HEX_SIZE } from './HexGrid';
+import { hexToWorld } from './HexCell';
 import SystemPanel from './SystemPanel';
 import { GRID_COLS, GRID_ROWS } from '../../../types/sector';
 
@@ -25,6 +26,77 @@ const CAM_START = new THREE.Vector3(
   GRID_CZ + CAM_DIST * Math.sin(CAM_POLAR), // ≈ -9.06 + 11 = 1.94
 );
 
+
+// Straight-line zoom: camera travels along the exact ray from its start position
+// through the hex center and 1.5x beyond, so it punches through the hex plane.
+function CameraZoomController({
+  target,
+  onComplete,
+  zoomProgressRef,
+}: {
+  target: THREE.Vector3 | null;
+  onComplete: () => void;
+  zoomProgressRef: React.MutableRefObject<number>;
+}) {
+  const { camera } = useThree();
+  const startPos  = useRef<THREE.Vector3 | null>(null);
+  const startQuat = useRef<THREE.Quaternion | null>(null);
+  const endPos    = useRef<THREE.Vector3 | null>(null);
+  const endQuat   = useRef<THREE.Quaternion | null>(null);
+  const progress  = useRef(0);
+  const done      = useRef(false);
+
+  useEffect(() => {
+    startPos.current       = null;
+    startQuat.current      = null;
+    endPos.current         = null;
+    endQuat.current        = null;
+    progress.current       = 0;
+    done.current           = false;
+    zoomProgressRef.current = 0;
+  }, [target]);
+
+  useFrame((_, delta) => {
+    if (!target || done.current) return;
+
+    if (!startPos.current) {
+      startPos.current  = camera.position.clone();
+      startQuat.current = camera.quaternion.clone();
+
+      // Direction from camera straight through the hex center
+      const dir = target.clone().sub(startPos.current).normalize();
+      const distToHex = startPos.current.distanceTo(target);
+      // Travel 2.5× the distance: crosses the hex plane at t≈0.4, ends 1.5× beyond
+      endPos.current = startPos.current.clone().addScaledVector(dir, distToHex * 2.5);
+
+      // End orientation: looking forward along the travel direction
+      camera.position.copy(endPos.current);
+      camera.lookAt(endPos.current.clone().add(dir));
+      endQuat.current = camera.quaternion.clone();
+      camera.position.copy(startPos.current);
+      camera.quaternion.copy(startQuat.current);
+      return;
+    }
+
+    progress.current = Math.min(1, progress.current + delta * 0.45);
+    const t = progress.current;
+    const u = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    zoomProgressRef.current = u;
+
+    camera.position.lerpVectors(startPos.current!, endPos.current!, u);
+    camera.quaternion.slerpQuaternions(startQuat.current!, endQuat.current!, u);
+
+    // Cut to SystemViewer as soon as hex is fully faded (u≈0.45), not at animation end
+    if (u >= 0.45 && !done.current) {
+      done.current = true;
+      onComplete();
+    }
+  });
+
+  return null;
+}
+
+
 export default function SectorHexView() {
   const { activeSectorId, sectors, systems, createSystem, clearHex, navigateToSystem } = useSectorStore();
   const sector = sectors.find(s => s.id === activeSectorId);
@@ -32,6 +104,25 @@ export default function SectorHexView() {
   const [selectedR, setSelectedR] = useState<number | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const controlsRef = useRef<any>(null);
+  const [zoomTarget, setZoomTarget] = useState<THREE.Vector3 | null>(null);
+  const pendingSystemId = useRef<string | null>(null);
+  const zoomProgressRef = useRef(0);
+  const isZooming = zoomTarget !== null;
+
+  const handleViewSystem = useCallback((systemId: string, q: number, r: number) => {
+    if (isZooming) return;
+    const [wx, wz] = hexToWorld(q, r, HEX_SIZE);
+    setSelectedQ(null);
+    setSelectedR(null);
+    setPanelOpen(false);
+    pendingSystemId.current = systemId;
+    setZoomTarget(new THREE.Vector3(wx, 0, wz));
+  }, [isZooming]);
+
+  const handleZoomComplete = useCallback(() => {
+    const id = pendingSystemId.current;
+    if (id) navigateToSystem(id);
+  }, [navigateToSystem]);
 
   if (!sector) return null;
 
@@ -82,9 +173,16 @@ export default function SectorHexView() {
             selectedQ={selectedQ}
             selectedR={selectedR}
             onSelectHex={handleSelectHex}
+            zoomProgressRef={zoomProgressRef}
+          />
+          <CameraZoomController
+            target={zoomTarget}
+            onComplete={handleZoomComplete}
+            zoomProgressRef={zoomProgressRef}
           />
           <OrbitControls
             ref={controlsRef}
+            enabled={!isZooming}
             target={GRID_CENTER.toArray() as [number, number, number]}
             enablePan
             enableZoom
@@ -115,7 +213,7 @@ export default function SectorHexView() {
               system={selectedSystem}
               sectorId={sector.id}
               onClose={handleClosePanel}
-              onViewSystem={() => navigateToSystem(selectedSystem.id)}
+              onViewSystem={() => handleViewSystem(selectedSystem.id, selectedQ!, selectedR!)}
               onDeleteSystem={() => { handleClearHex(); handleClosePanel(); }}
             />
           ) : (

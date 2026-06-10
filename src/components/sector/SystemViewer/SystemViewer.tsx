@@ -1,16 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSectorStore } from '../../../store/useSectorStore';
 import SystemScene from './SystemScene';
 
+
 function CameraFollower({ selectedObjectId, objectPositionsRef, orbitControlsRef }: any) {
   const lastPosRef = useRef<[number, number, number] | null>(null);
   const targetInitializedRef = useRef(false);
 
-  // Reset saved position and re-initialize target whenever the tracked object changes
   useEffect(() => {
     lastPosRef.current = null;
     targetInitializedRef.current = false;
@@ -23,7 +23,6 @@ function CameraFollower({ selectedObjectId, objectPositionsRef, orbitControlsRef
     const position = objectPositionsRef.current[selectedObjectId];
     if (!position) return;
 
-    // On first frame with this object, snap camera target to object position
     if (!targetInitializedRef.current) {
       controls.target.set(position[0], position[1], position[2]);
       targetInitializedRef.current = true;
@@ -32,7 +31,6 @@ function CameraFollower({ selectedObjectId, objectPositionsRef, orbitControlsRef
       return;
     }
 
-    // Calculate object movement
     const objectDelta = lastPosRef.current
       ? new THREE.Vector3(
           position[0] - lastPosRef.current[0],
@@ -41,7 +39,6 @@ function CameraFollower({ selectedObjectId, objectPositionsRef, orbitControlsRef
         )
       : new THREE.Vector3(0, 0, 0);
 
-    // Move camera and target together by the object's movement
     camera.position.add(objectDelta);
     controls.target.add(objectDelta);
     controls.update();
@@ -51,10 +48,51 @@ function CameraFollower({ selectedObjectId, objectPositionsRef, orbitControlsRef
   return null;
 }
 
+// Zooms from far away to the natural view position — creates the "system growing" effect.
+// Also drives introOpacityRef so non-star objects fade in gradually.
+function CameraIntroAnimator({
+  camDistance,
+  introOpacityRef,
+  onDone,
+}: {
+  camDistance: number;
+  introOpacityRef: React.MutableRefObject<number>;
+  onDone: () => void;
+}) {
+  const { camera } = useThree();
+  const progress = useRef(0);
+  const done = useRef(false);
+
+  const endPos = new THREE.Vector3(0, camDistance * 0.4, camDistance);
+  const startPos = endPos.clone().multiplyScalar(7);
+
+  useFrame((_, delta) => {
+    if (done.current) return;
+    progress.current = Math.min(1, progress.current + delta * 0.55);
+    const t = progress.current;
+    const u = 1 - Math.pow(1 - t, 3); // ease-out
+
+    camera.position.lerpVectors(startPos, endPos, u);
+    camera.lookAt(0, 0, 0);
+
+    // Non-star objects start fading in at u=0.35, fully visible by u=0.85
+    introOpacityRef.current = Math.max(0, Math.min(1, (u - 0.35) / 0.5));
+
+    if (t >= 1 && !done.current) {
+      done.current = true;
+      introOpacityRef.current = 1;
+      onDone();
+    }
+  });
+  return null;
+}
+
 export default function SystemViewer() {
   const { activeSystemId, activeSectorId, systems, sectors, navigateBack, navigateHome } = useSectorStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [introComplete, setIntroComplete] = useState(false);
+  const introOpacityRef = useRef(0);
   const orbitControlsRef = useRef<any>(null);
   const objectPositionsRef = useRef<Record<string, [number, number, number]>>({});
 
@@ -64,30 +102,41 @@ export default function SystemViewer() {
   if (!system) return null;
 
   const sorted = [...system.objects].sort((a, b) => a.sortOrder - b.sortOrder);
-  const objectById = Object.fromEntries(system.objects.map(o => [o.id, o]));
 
-
-  // Auto-calculate camera distance based on system extent (furthest orbit)
   const furthestOrbit = Math.max(
     0,
     ...system.objects.filter(o => !o.parentId).map(o => o.orbitRadius)
   );
-  const camDistance = Math.max(80, furthestOrbit * 4.5 + 40); // Buffer for visibility
+  const camDistance = Math.max(80, furthestOrbit * 4.5 + 40);
 
   return (
     <div className="flex h-full relative">
       {/* 3D Canvas */}
       <div className="flex-1 relative">
         <Canvas
-          camera={{ position: [0, camDistance * 0.4, camDistance], fov: 60 }}
+          camera={{ position: [0, camDistance * 0.4 * 7, camDistance * 7], fov: 60 }}
           shadows
           gl={{ antialias: true }}
           onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#04070f'))}
         >
+          {!introComplete && (
+            <CameraIntroAnimator
+              camDistance={camDistance}
+              introOpacityRef={introOpacityRef}
+              onDone={() => setIntroComplete(true)}
+            />
+          )}
           <CameraFollower selectedObjectId={selectedObjectId} objectPositionsRef={objectPositionsRef} orbitControlsRef={orbitControlsRef} />
-          <SystemScene system={system} selectedObjectId={selectedObjectId} onObjectClick={setSelectedObjectId} objectPositionsRef={objectPositionsRef} />
+          <SystemScene
+            system={system}
+            selectedObjectId={selectedObjectId}
+            onObjectClick={setSelectedObjectId}
+            objectPositionsRef={objectPositionsRef}
+            introOpacityRef={introComplete ? undefined : introOpacityRef}
+          />
           <OrbitControls
             ref={orbitControlsRef}
+            enabled={introComplete}
             enablePan
             enableZoom
             enableRotate
@@ -99,17 +148,17 @@ export default function SystemViewer() {
         {/* Nav bar */}
         <div className="absolute top-4 left-4 flex items-center gap-2">
           <button
+            onClick={navigateHome}
+            className="px-3 py-1.5 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-500 text-xs transition-colors backdrop-blur"
+          >
+            Galaxy
+          </button>
+          <button
             onClick={navigateBack}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-300 text-xs font-medium transition-colors backdrop-blur"
           >
             <ChevronLeft size={14} />
             {sector?.name ?? 'Sector'}
-          </button>
-          <button
-            onClick={navigateHome}
-            className="px-3 py-1.5 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-500 text-xs transition-colors backdrop-blur"
-          >
-            Galaxy
           </button>
         </div>
 
@@ -139,7 +188,6 @@ export default function SystemViewer() {
               {sorted.length === 0 && (
                 <p className="text-gray-700 text-xs italic">No objects defined</p>
               )}
-              {/* Recursive tree renderer */}
               {(() => {
                 const renderTree = (parentId: string | null, depth = 0) => {
                   const children = sorted.filter(o => o.parentId === parentId);

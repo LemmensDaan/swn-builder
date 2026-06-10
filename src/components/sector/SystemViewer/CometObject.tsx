@@ -11,7 +11,6 @@ interface Props {
   onPositionUpdate?: (pos: [number, number, number]) => void;
 }
 
-// Elliptical orbit with high eccentricity
 function getEllipticalOrbitPosition(
   angle: number,
   semiMajor: number,
@@ -19,22 +18,18 @@ function getEllipticalOrbitPosition(
   inclination: number
 ): [number, number, number] {
   const incRad = THREE.MathUtils.degToRad(inclination);
-
-  // Elliptical orbit equation: r = a(1-e²)/(1+e*cos(θ))
   const radius = (semiMajor * (1 - eccentricity * eccentricity)) / (1 + eccentricity * Math.cos(angle));
-
   const x = Math.cos(angle) * radius;
   const z = Math.sin(angle) * radius;
-
-  // Apply inclination to the z-axis
   const y = z * Math.sin(incRad);
   const z_final = z * Math.cos(incRad);
-
   return [x, y, z_final];
 }
 
+const TRAIL_LENGTH = 40;
+const RIBBON_HALF_WIDTH = 0.12;
 const TRAIL_COUNT = 50;
-const PARTICLE_LIFETIME = 1.2; // seconds before fading out
+const PARTICLE_LIFETIME = 1.2;
 
 interface TrailParticle {
   pos: [number, number, number];
@@ -43,72 +38,129 @@ interface TrailParticle {
   maxAge: number;
 }
 
+const vertexShader = `
+  attribute vec3 trailColor;
+  attribute float trailAlpha;
+  varying vec3 vColor;
+  varying float vAlpha;
+  void main() {
+    vColor = trailColor;
+    vAlpha = trailAlpha;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const fragmentShader = `
+  varying vec3 vColor;
+  varying float vAlpha;
+  void main() {
+    gl_FragColor = vec4(vColor, vAlpha);
+  }
+`;
+
+const HEAD_COLOR = new THREE.Color('#ffffff');
+const TAIL_COLOR = new THREE.Color('#110022');
+
 export default function CometObject({ obj, onPositionUpdate }: Props) {
   const groupRef = useRef<THREE.Group>(null);
-  const meshRef = useRef<THREE.Mesh>(null);
-  const trailGroupRef = useRef<THREE.Group>(null);
   const particleTrailRef = useRef<THREE.InstancedMesh>(null);
   const [hovered, setHovered] = useState(false);
 
-  // Extremely elongated elliptical orbit
-  const eccentricity = 0.96;  // Very stretched (0.96 = extremely elliptical)
-  const semiMajor = obj.orbitRadius * 2.5;  // Much larger orbit
+  const eccentricity = 0.96;
+  const semiMajor = obj.orbitRadius * 2.5;
 
   const initialAngle = useMemo(
     () => mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2,
     [obj.seed, obj.sortOrder]
   );
   const angleRef = useRef(initialAngle);
-  const elapsedRef = useRef(0);
+  const orbitSpeed = 0.05;
+
+  const posHistoryRef = useRef<THREE.Vector3[]>([]);
   const prevPosRef = useRef<[number, number, number]>([0, 0, 0]);
   const particlesRef = useRef<TrailParticle[]>([]);
   const spawnCounterRef = useRef(0);
 
-  // Slower orbital speed for better visibility
-  const orbitSpeed = 0.08;
+  useEffect(() => {
+    const [x, y, z] = getEllipticalOrbitPosition(initialAngle, semiMajor, eccentricity, obj.inclination);
+    posHistoryRef.current = Array.from({ length: TRAIL_LENGTH }, () => new THREE.Vector3(x, y, z));
+  }, []);
 
-  const cometColor = useMemo(() => new THREE.Color(obj.colors[0] ?? '#E8F4F8'), [obj.colors[0]]);
-  const trailGeo = useMemo(() => new THREE.IcosahedronGeometry(0.04, 0), []);
-  const trailMat = useMemo(
-    () => new THREE.MeshLambertMaterial({ color: cometColor, transparent: true, flatShading: true }),
-    [cometColor]
-  );
-
-  // Initialize particle trail
   useEffect(() => {
     if (!particleTrailRef.current) return;
     const dummy = new THREE.Object3D();
     for (let i = 0; i < TRAIL_COUNT; i++) {
       dummy.position.set(0, 0, 0);
-      dummy.scale.set(0, 0, 0); // Start invisible
+      dummy.scale.set(0, 0, 0);
       dummy.updateMatrix();
       particleTrailRef.current.setMatrixAt(i, dummy.matrix);
     }
     particleTrailRef.current.instanceMatrix.needsUpdate = true;
   }, []);
 
-  useFrame((_, delta) => {
-    if (!groupRef.current || !meshRef.current || !particleTrailRef.current) return;
+  const cometColor = useMemo(() => new THREE.Color(obj.colors[0] ?? '#E8F4F8'), [obj.colors[0]]);
 
-    elapsedRef.current += delta;
+  const ribbonGeo = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    const vertCount = TRAIL_LENGTH * 2;
+    const positions = new Float32Array(vertCount * 3);
+    const colors = new Float32Array(vertCount * 3);
+    const alphas = new Float32Array(vertCount);
+    const indices: number[] = [];
 
-    // Get comet position on elliptical orbit
+    for (let i = 0; i < TRAIL_LENGTH - 1; i++) {
+      const a = i * 2;
+      const b = i * 2 + 1;
+      const c = (i + 1) * 2;
+      const d = (i + 1) * 2 + 1;
+      indices.push(a, b, c);
+      indices.push(b, d, c);
+    }
+
+    geo.setIndex(indices);
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('trailColor', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('trailAlpha', new THREE.BufferAttribute(alphas, 1));
+
+    return geo;
+  }, []);
+
+  const ribbonMat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader,
+    fragmentShader,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  }), []);
+
+  const trailGeo = useMemo(() => new THREE.IcosahedronGeometry(0.04, 0), []);
+  const trailMat = useMemo(
+    () => new THREE.MeshLambertMaterial({ color: cometColor, transparent: true, flatShading: true }),
+    [cometColor]
+  );
+
+  const tmpSegDir = useMemo(() => new THREE.Vector3(), []);
+  const tmpRight = useMemo(() => new THREE.Vector3(), []);
+  const tmpToCamera = useMemo(() => new THREE.Vector3(), []);
+  const tmpColor = useMemo(() => new THREE.Color(), []);
+
+  useFrame((state, delta) => {
+    if (!groupRef.current || !particleTrailRef.current) return;
+
     const [x, y, z] = getEllipticalOrbitPosition(angleRef.current, semiMajor, eccentricity, obj.inclination);
 
-    // Calculate distance from star to adjust speed (farther = faster angle increment to maintain consistent speed)
     const distFromStar = Math.sqrt(x * x + y * y + z * z);
     const minDist = semiMajor * (1 - eccentricity);
     const maxDist = semiMajor * (1 + eccentricity);
     const midDist = (minDist + maxDist) / 2;
-
-    // Normalize distance to adjust angular velocity (inverse relationship for consistent speed)
     const distanceFactor = midDist / Math.max(distFromStar, minDist * 0.5);
     angleRef.current += delta * orbitSpeed * distanceFactor;
 
     groupRef.current.position.set(x, y, z);
     onPositionUpdate?.([x, y, z]);
 
-    // Calculate velocity direction from position change
+    // Velocity for particle spawn direction
     const velocity = new THREE.Vector3(
       x - prevPosRef.current[0],
       y - prevPosRef.current[1],
@@ -116,40 +168,63 @@ export default function CometObject({ obj, onPositionUpdate }: Props) {
     );
     prevPosRef.current = [x, y, z];
 
-    if (velocity.length() > 0.0001) {
-      const direction = velocity.normalize();
+    // Push new world position to front of history (index 0 = head)
+    const history = posHistoryRef.current;
+    history.unshift(new THREE.Vector3(x, y, z));
+    if (history.length > TRAIL_LENGTH) history.pop();
 
-      // Rotate comet nucleus to point along velocity direction
-      meshRef.current.lookAt(
-        meshRef.current.position.x + direction.x,
-        meshRef.current.position.y + direction.y,
-        meshRef.current.position.z + direction.z
-      );
+    // --- Ribbon ---
+    if (history.length >= 2) {
+      const posAttr = ribbonGeo.attributes.position as THREE.BufferAttribute;
+      const colorAttr = ribbonGeo.attributes.trailColor as THREE.BufferAttribute;
+      const alphaAttr = ribbonGeo.attributes.trailAlpha as THREE.BufferAttribute;
 
-      // Rotate exhaust trail group to point opposite velocity direction
-      if (trailGroupRef.current) {
-        const trailDir = direction.clone().negate();
-        trailGroupRef.current.lookAt(
-          trailGroupRef.current.position.x + trailDir.x,
-          trailGroupRef.current.position.y + trailDir.y,
-          trailGroupRef.current.position.z + trailDir.z
-        );
+      for (let i = 0; i < history.length; i++) {
+        const t = i / (TRAIL_LENGTH - 1);
 
-        // Apply subtle flicker to trail X scale
-        trailGroupRef.current.scale.x = 1 + Math.sin(elapsedRef.current * 8) * 0.08;
+        if (i < history.length - 1) {
+          tmpSegDir.subVectors(history[i], history[i + 1]).normalize();
+        } else {
+          tmpSegDir.subVectors(history[i - 1], history[i]).normalize();
+        }
+
+        // Bill­board the ribbon toward the camera so it's visible from any angle
+        tmpToCamera.subVectors(state.camera.position, history[i]).normalize();
+        tmpRight.crossVectors(tmpSegDir, tmpToCamera).normalize();
+
+        const halfW = RIBBON_HALF_WIDTH * (1 - t * 0.6);
+        const px = history[i].x;
+        const py = history[i].y;
+        const pz = history[i].z;
+
+        posAttr.setXYZ(i * 2,     px + tmpRight.x * halfW, py + tmpRight.y * halfW, pz + tmpRight.z * halfW);
+        posAttr.setXYZ(i * 2 + 1, px - tmpRight.x * halfW, py - tmpRight.y * halfW, pz - tmpRight.z * halfW);
+
+        tmpColor.copy(HEAD_COLOR).lerp(TAIL_COLOR, t);
+        colorAttr.setXYZ(i * 2,     tmpColor.r, tmpColor.g, tmpColor.b);
+        colorAttr.setXYZ(i * 2 + 1, tmpColor.r, tmpColor.g, tmpColor.b);
+
+        // With additive blending alpha scales the colour contribution; dark tail already "fades" visually
+        const alpha = 1 - t * 0.75;
+        alphaAttr.setX(i * 2,     alpha);
+        alphaAttr.setX(i * 2 + 1, alpha);
       }
+
+      posAttr.needsUpdate = true;
+      colorAttr.needsUpdate = true;
+      alphaAttr.needsUpdate = true;
     }
 
-    // Spawn new particles from comet (every few frames)
-    spawnCounterRef.current += delta * 60; // Spawn rate per second
-    const spawnRate = 20; // particles per second
+    // --- Particle trail ---
+    spawnCounterRef.current += delta * 60;
+    const spawnRate = 20;
+
     if (velocity.length() > 0.0001) {
       const direction = velocity.normalize();
       while (spawnCounterRef.current >= spawnRate) {
         spawnCounterRef.current -= spawnRate;
 
         if (particlesRef.current.length < TRAIL_COUNT) {
-          // Spawn particle behind the comet (opposite to velocity direction)
           const behindDir = direction.clone().multiplyScalar(-0.5);
           const spawnPos: [number, number, number] = [
             x + behindDir.x,
@@ -157,7 +232,6 @@ export default function CometObject({ obj, onPositionUpdate }: Props) {
             z + behindDir.z,
           ];
 
-          // Give particle random scatter velocity (outward spread)
           const rng = mulberry32((Math.random() * 1000) | 0);
           const spreadVel: [number, number, number] = [
             (rng() - 0.5) * 3,
@@ -175,7 +249,6 @@ export default function CometObject({ obj, onPositionUpdate }: Props) {
       }
     }
 
-    // Update particle positions and ages
     particlesRef.current = particlesRef.current.filter(p => p.age < p.maxAge);
     particlesRef.current.forEach(p => {
       p.age += delta;
@@ -184,7 +257,6 @@ export default function CometObject({ obj, onPositionUpdate }: Props) {
       p.pos[2] += p.vel[2] * delta;
     });
 
-    // Update instanced mesh
     const dummy = new THREE.Object3D();
     for (let i = 0; i < TRAIL_COUNT; i++) {
       if (i < particlesRef.current.length) {
@@ -196,12 +268,9 @@ export default function CometObject({ obj, onPositionUpdate }: Props) {
         dummy.updateMatrix();
         particleTrailRef.current.setMatrixAt(i, dummy.matrix);
 
-        if (trailMat.color) {
-          const color = new THREE.Color(cometColor).multiplyScalar(life * 0.8);
-          particleTrailRef.current.setColorAt(i, color);
-        }
+        const color = new THREE.Color(cometColor).multiplyScalar(life * 0.8);
+        particleTrailRef.current.setColorAt(i, color);
       } else {
-        // Hide unused instances
         dummy.scale.set(0, 0, 0);
         dummy.updateMatrix();
         particleTrailRef.current.setMatrixAt(i, dummy.matrix);
@@ -216,28 +285,21 @@ export default function CometObject({ obj, onPositionUpdate }: Props) {
 
   return (
     <>
-      {/* Orbit line for comet's elliptical path */}
       <OrbitRing radius={semiMajor} inclination={obj.inclination} eccentricity={eccentricity} />
 
       <group ref={groupRef}>
-        {/* Comet nucleus */}
         <mesh
-          ref={meshRef}
           onPointerEnter={() => setHovered(true)}
           onPointerLeave={() => setHovered(false)}
           castShadow
           receiveShadow
         >
-          <icosahedronGeometry args={[obj.size, 1]} />
+          <icosahedronGeometry args={[obj.size * 0.7, 1]} />
           <meshLambertMaterial color={cometColor} flatShading emissive={cometColor} emissiveIntensity={0.5} />
         </mesh>
 
-
-
-
-        {/* Hover label */}
         {hovered && (
-          <Html center distanceFactor={50} position={[0, obj.size + 0.8, 0]} style={{ pointerEvents: 'none' }}>
+          <Html center distanceFactor={50} position={[0, obj.size * 0.55 + 0.8, 0]} style={{ pointerEvents: 'none' }}>
             <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#ddd', whiteSpace: 'nowrap', textShadow: '0 1px 4px #000' }}>
               {obj.name}
             </div>
@@ -245,8 +307,11 @@ export default function CometObject({ obj, onPositionUpdate }: Props) {
         )}
       </group>
 
+      {/* Ribbon trail in world space — frustumCulled off because positions update every frame */}
+      <mesh geometry={ribbonGeo} material={ribbonMat} frustumCulled={false} />
+
       {/* Particle trail - ice particles that fade away */}
-      <instancedMesh ref={particleTrailRef} args={[trailGeo, trailMat, TRAIL_COUNT]} castShadow receiveShadow />
+      <instancedMesh ref={particleTrailRef} args={[trailGeo, trailMat, TRAIL_COUNT]} frustumCulled={false} castShadow receiveShadow />
     </>
   );
 }

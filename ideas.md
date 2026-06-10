@@ -110,3 +110,11 @@ From the hex grid, clicking a hex triggers a dramatic camera push toward that he
 Why this works technically
 All three layers can live in the same Three.js scene or transition between scenes. The zoom is just a camera animation (lerp or spring via Drei's useSpring). The galaxy layer is cheap — a few hundred low-poly vertices and some particles.
 
+
+
+sector -> add space stations. 
+-> space stations could be orbiting
+-> could also be in asteroid field (different model, more like base in asteroid)
+-> deep space stations (bigger and different model than orbiting)
+
+3d view, add pins to object for information (should be added as wel as overview in sector view)

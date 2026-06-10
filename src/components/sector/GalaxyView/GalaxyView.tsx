@@ -1,6 +1,5 @@
-import { useRef, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
-// import { useFrame, useThree } from '@react-three/fiber';
+import { useRef, useState, useEffect, useCallback } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -17,9 +16,76 @@ import * as THREE from 'three';
 import { AlertTriangle, Sliders } from 'lucide-react';
 import { useSectorStore } from '../../../store/useSectorStore';
 import Starfield from '../shared/Starfield';
-import GalaxyMesh from './GalaxyMesh';
+import GalaxyMesh, { type GalaxyMeshHandle } from './GalaxyMesh';
 import GalaxyPrefsPanel from './GalaxyPrefsPanel';
 import { loadPrefs, savePrefs, type GalaxyPrefs } from './galaxyPrefs';
+
+function CameraZoomController({
+  target,
+  overlayRef,
+  onComplete,
+}: {
+  target: THREE.Vector3 | null;
+  overlayRef: { current: HTMLDivElement | null };
+  onComplete: () => void;
+}) {
+  const { camera } = useThree();
+  const startPos  = useRef<THREE.Vector3 | null>(null);
+  const startQuat = useRef<THREE.Quaternion | null>(null);
+  const endPos    = useRef<THREE.Vector3 | null>(null);
+  const endQuat   = useRef<THREE.Quaternion | null>(null);
+  const progress  = useRef(0);
+  const done      = useRef(false);
+
+  useEffect(() => {
+    startPos.current  = null;
+    startQuat.current = null;
+    endPos.current    = null;
+    endQuat.current   = null;
+    progress.current  = 0;
+    done.current      = false;
+  }, [target]);
+
+  useFrame((_, delta) => {
+    if (!target || done.current) return;
+
+    // Capture camera state on the very first frame so it's always accurate
+    if (!startPos.current) {
+      startPos.current  = camera.position.clone();
+      startQuat.current = camera.quaternion.clone();
+
+      const dir = camera.position.clone().sub(target).normalize();
+      endPos.current = target.clone().add(dir.multiplyScalar(5));
+
+      // Derive end quaternion: temporarily move camera to compute lookAt rotation
+      camera.position.copy(endPos.current);
+      camera.lookAt(target.x, target.y, target.z);
+      endQuat.current = camera.quaternion.clone();
+
+      camera.position.copy(startPos.current);
+      camera.quaternion.copy(startQuat.current);
+      return; // skip this frame to avoid a one-frame glitch
+    }
+
+    progress.current = Math.min(1, progress.current + delta * 0.7);
+    const t = progress.current;
+    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    camera.position.lerpVectors(startPos.current, endPos.current!, eased);
+    camera.quaternion.slerpQuaternions(startQuat.current!, endQuat.current!, eased);
+
+    if (overlayRef.current) {
+      overlayRef.current.style.opacity = String(Math.max(0, (t - 0.4) / 0.6));
+    }
+
+    if (t >= 1 && !done.current) {
+      done.current = true;
+      onComplete();
+    }
+  });
+
+  return null;
+}
 
 export default function GalaxyView() {
   const { sectors, createSector, navigateToSector, deleteSector, systems } = useSectorStore();
@@ -27,6 +93,31 @@ export default function GalaxyView() {
   const [savedPrefs, setSavedPrefs] = useState<GalaxyPrefs>(loadPrefs);
   const [draftPrefs, setDraftPrefs] = useState<GalaxyPrefs | null>(null);
   const camPosRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const galaxyMeshRef = useRef<GalaxyMeshHandle>(null);
+  const [zoomTarget, setZoomTarget] = useState<THREE.Vector3 | null>(null);
+  const pendingSectorId = useRef<string | null>(null);
+  const isZooming = zoomTarget !== null;
+
+  const handleSectorClick = useCallback((id: string, worldPos: THREE.Vector3) => {
+    pendingSectorId.current = id;
+    setZoomTarget(worldPos.clone());
+  }, []);
+
+  const handleZoomComplete = useCallback(() => {
+    const id = pendingSectorId.current;
+    if (id) navigateToSector(id);
+  }, [navigateToSector]);
+
+  const handleSidebarSectorClick = useCallback((id: string) => {
+    if (zoomTarget) return;
+    const sector = sectors.find(s => s.id === id);
+    if (sector && galaxyMeshRef.current) {
+      const worldPos = galaxyMeshRef.current.getWorldPos(sector.triangleIndex);
+      if (worldPos) { handleSectorClick(id, worldPos); return; }
+    }
+    navigateToSector(id);
+  }, [zoomTarget, sectors, handleSectorClick, navigateToSector]);
 
   const activePrefs = draftPrefs ?? savedPrefs;
 
@@ -61,12 +152,20 @@ export default function GalaxyView() {
         <ambientLight intensity={0.08} />
         <Starfield count={1800} />
         <GalaxyMesh
+          ref={galaxyMeshRef}
           sectors={sectors}
           highlightedId={hoveredId}
-          onSectorClick={navigateToSector}
+          onSectorClick={handleSectorClick}
           prefs={activePrefs}
+          pauseRotation={isZooming}
+        />
+        <CameraZoomController
+          target={zoomTarget}
+          overlayRef={overlayRef}
+          onComplete={handleZoomComplete}
         />
         <OrbitControls
+          enabled={!isZooming}
           enablePan
           enableZoom
           enableRotate
@@ -77,6 +176,19 @@ export default function GalaxyView() {
           enableDamping
         />
       </Canvas>
+
+      {/* Zoom-in fade overlay */}
+      <div
+        ref={overlayRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: '#03050d',
+          opacity: 0,
+          pointerEvents: 'none',
+          zIndex: 20,
+        }}
+      />
 
       {/* Camera debug overlay */}
       <div
@@ -170,7 +282,7 @@ export default function GalaxyView() {
                   cursor: 'pointer',
                   padding: 0,
                 }}
-                onClick={() => navigateToSector(s.id)}
+                onClick={() => handleSidebarSectorClick(s.id)}
               >
                 {s.name}
               </button>

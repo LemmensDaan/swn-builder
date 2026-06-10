@@ -1,6 +1,6 @@
 import { useRef, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import type { HexCell as HexCellType, StarSystem, Faction } from '../../../types/sector';
 
@@ -22,7 +22,12 @@ function buildHexShape(r: number): THREE.Shape {
   return shape;
 }
 
-function HexBorder({ hexSize }: { hexSize: number }) {
+function HexBorder({ hexSize, zoomProgressRef }: {
+  hexSize: number;
+  zoomProgressRef?: React.MutableRefObject<number>;
+}) {
+  const lineRef = useRef<any>(null);
+
   const points = useMemo(() => {
     const r = hexSize * 0.92;
     const pts: THREE.Vector3[] = [];
@@ -33,17 +38,27 @@ function HexBorder({ hexSize }: { hexSize: number }) {
     return pts;
   }, [hexSize]);
 
+  useFrame(() => {
+    if (!lineRef.current?.material || !zoomProgressRef) return;
+    const u = zoomProgressRef.current;
+    lineRef.current.material.opacity = Math.max(0, Math.min(0.4, 0.4 * (1 - (u - 0.1) / 0.35)));
+    lineRef.current.material.transparent = true;
+  });
+
   return (
-    // @ts-expect-error r3f line vs svg line namespace conflict
-    <line position={[0, 0.01, 0]}>
-      <bufferGeometry setFromPoints={points} />
-      <lineBasicMaterial color="#2a3a5a" transparent opacity={0.6} />
-    </line>
+    <Line
+      ref={lineRef}
+      points={points}
+      color="#2a3a5a"
+      lineWidth={0.8}
+      transparent
+      opacity={0.4}
+      position={[0, 0.01, 0]}
+    />
   );
 }
 
 // Even-q offset layout: odd columns shift down by half a hex height.
-// This gives a rectangular grid outline instead of a parallelogram.
 export function hexToWorld(q: number, r: number, size: number): [number, number] {
   const x = size * (3 / 2) * q;
   const y = size * Math.sqrt(3) * (r + (q % 2 !== 0 ? 0.5 : 0));
@@ -51,8 +66,8 @@ export function hexToWorld(q: number, r: number, size: number): [number, number]
 }
 
 const HEX_BASE_COLOR     = new THREE.Color('#1a2035');
-const HEX_HOVER_COLOR    = new THREE.Color('#2a3555');
 const HEX_OCCUPIED_COLOR = new THREE.Color('#1e3040');
+const EMISSIVE_NONE      = new THREE.Color(0, 0, 0);
 
 interface Props {
   cell: HexCellType;
@@ -61,10 +76,13 @@ interface Props {
   hexSize: number;
   selected: boolean;
   onSelect: () => void;
+  zoomProgressRef?: React.MutableRefObject<number>;
 }
 
-export default function HexCell({ cell, system, faction, hexSize, selected, onSelect }: Props) {
+export default function HexCell({ cell, system, faction, hexSize, selected, onSelect, zoomProgressRef }: Props) {
+  const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshStandardMaterial>(null);
   const [hovered, setHovered] = useState(false);
 
   const shape = useMemo(() => buildHexShape(hexSize * 0.92), [hexSize]);
@@ -75,16 +93,47 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
     return HEX_BASE_COLOR;
   }, [faction, system]);
 
-  useFrame((_, delta) => {
-    if (!meshRef.current) return;
-    const targetY = hovered || selected ? 0.18 : 0;
+  const starEmissive = useMemo(() => {
+    const c = system?.objects[0]?.primaryColor ?? system?.objects[0]?.colors[0];
+    return new THREE.Color(c ?? '#ea580c');
+  }, [system]);
+
+  useFrame((state, delta) => {
+    if (!meshRef.current || !matRef.current) return;
+
+    // Subtle Y-lift for hover/selected
+    const targetY = selected ? 0.18 : hovered ? 0.08 : 0;
     meshRef.current.position.y += (targetY - meshRef.current.position.y) * Math.min(delta * 12, 1);
+
+    // Pulsing emissive for selected, steady dim glow for hover — both use the star's own color
+    if (selected) {
+      matRef.current.emissive = starEmissive;
+      matRef.current.emissiveIntensity = 0.45 + 0.25 * Math.sin(state.clock.elapsedTime * 2.5);
+    } else if (hovered) {
+      matRef.current.emissive = starEmissive;
+      matRef.current.emissiveIntensity = 0.3;
+    } else {
+      matRef.current.emissive = EMISSIVE_NONE;
+      matRef.current.emissiveIntensity = 0;
+    }
+
+    if (zoomProgressRef && groupRef.current) {
+      const u = zoomProgressRef.current;
+      const opacity = Math.max(0, Math.min(1, 1 - (u - 0.1) / 0.35));
+      groupRef.current.traverse(child => {
+        const c = child as any;
+        if (c.isMesh && c.material) {
+          c.material.transparent = true;
+          c.material.opacity = opacity;
+        }
+      });
+    }
   });
 
   const [wx, wz] = hexToWorld(cell.q, cell.r, hexSize);
 
   return (
-    <group position={[wx, 0, wz]}>
+    <group ref={groupRef} position={[wx, 0, wz]}>
       <mesh
         ref={meshRef}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -93,15 +142,10 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
         onPointerLeave={() => { setHovered(false); document.body.style.cursor = ''; }}
       >
         <shapeGeometry args={[shape]} />
-        <meshStandardMaterial
-          color={hovered || selected ? HEX_HOVER_COLOR : color}
-          emissive={selected ? new THREE.Color('#4466aa') : hovered ? new THREE.Color('#2244aa') : new THREE.Color(0, 0, 0)}
-          emissiveIntensity={selected ? 0.4 : hovered ? 0.2 : 0}
-          flatShading
-        />
+        <meshStandardMaterial ref={matRef} color={color} flatShading />
       </mesh>
 
-      <HexBorder hexSize={hexSize} />
+      <HexBorder hexSize={hexSize} zoomProgressRef={zoomProgressRef} />
 
       {/* Star dot */}
       {system && (
@@ -115,7 +159,7 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
         </mesh>
       )}
 
-      {/* Hover-only system name — no leader line */}
+      {/* Hover-only system name */}
       {system && hovered && (
         <Html center distanceFactor={22} position={[0, 0.3, 0]} style={{ pointerEvents: 'none' }}>
           <div className="text-[9px] text-gray-200 font-medium whitespace-nowrap tracking-wider opacity-90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">

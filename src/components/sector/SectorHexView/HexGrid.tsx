@@ -1,3 +1,4 @@
+import type React from 'react';
 import type { Sector, StarSystem, Faction } from '../../../types/sector';
 import HexCell from './HexCell';
 
@@ -9,9 +10,10 @@ interface Props {
   selectedQ: number | null;
   selectedR: number | null;
   onSelectHex: (q: number, r: number) => void;
+  zoomProgressRef?: React.MutableRefObject<number>;
 }
 
-export default function HexGrid({ sector, systems, selectedQ, selectedR, onSelectHex }: Props) {
+export default function HexGrid({ sector, systems, selectedQ, selectedR, onSelectHex, zoomProgressRef }: Props) {
   const factionById: Record<string, Faction> = Object.fromEntries(
     sector.factions.map(f => [f.id, f])
   );
@@ -30,6 +32,7 @@ export default function HexGrid({ sector, systems, selectedQ, selectedR, onSelec
             hexSize={HEX_SIZE}
             selected={cell.q === selectedQ && cell.r === selectedR}
             onSelect={() => onSelectHex(cell.q, cell.r)}
+            zoomProgressRef={zoomProgressRef}
           />
         );
       })}

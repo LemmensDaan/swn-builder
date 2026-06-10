@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useSectorStore } from '../../store/useSectorStore';
 import GalaxyView from './GalaxyView/GalaxyView';
@@ -11,6 +12,24 @@ interface Props {
 export default function SectorViewer({ onBack }: Props) {
   const { layer } = useSectorStore();
 
+  // Keep SystemViewer mounted briefly after navigating away so the CSS fade-out plays
+  const [systemMounted, setSystemMounted] = useState(layer === 'system');
+
+  useEffect(() => {
+    if (layer === 'system') {
+      setSystemMounted(true);
+    }
+  }, [layer]);
+
+  useEffect(() => {
+    if (systemMounted && layer !== 'system') {
+      const t = setTimeout(() => setSystemMounted(false), 450);
+      return () => clearTimeout(t);
+    }
+  }, [systemMounted, layer]);
+
+  const inSectorOrSystem = layer === 'sector' || layer === 'system' || systemMounted;
+
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-950 z-10">
       {/* Top bar */}
@@ -23,15 +42,41 @@ export default function SectorViewer({ onBack }: Props) {
           Home
         </button>
         <div className="w-px h-4 bg-gray-700" />
-        {/* Breadcrumb */}
         <Breadcrumb />
       </div>
 
       {/* Layer content */}
-      <div className="flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0">
         {layer === 'galaxy' && <GalaxyView />}
-        {layer === 'sector' && <SectorHexView />}
-        {layer === 'system' && <SystemViewer />}
+
+        {/* SectorHexView and SystemViewer crossfade — both kept alive during transition */}
+        {inSectorOrSystem && (
+          <>
+            <div
+              className="absolute inset-0"
+              style={{
+                opacity: layer === 'sector' ? 1 : 0,
+                transition: 'opacity 400ms ease',
+                pointerEvents: layer === 'sector' ? 'auto' : 'none',
+              }}
+            >
+              <SectorHexView />
+            </div>
+
+            {systemMounted && (
+              <div
+                className="absolute inset-0"
+                style={{
+                  opacity: layer === 'system' ? 1 : 0,
+                  transition: 'opacity 400ms ease',
+                  pointerEvents: layer === 'system' ? 'auto' : 'none',
+                }}
+              >
+                <SystemViewer />
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

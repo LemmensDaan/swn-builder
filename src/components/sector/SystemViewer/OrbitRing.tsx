@@ -21,8 +21,8 @@ export default function OrbitRing({ radius, inclination, eccentricity = 0 }: Pro
     const e2 = 1 - eccentricity * eccentricity;
 
     const points: THREE.Vector3[] = [];
-    const segments = 128;
-    for (let i = 0; i <= segments; i++) {
+    const segments = eccentricity > 0.8 ? 512 : 256;
+    for (let i = 0; i < segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
       // Polar ellipse equation
       const r = (a * e2) / (1 + eccentricity * Math.cos(angle));

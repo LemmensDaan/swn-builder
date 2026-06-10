@@ -45,9 +45,10 @@ interface Props {
   obj: SystemObject;
   children?: React.ReactNode;
   onPositionUpdate?: (pos: [number, number, number]) => void;
+  previewMode?: boolean;
 }
 
-export default function StarObject({ obj, children, onPositionUpdate }: Props) {
+export default function StarObject({ obj, children, onPositionUpdate, previewMode }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -91,30 +92,30 @@ export default function StarObject({ obj, children, onPositionUpdate }: Props) {
       {obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
         {/* The only meaningful light source in the scene */}
-        <pointLight
-        color={isBlackHole ? '#ff6620' : color}
-        intensity={isBlackHole ? 80 : 120}
-        distance={isBlackHole ? 180 : 220}
-        decay={1}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-      />
+        {!previewMode && (
+          <pointLight
+            color={isBlackHole ? '#ff6620' : color}
+            intensity={isBlackHole ? 80 : 120}
+            distance={isBlackHole ? 180 : 220}
+            decay={1}
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+          />
+        )}
       {/* Soft glow behind the body */}
       {!isBlackHole && (
-        <sprite scale={[obj.size * 5, obj.size * 5, 1]}>
+        <sprite userData={{ isStar: true }} scale={[obj.size * 5, obj.size * 5, 1]}>
           <spriteMaterial map={glowTex} color={color} transparent depthWrite={false} />
         </sprite>
       )}
       {/* Black hole accretion disc: glowing disk sprite */}
       {isBlackHole && (
         <>
-          {/* Disk sprite (top-down view) */}
-          <sprite scale={[obj.size * 5.2, obj.size * 5.2, 1]} position={[0, -0.05, 0]} rotation={[0, 0, 0]}>
+          <sprite userData={{ isStar: true }} scale={[obj.size * 5.2, obj.size * 5.2, 1]} position={[0, -0.05, 0]}>
             <spriteMaterial map={bhDiskTex} transparent depthWrite={false} toneMapped={false} />
           </sprite>
-          {/* Event horizon sphere — barely visible dark core */}
-          <mesh position={[0, 0, 0]}>
+          <mesh userData={{ isStar: true }} position={[0, 0, 0]}>
             <icosahedronGeometry args={[obj.size * 0.85, 1]} />
             <meshBasicMaterial color="#000000" toneMapped={false} />
           </mesh>
@@ -123,6 +124,7 @@ export default function StarObject({ obj, children, onPositionUpdate }: Props) {
       {/* Main body: IcosahedronGeometry detail 2, flatShading, MeshLambertMaterial */}
       <mesh
         ref={meshRef}
+        userData={{ isStar: true }}
         onPointerEnter={() => setHovered(true)}
         onPointerLeave={() => setHovered(false)}
         castShadow={false}

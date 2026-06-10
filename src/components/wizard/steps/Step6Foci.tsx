@@ -25,7 +25,8 @@ export default function Step6Foci({ char, onChange }: Props) {
 
   // p.19 step 7: all PCs get 1 pick; Expert/Partial Expert add 1; Warrior/Partial Warrior add 1.
   const totalPicks = 1 + (isExpert ? 1 : 0) + (isWarrior ? 1 : 0);
-  const picksUsed = char.foci.length;
+  // Level-2 foci consume 2 picks (the base pick + 1 upgrade pick)
+  const picksUsed = char.foci.length + char.foci.filter(f => f.level === 2).length;
 
   const filtered = FOCI.filter(f => {
     if (filter === 'combat' && !f.isCombat) return false;
@@ -92,7 +93,13 @@ export default function Step6Foci({ char, onChange }: Props) {
   }
 
   function upgradeToLevel2(index: number) {
+    if (picksUsed >= totalPicks) return;
     const next = char.foci.map((f, i) => i === index ? { ...f, level: 2 as const } : f);
+    onChange({ foci: next });
+  }
+
+  function downgradeToLevel1(index: number) {
+    const next = char.foci.map((f, i) => i === index ? { ...f, level: 1 as const } : f);
     onChange({ foci: next });
   }
 
@@ -186,6 +193,10 @@ export default function Step6Foci({ char, onChange }: Props) {
           const count = instancesOf(focus.name).length;
           const canPick = picksUsed < totalPicks && (focus.repeatable || !selected);
           const clickable = canPick || selected;
+          const focusInstance = char.foci.find(x => x.name === focus.name);
+          const currentLevel = focusInstance?.level ?? 1;
+          const focusIndex = char.foci.findIndex(x => x.name === focus.name);
+          const kind = focusNeedsSkillChoice(focus.name);
           return (
             <div
               key={focus.name}
@@ -204,7 +215,7 @@ export default function Step6Foci({ char, onChange }: Props) {
                   {focus.isCombat && <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800">Combat</span>}
                   {focus.repeatable && <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-800">Repeatable</span>}
                 </div>
-                {/* Repeatable: add/remove stepper. Others: ✓ / hint */}
+                {/* Repeatable: add/remove stepper. Non-repeatable selected + 2 picks: level toggle. Others: ✓ / hint */}
                 {focus.repeatable ? (
                   <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
                     <button
@@ -219,6 +230,26 @@ export default function Step6Foci({ char, onChange }: Props) {
                       className="w-6 h-6 rounded bg-gray-700 hover:bg-amber-900/40 disabled:opacity-30 text-gray-300 text-sm flex items-center justify-center"
                     >+</button>
                   </div>
+                ) : selected && totalPicks >= 2 ? (
+                  <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => currentLevel === 2 && downgradeToLevel1(focusIndex)}
+                      className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                        currentLevel === 1
+                          ? 'border-amber-500 bg-amber-900/40 text-amber-300'
+                          : 'border-gray-600 text-gray-500 hover:border-amber-600 hover:text-amber-400 cursor-pointer'
+                      }`}
+                    >Lv1</button>
+                    <button
+                      onClick={() => currentLevel === 1 && upgradeToLevel2(focusIndex)}
+                      disabled={currentLevel === 1 && picksLeft === 0}
+                      className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                        currentLevel === 2
+                          ? 'border-green-500 bg-green-900/40 text-green-300'
+                          : 'border-gray-600 text-gray-500 hover:border-green-600 hover:text-green-400 disabled:opacity-30 disabled:cursor-not-allowed'
+                      }`}
+                    >Lv2</button>
+                  </div>
                 ) : selected ? (
                   <span className="text-amber-400 text-lg flex-shrink-0">✓</span>
                 ) : canPick ? (
@@ -226,12 +257,37 @@ export default function Step6Foci({ char, onChange }: Props) {
                 ) : null}
               </div>
               <p className="text-xs text-gray-500 mb-3">{focus.description}</p>
-              {focus.levels.map((lvl, i) => (
-                <div key={i} className={`text-xs rounded p-2 mb-1 ${i === 0 ? 'bg-gray-700/60' : 'bg-gray-700/30'}`}>
-                  <span className="text-amber-500 font-medium">Level {i + 1}: </span>
-                  <span className="text-gray-300">{lvl.description}</span>
+              {selected && !focus.repeatable && kind && (
+                <div className="flex items-center gap-2 mb-3" onClick={e => e.stopPropagation()}>
+                  <span className="text-xs text-gray-400 flex-shrink-0">Bonus skill:</span>
+                  <select
+                    value={focusInstance?.specialistSkill ?? ''}
+                    onChange={e => setInstanceSkill(focusIndex, e.target.value)}
+                    className="input py-0.5 text-xs"
+                  >
+                    {choicesFor(focus.name).map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </div>
-              ))}
+              )}
+              {focus.levels.map((lvl, i) => {
+                const isActiveLevel = selected && (i + 1) === currentLevel;
+                return (
+                  <div key={i} className={`text-xs rounded p-2 mb-1 border ${
+                    isActiveLevel && i === 1
+                      ? 'bg-green-900/25 border-green-700/30'
+                      : isActiveLevel
+                      ? 'bg-amber-900/25 border-amber-700/30'
+                      : i === 0
+                      ? 'bg-gray-700/60 border-transparent'
+                      : 'bg-gray-700/30 border-transparent'
+                  }`}>
+                    <span className={`font-medium ${isActiveLevel ? (i === 1 ? 'text-green-400' : 'text-amber-400') : 'text-amber-500'}`}>Level {i + 1}: </span>
+                    <span className={isActiveLevel ? 'text-gray-100' : 'text-gray-300'}>{lvl.description}</span>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -249,14 +305,8 @@ export default function Step6Foci({ char, onChange }: Props) {
                 <div key={i} className="flex flex-col gap-2 px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-700/50">
                   <div className="flex items-center gap-2">
                     <span className="text-amber-300 font-medium text-sm">{f.name}</span>
-                    <span className="text-amber-500 text-xs">Lvl {f.level}</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-800/50">Lvl {f.level}</span>
                     <div className="ml-auto flex items-center gap-2">
-                      <button
-                        onClick={() => upgradeToLevel2(i)}
-                        disabled={f.level === 2}
-                        className="text-xs text-amber-500 hover:text-green-400 disabled:opacity-30"
-                        title="Upgrade to Level 2 (uses a second pick)"
-                      >↑ Lvl 2</button>
                       <button onClick={() => removeWptFocus(i)} className="text-amber-500 hover:text-red-400 text-sm">×</button>
                     </div>
                   </div>
@@ -327,23 +377,11 @@ export default function Step6Foci({ char, onChange }: Props) {
             return (
               <div key={i} className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-700/50">
                 <span className="text-amber-300 font-medium text-sm">{f.name}</span>
-                <span className="text-amber-500 text-xs">Lvl {f.level}</span>
-                {kind && (
-                  <select
-                    value={f.specialistSkill ?? ''}
-                    onChange={e => setInstanceSkill(i, e.target.value)}
-                    className="input py-0.5 text-xs w-auto"
-                  >
-                    {choicesFor(f.name).map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-800/50">Lvl {f.level}</span>
+                {kind && f.specialistSkill && (
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-900/40 text-purple-300 border border-purple-800/50">{f.specialistSkill}</span>
                 )}
                 <div className="ml-auto flex items-center gap-2">
-                  <button
-                    onClick={() => upgradeToLevel2(i)}
-                    disabled={f.level === 2}
-                    className="text-xs text-amber-500 hover:text-green-400 disabled:opacity-30"
-                    title="Upgrade to Level 2 (uses a second pick)"
-                  >↑ Lvl 2</button>
                   <button onClick={() => removeFocusAt(i)} className="text-amber-500 hover:text-red-400 text-sm">×</button>
                 </div>
               </div>

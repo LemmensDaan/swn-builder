@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -226,7 +226,7 @@ function SectorTriangle({
   name: string;
   pulsed: boolean;
   colorScheme: ColorScheme;
-  onClick: () => void;
+  onClick: (worldPos: THREE.Vector3) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const active = hovered || pulsed;
@@ -308,7 +308,7 @@ function SectorTriangle({
         geometry={fillGeo}
         onPointerEnter={e => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
         onPointerLeave={() => { setHovered(false); document.body.style.cursor = ''; }}
-        onClick={e => { e.stopPropagation(); onClick(); }}
+        onClick={e => { e.stopPropagation(); onClick(e.point); }}
       >
         <meshBasicMaterial
           ref={matRef}
@@ -340,17 +340,34 @@ function SectorTriangle({
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main component (forwardRef exposes getWorldPos for sidebar navigation) ──
 
 interface Props {
   sectors: Sector[];
   highlightedId: string | null;
-  onSectorClick: (id: string) => void;
+  onSectorClick: (id: string, worldPos: THREE.Vector3) => void;
   prefs: GalaxyPrefs;
+  pauseRotation?: boolean;
 }
 
-export default function GalaxyMesh({ sectors, highlightedId, onSectorClick, prefs }: Props) {
+export interface GalaxyMeshHandle {
+  getWorldPos(triangleIndex: number): THREE.Vector3 | null;
+}
+
+const GalaxyMesh = forwardRef<GalaxyMeshHandle, Props>(function GalaxyMesh(
+  { sectors, highlightedId, onSectorClick, prefs, pauseRotation },
+  ref,
+) {
   const groupRef      = useRef<THREE.Group>(null);
+
+  useImperativeHandle(ref, () => ({
+    getWorldPos(triangleIndex: number) {
+      const tri = GALAXY_TRIANGLES[triangleIndex];
+      if (!tri || !groupRef.current) return null;
+      groupRef.current.updateWorldMatrix(true, false);
+      return new THREE.Vector3(tri.cx, 0, tri.cz).applyMatrix4(groupRef.current.matrixWorld);
+    },
+  }), []);
   const sparkleRef    = useRef<THREE.InstancedMesh>(null);
   // const transitionRef = useRef(0);
   // const prevStyleRef = useRef(prefs.style);
@@ -424,7 +441,7 @@ export default function GalaxyMesh({ sectors, highlightedId, onSectorClick, pref
   // });
 
   useFrame((_, delta) => {
-    if (groupRef.current) groupRef.current.rotation.y += delta * 0.05;
+    if (!pauseRotation && groupRef.current) groupRef.current.rotation.y -= delta * 0.05;
   });
 
   return (
@@ -443,10 +460,12 @@ export default function GalaxyMesh({ sectors, highlightedId, onSectorClick, pref
             name={s.name}
             pulsed={highlightedId === s.id}
             colorScheme={prefs.colorScheme}
-            onClick={() => onSectorClick(s.id)}
+            onClick={(pos) => onSectorClick(s.id, pos)}
           />
         );
       })}
     </group>
   );
-}
+});
+
+export default GalaxyMesh;

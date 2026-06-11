@@ -46,9 +46,10 @@ interface Props {
   children?: React.ReactNode;
   onPositionUpdate?: (pos: [number, number, number]) => void;
   previewMode?: boolean;
+  showOrbits?: boolean;
 }
 
-export default function StarObject({ obj, children, onPositionUpdate, previewMode }: Props) {
+export default function StarObject({ obj, children, onPositionUpdate, previewMode, showOrbits = true }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -89,7 +90,7 @@ export default function StarObject({ obj, children, onPositionUpdate, previewMod
   return (
     <>
       {/* Orbit ring for binary stars */}
-      {obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
+      {showOrbits && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
         {/* The only meaningful light source in the scene */}
         {!previewMode && (

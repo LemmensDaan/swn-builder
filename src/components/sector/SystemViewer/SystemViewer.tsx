@@ -2,9 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sliders } from 'lucide-react';
 import { useSectorStore } from '../../../store/useSectorStore';
 import SystemScene from './SystemScene';
+import SystemPrefsPanel from './SystemPrefsPanel';
+import { loadPrefs, savePrefs } from './systemPrefs';
+import type { SystemPrefs } from './systemPrefs';
 
 
 function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsRef, orbitControlsRef }: any) {
@@ -84,14 +87,16 @@ function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsR
 }
 
 // Zooms from far away to the natural view position — creates the "system growing" effect.
-// Also drives introOpacityRef so non-star objects fade in gradually.
+// Also drives introOpacityRef so non-star objects fade in gradually, and starfield fades in.
 function CameraIntroAnimator({
   camDistance,
   introOpacityRef,
+  onStarfieldOpacityChange,
   onDone,
 }: {
   camDistance: number;
   introOpacityRef: React.MutableRefObject<number>;
+  onStarfieldOpacityChange: (opacity: number) => void;
   onDone: () => void;
 }) {
   const { camera } = useThree();
@@ -113,9 +118,13 @@ function CameraIntroAnimator({
     // Non-star objects start fading in at u=0.35, fully visible by u=0.85
     introOpacityRef.current = Math.max(0, Math.min(1, (u - 0.35) / 0.5));
 
+    // Starfield fades in slowly from u=0 to u=1.0
+    onStarfieldOpacityChange(Math.max(0, Math.min(1, u / 1.2)) * 0.85);
+
     if (t >= 1 && !done.current) {
       done.current = true;
       introOpacityRef.current = 1;
+      onStarfieldOpacityChange(0.85);
       onDone();
     }
   });
@@ -127,12 +136,20 @@ export default function SystemViewer() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [introComplete, setIntroComplete] = useState(false);
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
+  const [starfieldOpacity, setStarfieldOpacity] = useState(0);
+  const [prefs, setPrefs] = useState<SystemPrefs>(() => loadPrefs());
   const introOpacityRef = useRef(0);
   const orbitControlsRef = useRef<any>(null);
   const objectPositionsRef = useRef<Record<string, [number, number, number]>>({});
 
   const system = activeSystemId ? systems[activeSystemId] : null;
   const sector = sectors.find(s => s.id === activeSectorId);
+
+  const handlePrefsChange = (newPrefs: SystemPrefs) => {
+    setPrefs(newPrefs);
+    savePrefs(newPrefs);
+  };
 
   if (!system) return null;
 
@@ -161,6 +178,7 @@ export default function SystemViewer() {
             <CameraIntroAnimator
               camDistance={camDistance}
               introOpacityRef={introOpacityRef}
+              onStarfieldOpacityChange={setStarfieldOpacity}
               onDone={() => setIntroComplete(true)}
             />
           )}
@@ -171,6 +189,8 @@ export default function SystemViewer() {
             onObjectClick={setSelectedObjectId}
             objectPositionsRef={objectPositionsRef}
             introOpacityRef={introComplete ? undefined : introOpacityRef}
+            starfieldOpacity={starfieldOpacity}
+            prefs={prefs}
           />
           <OrbitControls
             ref={orbitControlsRef}
@@ -206,6 +226,24 @@ export default function SystemViewer() {
             {system.name}
           </h2>
         </div>
+
+        {/* Settings button */}
+        <button
+          onClick={() => setSettingsPanelOpen(!settingsPanelOpen)}
+          className="absolute bottom-4 right-4 p-2 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-400 hover:text-gray-200 transition-colors"
+          title="System settings"
+        >
+          <Sliders size={13} />
+        </button>
+
+        {/* Settings panel */}
+        {settingsPanelOpen && (
+          <SystemPrefsPanel
+            prefs={prefs}
+            onChange={handlePrefsChange}
+            onClose={() => setSettingsPanelOpen(false)}
+          />
+        )}
 
       </div>
 

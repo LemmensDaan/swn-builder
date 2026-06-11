@@ -32,7 +32,7 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) 
   const geo = useMemo(() => new THREE.IcosahedronGeometry(0.08, 0), []);
   const beltColor = useMemo(() => getEarthToneColor(), [obj.id]);
   const mat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: beltColor, flatShading: true, side: THREE.DoubleSide, roughness: 0.8 }),
+    () => new THREE.MeshLambertMaterial({ color: beltColor, flatShading: true }),
     [beltColor],
   );
 
@@ -62,6 +62,7 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) 
       meshRef.current.setMatrixAt(i, dummy.matrix);
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
+    meshRef.current.computeBoundingSphere();
   }, [obj.orbitRadius, obj.inclination]);
 
   useFrame((_, delta) => {

@@ -68,7 +68,7 @@ export function hexToWorld(q: number, r: number, size: number): [number, number]
 const HEX_BASE_COLOR        = new THREE.Color('#0d1018');
 const HEX_BASE_HOVER_COLOR  = new THREE.Color('#1a2035');
 const HEX_OCCUPIED_COLOR    = new THREE.Color('#1e3040');
-const EMISSIVE_GLOW         = new THREE.Color('#fb923c');
+const EMISSIVE_GLOW         = new THREE.Color('#e9a322');
 const EMISSIVE_NONE         = new THREE.Color(0, 0, 0);
 
 interface Props {

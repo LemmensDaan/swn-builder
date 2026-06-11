@@ -11,9 +11,10 @@ interface Props {
   obj: SystemObject;
   onPositionUpdate?: (pos: [number, number, number]) => void;
   onClick?: (id: string) => void;
+  showOrbits?: boolean;
 }
 
-export default function SpaceStation({ obj, onPositionUpdate, onClick }: Props) {
+export default function SpaceStation({ obj, onPositionUpdate, onClick, showOrbits = true }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const bodyRef  = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
@@ -61,7 +62,7 @@ export default function SpaceStation({ obj, onPositionUpdate, onClick }: Props) 
 
   return (
     <>
-      <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />
+      {showOrbits && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
         <group
           ref={bodyRef}

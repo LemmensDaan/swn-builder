@@ -23,10 +23,12 @@ import { loadPrefs, savePrefs, type GalaxyPrefs } from './galaxyPrefs';
 function CameraZoomController({
   target,
   overlayRef,
+  onBgOpacityChange,
   onComplete,
 }: {
   target: THREE.Vector3 | null;
   overlayRef: { current: HTMLDivElement | null };
+  onBgOpacityChange: (opacity: number) => void;
   onComplete: () => void;
 }) {
   const { camera } = useThree();
@@ -74,6 +76,10 @@ function CameraZoomController({
     camera.position.lerpVectors(startPos.current, endPos.current!, eased);
     camera.quaternion.slerpQuaternions(startQuat.current!, endQuat.current!, eased);
 
+    // Fade background during zoom
+    const bgFade = Math.max(0, 1 - Math.max(0, (t - 0.4) / 0.3));
+    onBgOpacityChange(bgFade);
+
     if (overlayRef.current) {
       overlayRef.current.style.opacity = String(Math.max(0, (t - 0.4) / 0.6));
     }
@@ -96,6 +102,7 @@ export default function GalaxyView() {
   const overlayRef = useRef<HTMLDivElement>(null);
   const galaxyMeshRef = useRef<GalaxyMeshHandle>(null);
   const [zoomTarget, setZoomTarget] = useState<THREE.Vector3 | null>(null);
+  const [bgOpacity, setBgOpacity] = useState(1);
   const pendingSectorId = useRef<string | null>(null);
   const isZooming = zoomTarget !== null;
 
@@ -150,7 +157,7 @@ export default function GalaxyView() {
       >
         {/* <CameraLogger domRef={camPosRef} /> */}
         <ambientLight intensity={0.08} />
-        <BackgroundGalaxies />
+        <BackgroundGalaxies opacity={bgOpacity} />
         <GalaxyMesh
           ref={galaxyMeshRef}
           sectors={sectors}
@@ -163,6 +170,7 @@ export default function GalaxyView() {
         <CameraZoomController
           target={zoomTarget}
           overlayRef={overlayRef}
+          onBgOpacityChange={setBgOpacity}
           onComplete={handleZoomComplete}
         />
         <OrbitControls

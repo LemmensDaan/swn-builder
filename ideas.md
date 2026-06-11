@@ -138,4 +138,4 @@ easter eggs / achievements?
 - retire character
 - retire ship
 - create binary system
-- 
+- no orbits? (from meme) when deselecting showing orbits

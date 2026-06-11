@@ -69,22 +69,25 @@ function buildLocalArrays(
   let angSegs: number, radRings: number, squeezeY: number, jitter: number;
   let colorFn: ColorFn;
 
+  // Scale-based vertex density: larger (closer) galaxies get more subdivision
+  const scaleBasedMult = Math.min(2.0, 0.8 + scale / 8);
+
   switch (style) {
     case 'spiral':
-      angSegs = 10; radRings = 5; squeezeY = 1.00; jitter = scale * 0.040;
+      angSegs = Math.round(16 * scaleBasedMult); radRings = Math.round(8 * scaleBasedMult); squeezeY = 1.00; jitter = scale * 0.065;
       colorFn = spiralFn(tint, 2); break;
     case 'barred':
-      angSegs = 10; radRings = 5; squeezeY = 1.00; jitter = scale * 0.030;
+      angSegs = Math.round(16 * scaleBasedMult); radRings = Math.round(8 * scaleBasedMult); squeezeY = 1.00; jitter = scale * 0.055;
       colorFn = barredFn(tint); break;
     case 'elliptical':
-      angSegs = 8;  radRings = 4; squeezeY = 0.58; jitter = scale * 0.020;
+      angSegs = Math.round(14 * scaleBasedMult);  radRings = Math.round(7 * scaleBasedMult); squeezeY = 0.58; jitter = scale * 0.045;
       colorFn = ellipticalFn(tint); break;
     case 'edge-on':
-      angSegs = 6;  radRings = 2; squeezeY = 0.07; jitter = scale * 0.010;
+      angSegs = Math.round(10 * scaleBasedMult);  radRings = Math.round(4 * scaleBasedMult); squeezeY = 0.07; jitter = scale * 0.035;
       colorFn = ellipticalFn(tint); break;
     case 'irregular': default:
-      angSegs = 6 + Math.floor(Math.random() * 3);
-      radRings = 3; squeezeY = 0.78 + Math.random() * 0.44; jitter = scale * 0.110;
+      angSegs = Math.round((10 + Math.floor(Math.random() * 5)) * scaleBasedMult);
+      radRings = Math.round(5 * scaleBasedMult); squeezeY = 0.78 + Math.random() * 0.44; jitter = scale * 0.165;
       colorFn = irregularFn(tint); break;
   }
 
@@ -163,7 +166,7 @@ function makeGlowTex(size = 64): THREE.Texture {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function BackgroundGalaxies({ count = 120 }: { count?: number }) {
+export default function BackgroundGalaxies({ count = 120, opacity = 1 }: { count?: number; opacity?: number }) {
   const groupRef = useRef<THREE.Group>(null);
   const glowRef  = useRef<THREE.InstancedMesh>(null);
 
@@ -185,6 +188,23 @@ export default function BackgroundGalaxies({ count = 120 }: { count?: number }) 
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
   }), []);
+
+  useFrame(() => {
+    if (groupRef.current) {
+      groupRef.current.traverse(child => {
+        const c = child as any;
+        if (c.material) {
+          const mats = Array.isArray(c.material) ? c.material : [c.material];
+          mats.forEach((m: any) => {
+            if (m.opacity !== undefined) m.opacity = opacity;
+          });
+        }
+      });
+    }
+    if (glowRef.current) {
+      (glowRef.current.material as any).opacity = opacity * 0.38;
+    }
+  });
 
   useEffect(() => {
     const group    = groupRef.current;

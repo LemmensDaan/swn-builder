@@ -28,9 +28,25 @@ function makeStarTexture(): THREE.Texture {
   return new THREE.CanvasTexture(canvas);
 }
 
-export default function Starfield({ count = 900, seed = 42 }: { count?: number; seed?: number }) {
+export default function Starfield({ count = 900, seed = 42, opacity = 0.85, zoomProgressRef }: { count?: number; seed?: number; opacity?: number; zoomProgressRef?: React.MutableRefObject<number> }) {
   const tex      = useMemo(() => makeStarTexture(), []);
   const groupRef = useRef<THREE.Group>(null);
+  const pointsRef = useRef<THREE.Points>(null);
+
+  useFrame(() => {
+    if (pointsRef.current && pointsRef.current.material) {
+      let finalOpacity = opacity;
+
+      // Fade out during zoom transition (sector to system)
+      if (zoomProgressRef) {
+        const u = zoomProgressRef.current;
+        const zoomFade = Math.max(0, Math.min(1, 1 - (u - 0.05) / 0.3));
+        finalOpacity = opacity * zoomFade;
+      }
+
+      (pointsRef.current.material as THREE.PointsMaterial).opacity = finalOpacity;
+    }
+  });
 
   const positions = useMemo(() => {
     const rng = mulberry32(seed);
@@ -54,7 +70,7 @@ export default function Starfield({ count = 900, seed = 42 }: { count?: number; 
 
   return (
     <group ref={groupRef}>
-      <points renderOrder={-100}>
+      <points ref={pointsRef} renderOrder={-100}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         </bufferGeometry>
@@ -64,7 +80,7 @@ export default function Starfield({ count = 900, seed = 42 }: { count?: number; 
           sizeAttenuation
           color="#d4e0ff"
           transparent
-          opacity={0.85}
+          opacity={opacity}
           alphaTest={0.01}
           depthWrite={false}
         />

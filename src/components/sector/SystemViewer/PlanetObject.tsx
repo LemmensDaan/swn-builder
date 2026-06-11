@@ -33,9 +33,10 @@ interface Props {
   children?: React.ReactNode;
   onPositionUpdate?: (pos: [number, number, number]) => void;
   onClick?: (id: string) => void;
+  showOrbits?: boolean;
 }
 
-export default function PlanetObject({ obj, children, onPositionUpdate, onClick }: Props) {
+export default function PlanetObject({ obj, children, onPositionUpdate, onClick, showOrbits = true }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef  = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -71,7 +72,7 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick 
   return (
     <>
       {/* Orbit ring for planets and moons */}
-      {obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
+      {showOrbits && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
         <mesh
           ref={meshRef}

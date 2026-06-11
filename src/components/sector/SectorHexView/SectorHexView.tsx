@@ -180,7 +180,7 @@ export default function SectorHexView() {
         >
           <ambientLight intensity={0.35} />
           <pointLight position={[0, 20, 0]} intensity={0.6} color="#8899cc" />
-          <Starfield count={1200} />
+          <Starfield count={1200} zoomProgressRef={zoomProgressRef} />
           <HexGrid
             sector={sector}
             systems={systems}

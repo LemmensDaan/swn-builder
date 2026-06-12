@@ -38,7 +38,7 @@ function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsR
     if (!position) return;
 
     v_objPos.current.set(position[0], position[1], position[2]);
-    const closeDistance = Math.max(3, (selectedObjectSize ?? 1) * 10);
+    const closeDistance = Math.max(1, (selectedObjectSize ?? 1) * 4);
 
     if (!trackingRef.current) {
       // Capture start on the very first frame of this selection
@@ -183,7 +183,6 @@ export default function SystemViewer() {
               onDone={() => setIntroComplete(true)}
             />
           )}
-          <CameraFollower selectedObjectId={selectedObjectId} selectedObjectSize={selectedObjectSize} objectPositionsRef={objectPositionsRef} orbitControlsRef={orbitControlsRef} />
           <SystemScene
             system={system}
             selectedObjectId={selectedObjectId}
@@ -193,14 +192,15 @@ export default function SystemViewer() {
             starfieldOpacity={starfieldOpacity}
             prefs={prefs}
           />
+          <CameraFollower selectedObjectId={selectedObjectId} selectedObjectSize={selectedObjectSize} objectPositionsRef={objectPositionsRef} orbitControlsRef={orbitControlsRef} />
           <OrbitControls
             ref={orbitControlsRef}
             enabled={introComplete}
             enablePan
             enableZoom
             enableRotate
-            minDistance={5}
-            maxDistance={Math.max(400, camDistance * 3)}
+            minDistance={0.5}
+            maxDistance={Math.max(800, camDistance * 5)}
           />
         </Canvas>
 
@@ -278,9 +278,12 @@ export default function SystemViewer() {
                           <div className="my-1 border-t border-gray-700/40" />
                         )}
                         <button
-                          onClick={() => setSelectedObjectId(obj.id)}
+                          onClick={() => obj.type !== 'Nebula' && setSelectedObjectId(obj.id)}
+                          disabled={obj.type === 'Nebula'}
                           className={`w-full flex items-center gap-2 py-1.5 px-2 rounded text-left transition-colors ${
-                            selectedObjectId === obj.id ? 'bg-gray-700/50' : 'hover:bg-gray-700/30'
+                            obj.type === 'Nebula' ? 'cursor-default text-gray-600' : (
+                              selectedObjectId === obj.id ? 'bg-gray-700/50' : 'hover:bg-gray-700/30'
+                            )
                           }`}
                           style={{ paddingLeft: `${8 + depth * 12}px` }}
                         >

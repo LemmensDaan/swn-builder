@@ -14,6 +14,7 @@ export function mulberry32(seed: number): () => number {
 export interface PlanetPreset {
   primaryColor: string;
   secondaryColor: string;
+  tertiaryColor?: string;
   iceCaps: boolean;
   rings: boolean;
   detail: 0 | 1 | 2 | 3 | 4;
@@ -28,6 +29,7 @@ export const PLANET_PRESETS: Record<PlanetType, PlanetPreset> = {
   Toxic:    { primaryColor: '#7ab528', secondaryColor: '#3d6b10', iceCaps: false, rings: false, detail: 2 },
   Barren:   { primaryColor: '#777777', secondaryColor: '#555555', iceCaps: false, rings: false, detail: 2 },
   Volcanic: { primaryColor: '#333333', secondaryColor: '#cc4400', iceCaps: false, rings: false, detail: 2 },
+  TidallyLocked: { primaryColor: '#c8a05a', secondaryColor: '#c8dde8', tertiaryColor: '#2d8d2d', iceCaps: false, rings: false, detail: 3 },
 };
 
 export function generatePlanetGeometry(
@@ -35,8 +37,10 @@ export function generatePlanetGeometry(
   type: PlanetType,
   primaryColor: string,
   secondaryColor: string,
+  tertiaryColor: string | undefined,
   iceCaps: boolean,
   size: number = 1,
+  inclination: number = 0,
 ): THREE.BufferGeometry {
   const rng = mulberry32(seed);
   const detail = PLANET_PRESETS[type]?.detail ?? 1;
@@ -54,7 +58,7 @@ export function generatePlanetGeometry(
   const iceCap2 = new THREE.Color('#ddeeff');
 
   const isGasGiant = type === 'GasGiant';
-
+  const isTidallyLocked = type === 'TidallyLocked';
   const isRandom = type === 'Ice' || type === 'Toxic' || type === 'Volcanic';
 
   // Continent types: Voronoi seeds on the sphere → large coherent blobs
@@ -77,14 +81,64 @@ export function generatePlanetGeometry(
   }
 
   const tmpCenter = new THREE.Vector3();
+  const incRad = isTidallyLocked ? THREE.MathUtils.degToRad(inclination) : 0;
+  const cos_inc = Math.cos(incRad);
+  const sin_inc = Math.sin(incRad);
 
   for (let i = 0; i < positions.count; i += 3) {
-    const avgY = (positions.getY(i) + positions.getY(i + 1) + positions.getY(i + 2)) / 3 / size;
+    let avgY = (positions.getY(i) + positions.getY(i + 1) + positions.getY(i + 2)) / 3 / size;
+
+    // For tidally locked planets, use a zone coordinate perpendicular to the orbital plane
+    // This accounts for inclination: zones should be along the radial direction (toward/away from star)
+    if (isTidallyLocked) {
+      const avg_y = (positions.getY(i) + positions.getY(i + 1) + positions.getY(i + 2)) / 3 / size;
+      const avg_z = (positions.getZ(i) + positions.getZ(i + 1) + positions.getZ(i + 2)) / 3 / size;
+      // Rotate YZ plane by inclination to get zone coordinate perpendicular to orbital plane
+      avgY = avg_y * cos_inc - avg_z * sin_inc;
+    }
+
     let color: THREE.Color;
 
     if (isGasGiant) {
       const band = Math.floor((avgY + 1) * 4);
       color = (band % 2 === 0 ? c1 : c2).clone();
+    } else if (isTidallyLocked) {
+      // Tidally locked planets have three zones:
+      // Dayside (Y > 0.4): arid/desert - primaryColor
+      // Nightside (Y < -0.4): ice/frozen - secondaryColor
+      // Twilight zone (terminator): habitable - tertiaryColor with water
+      const c3 = new THREE.Color(tertiaryColor ?? '#2d8d2d');
+      const water = new THREE.Color('#1a5c99');
+      const t = Math.max(-1, Math.min(1, avgY));
+
+      if (t > 0.4) {
+        // Dayside: arid/desert
+        color = c1.clone();
+        color.multiplyScalar(0.95 + rng() * 0.1); // slight variation
+      } else if (t < -0.4) {
+        // Nightside: frozen/ice
+        color = c2.clone();
+        color.multiplyScalar(0.9 + rng() * 0.15);
+      } else {
+        // Twilight zone: habitable (smooth gradient)
+        const twilightBlend = (t + 0.4) / 0.8; // 0 to 1 from nightside to dayside
+        if (Math.abs(t) < 0.2) {
+          // Core habitable zone with water features
+          const isWater = rng() < 0.25; // 25% water coverage
+          color = isWater ? water.clone() : c3.clone();
+          color.multiplyScalar(0.85 + rng() * 0.25);
+        } else if (t > 0) {
+          // Transition from habitable to arid
+          const isWater = rng() < 0.15; // Less water in transition zone
+          const baseColor = isWater ? water : c3;
+          color = new THREE.Color().lerpColors(baseColor, c1, twilightBlend);
+        } else {
+          // Transition from ice to habitable
+          const isWater = rng() < 0.15; // Less water toward ice side
+          const baseColor = isWater ? water : c3;
+          color = new THREE.Color().lerpColors(c2, baseColor, twilightBlend + 0.5);
+        }
+      }
     } else if (iceCaps && avgY > 0.7) {
       color = iceCap1.clone();
     } else if (iceCaps && avgY < -0.65) {

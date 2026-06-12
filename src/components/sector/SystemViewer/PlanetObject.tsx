@@ -17,14 +17,17 @@ function buildGeo(obj: SystemObject): THREE.BufferGeometry {
   // Prefer colors[] from color swatches, fall back to preset
   const primaryColor = obj.colors[0] ?? obj.primaryColor ?? preset.primaryColor;
   const secondaryColor = obj.colors[1] ?? obj.colors[0] ?? obj.secondaryColor ?? preset.secondaryColor;
+  const tertiaryColor = obj.tertiaryColor ?? preset.tertiaryColor;
 
   return generatePlanetGeometry(
     seed,
     planetType,
     primaryColor,
     secondaryColor,
+    tertiaryColor,
     obj.iceCaps ?? false,
     obj.size,
+    obj.inclination ?? 0,
   );
 }
 
@@ -59,12 +62,40 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
     const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
     if (groupRef.current) {
       groupRef.current.position.set(x, y, z);
-      // Force matrix update so getWorldPosition reflects any parent movement this frame.
-      groupRef.current.updateWorldMatrix(true, false);
       groupRef.current.getWorldPosition(_worldPos);
       onPositionUpdate?.([_worldPos.x, _worldPos.y, _worldPos.z]);
     }
-    if (meshRef.current) meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
+
+    if (meshRef.current) {
+      if (obj.planetType === 'TidallyLocked') {
+        // Tidally locked: always face the star
+        // Calculate direction from planet to star (at origin)
+        const towardsStar = new THREE.Vector3(-x, -y, -z).normalize();
+
+        // The Y-axis in the mesh points toward the dayside
+        // Create a quaternion that aligns the mesh's Y-axis with the star direction
+        const up = new THREE.Vector3(0, 1, 0);
+
+        // If already aligned, don't calculate rotation
+        const dotProduct = up.dot(towardsStar);
+        if (Math.abs(dotProduct) < 0.999) {
+          // Cross product to get rotation axis
+          const axis = new THREE.Vector3().crossVectors(up, towardsStar).normalize();
+          // Angle between vectors
+          const angle = Math.acos(Math.max(-1, Math.min(1, dotProduct)));
+          // Apply rotation
+          const quaternion = new THREE.Quaternion();
+          quaternion.setFromAxisAngle(axis, angle);
+          meshRef.current.quaternion.copy(quaternion);
+        } else {
+          // Already facing star, keep orientation
+          meshRef.current.quaternion.identity();
+        }
+      } else {
+        // Normal rotation
+        meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
+      }
+    }
   });
 
   return (

@@ -7,9 +7,9 @@ export type ObjectType =
 
 export type PlanetType =
   | 'Terran' | 'Arid' | 'Ocean' | 'Ice'
-  | 'GasGiant' | 'Toxic' | 'Barren' | 'Volcanic';
+  | 'GasGiant' | 'Toxic' | 'Barren' | 'Volcanic' | 'TidallyLocked';
 
-export type NebulaShape = 'emission' | 'planetary' | 'supernova' | 'reflection' | 'bipolar';
+export type NebulaShape = 'emission' | 'planetary' | 'supernova' | 'reflection' | 'bipolar1' | 'bipolar2';
 
 export type SystemType =
   | 'Standard' | 'Binary' | 'Hostile' | 'Rich' | 'Dead' | 'Frontier';
@@ -31,6 +31,7 @@ export interface SystemObject {
   planetType?: PlanetType;
   primaryColor?: string;
   secondaryColor?: string;
+  tertiaryColor?: string;
   iceCaps?: boolean;
   rings?: boolean;
   ringInclination?: number;  // degrees — independent of orbital inclination

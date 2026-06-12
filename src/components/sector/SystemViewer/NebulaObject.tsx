@@ -338,62 +338,166 @@ function reflectionLayers(rng: () => number, vr: number, R: number, G: number, B
   ];
 }
 
-// ── Bipolar Nebula (Butterfly / Hourglass style) ──────────────────────────────
-// Two long tapered lobes extending from a pinched waist; finger-like internal projections.
-function bipolarLayers(rng: () => number, vr: number, R: number, G: number, B: number): Layer[] {
+// Directional cone/fan texture built from soft radial blobs.
+// Canvas-top (y=0) → plane local +Y (outward from star) = wide end.
+// Canvas-bottom (y=size) → narrow tip at star.
+// Edges emerge organically from blob density — no post-process blur masks.
+function coneFlareTex(size: number, r: number, g: number, b: number, alpha: number, seed: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const cx = size / 2;
+  let s = (seed | 1) >>> 0;
+  const rnd = (): number => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+
+  // t=0 = outer/wide end, t=1 = tip toward star
+  for (let i = 0; i < 160; i++) {
+    const t     = rnd();
+    const y     = t * size;
+    const outer = 1 - t;
+    const hw    = size * outer * outer * 0.44;
+    if (hw < 2) continue;
+
+    // X spread: mostly within cone but sometimes 15% beyond for natural wispy tendrils
+    const xoff   = (rnd() * 2 - 1) * hw * (0.55 + rnd() * 0.60);
+    const inside = hw - Math.abs(xoff);          // positive = inside cone, negative = outside
+    if (inside < -hw * 0.15) continue;           // too far outside, skip entirely
+
+    // Clamp radius so blob never touches canvas boundary → no hard rectangular clip
+    const bx    = cx + xoff;
+    const rawBr = hw * (0.15 + rnd() * 0.52);
+    const br    = Math.min(rawBr, bx, size - bx, y + 1, size - y) * 0.88;
+    if (br < 1) continue;
+
+    // Alpha: heavy random variation + edge falloff → irregular, dynamic boundary
+    const edgeFade = Math.min(1, Math.max(0, inside / (hw * 0.30) + rnd() * 0.85));
+    const a = alpha * outer * edgeFade * (0.15 + rnd() * 0.28);
+    if (a < 0.005) continue;
+
+    const grd = ctx.createRadialGradient(bx, y, 0, bx, y, br);
+    grd.addColorStop(0,    `rgba(${r},${g},${b},${a.toFixed(3)})`);
+    grd.addColorStop(0.60, `rgba(${r},${g},${b},${(a * 0.30).toFixed(3)})`);
+    grd.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(bx, y, br, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Rim pass: smaller blobs biased near cone edges for subtle brightening
+  for (let i = 0; i < 45; i++) {
+    const t     = rnd();
+    const y     = t * size;
+    const outer = 1 - t;
+    const hw    = size * outer * outer * 0.44;
+    if (hw < 3) continue;
+    const side   = rnd() > 0.5 ? 1 : -1;
+    const xoff   = side * hw * (0.60 + rnd() * 0.35);
+    const inside = hw - Math.abs(xoff);
+    const bx     = cx + xoff;
+    const rawBr  = hw * 0.10 + 2;
+    const br     = Math.min(rawBr, bx, size - bx, y + 1, size - y) * 0.85;
+    if (br < 1) continue;
+    const edgeFade = Math.min(1, Math.max(0, inside / (hw * 0.25) + rnd() * 0.70));
+    const a = alpha * outer * edgeFade * 0.22;
+    if (a < 0.005) continue;
+    const grd = ctx.createRadialGradient(bx, y, 0, bx, y, br);
+    grd.addColorStop(0, `rgba(${r},${g},${b},${a.toFixed(3)})`);
+    grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(bx, y, br, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Wide non-linear edge fade: aggressive at the very boundary, long gentle tail.
+  // Multi-stop curve gives thinning-gas feel rather than a uniform blur band.
+  ctx.globalCompositeOperation = 'destination-out';
+  const erode = (x0: number, y0: number, x1: number, y1: number, rx: number, ry: number, rw: number, rh: number) => {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0,    'rgba(0,0,0,1)');
+    g.addColorStop(0.30, 'rgba(0,0,0,0.72)');
+    g.addColorStop(0.60, 'rgba(0,0,0,0.28)');
+    g.addColorStop(0.85, 'rgba(0,0,0,0.06)');
+    g.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(rx, ry, rw, rh);
+  };
+  const fS = size * 0.34;   // sides — widest, lobe flanks melt away
+  const fO = size * 0.38;   // outer flare end — also very wide
+  const fT = size * 0.22;   // tip — narrower, already sparse from blobs
+  erode(0,    0,    fS,      0,    0,      0,      fS,   size);
+  erode(size, 0,    size-fS, 0,    size-fS, 0,     fS,   size);
+  erode(0,    0,    0,       fO,   0,       0,      size, fO  );
+  erode(0,    size, 0,   size-fT,  0,       size-fT, size, fT );
+  ctx.globalCompositeOperation = 'source-over';
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+// ── Bipolar Nebula 1: Shell-rim style with inner H-alpha zones ─────────────────
+// Elongated oval shell rim (lumpyRingTex) per lobe; lumpy fill; H-alpha inner zone
+// near star; soft outer diffuse halo; warm waist glow at crossing point.
+function bipolarLayers1(rng: () => number, vr: number, R: number, G: number, B: number): Layer[] {
   const ax      = rng() * Math.PI;
   const lobeRot = -ax;
   const texSeed = Math.round(rng() * 999983);
 
-  // Geometry — lobes pushed further out and taller for long shaft/cone appearance
-  const d  = vr * 0.92;
-  const lx = Math.sin(ax) * d;        const ly = Math.cos(ax) * d;
+  const d  = vr * 0.62;
+  const lx = Math.sin(ax) * d;  const ly = Math.cos(ax) * d;
 
-  // Finger projections scattered inside each lobe, pointing roughly toward centre
-  const numFingers = 5 + Math.floor(rng() * 4);
-  const px = Math.cos(ax); const py = -Math.sin(ax);
-  const fingers = Array.from({ length: numFingers }, () => {
-    const tAlong = 0.20 + rng() * 0.75;
-    const tPerp  = (rng() - 0.5) * 0.42;
-    return {
-      x:   Math.sin(ax) * d * tAlong + px * vr * tPerp,
-      y:   Math.cos(ax) * d * tAlong + py * vr * tPerp,
-      rot: -ax + (rng() - 0.5) * 0.45,
-      fh:  0.38 + rng() * 0.34,
-      op:  0.38 + rng() * 0.35,
-    };
-  });
+  const Ro = blend( 12, R); const Go = blend(178, G); const Bo = blend(215, B);
+  const Rh = blend(228, R); const Gh = blend( 42, G); const Bh = blend( 55, B);
+  const Rd = blend(  8, R); const Gd = blend(112, G); const Bd = blend(160, B);
+  const Rw = blend(255, R); const Gw = blend(200, G); const Bw = blend(105, B);
 
-  // Lobe colours
-  const Rl = blend(208, R); const Gl = blend( 28, G); const Bl = blend( 20, B);
-  // Second lobe pass: slightly warmer/orange
-  const Ro = blend(178, R); const Go = blend( 72, G); const Bo = blend( 25, B);
-  // Finger projections: bright warm
-  const Rfp = blend(255, R); const Gfp = blend(108, G); const Bfp = blend( 38, B);
-
-  const tHaze   = cloudTex(128,     Rl,  Gl,  Bl,  0.35, 0.30);
-  const tLobe   = lumpyCloudTex(256, Rl,  Gl,  Bl,  1.00, texSeed);
-  const tLobe2  = lumpyCloudTex(256, Ro,  Go,  Bo,  0.70, texSeed + 17);
-  const tFinger = cloudTex(64,      Rfp, Gfp, Bfp, 0.88, 0.22);
-  const tStar   = cloudTex(64,      255, 255, 255, 1.00, 0.04);
+  const tHaze  = cloudTex(128,     Rd, Gd, Bd, 0.32, 0.36);
+  const tShell = lumpyRingTex(256,  Ro, Go, Bo, 0.38, 0.92, texSeed);
+  const tFill  = lumpyCloudTex(256, Ro, Go, Bo, 0.65, texSeed + 11);
+  const tInner = lumpyCloudTex(256, Rh, Gh, Bh, 0.80, texSeed + 29);
+  const tWaist = cloudTex(128,     Rw, Gw, Bw, 1.00, 0.14);
+  const tStar  = cloudTex(64,      255, 255, 255, 1.00, 0.04);
 
   return [
-    { key: 'haze',   x: 0,   y: 0,   rotZ: 0,            w: vr * 2.7,  h: vr * 2.7,  tex: tHaze,  op: 0.16, blend: ADD, order: -10 },
-    { key: 'lobe1',  x: lx,  y: ly,  rotZ: lobeRot,       w: vr * 0.68, h: vr * 1.72, tex: tLobe,  op: 0.85, blend: ADD, order: -8 },
-    { key: 'lobe2',  x: -lx, y: -ly, rotZ: lobeRot,       w: vr * 0.68, h: vr * 1.72, tex: tLobe,  op: 0.85, blend: ADD, order: -8 },
-    { key: 'lobe1b', x: lx,  y: ly,  rotZ: lobeRot + 0.3, w: vr * 0.56, h: vr * 1.52, tex: tLobe2, op: 0.45, blend: ADD, order: -7 },
-    { key: 'lobe2b', x: -lx, y: -ly, rotZ: lobeRot + 0.3, w: vr * 0.56, h: vr * 1.52, tex: tLobe2, op: 0.45, blend: ADD, order: -7 },
-    ...fingers.map((f, i) => ({
-      key: `fa${i}`, x: f.x, y: f.y, rotZ: f.rot,
-      w: vr * 0.10, h: vr * f.fh,
-      tex: tFinger, op: f.op, blend: ADD, order: -6,
-    })),
-    ...fingers.map((f, i) => ({
-      key: `fb${i}`, x: -f.x, y: -f.y, rotZ: f.rot + Math.PI,
-      w: vr * 0.10, h: vr * f.fh,
-      tex: tFinger, op: f.op, blend: ADD, order: -6,
-    })),
-    { key: 'star',   x: 0,   y: 0,   rotZ: 0,            w: vr * 0.06, h: vr * 0.06, tex: tStar,  op: 1.00, blend: ADD, order: -4 },
+    { key: 'haze',   x: 0,    y: 0,    rotZ: 0,            w: vr * 3.0,  h: vr * 3.0,  tex: tHaze,  op: 0.12, blend: ADD, order: -10 },
+    { key: 'glow1',  x: lx,   y: ly,   rotZ: 0,            w: vr * 1.48, h: vr * 1.48, tex: tHaze,  op: 0.32, blend: ADD, order: -9 },
+    { key: 'glow2',  x: -lx,  y: -ly,  rotZ: 0,            w: vr * 1.48, h: vr * 1.48, tex: tHaze,  op: 0.32, blend: ADD, order: -9 },
+    { key: 'shell1', x: lx,   y: ly,   rotZ: lobeRot,       w: vr * 0.80, h: vr * 1.30, tex: tShell, op: 0.82, blend: ADD, order: -8 },
+    { key: 'shell2', x: -lx,  y: -ly,  rotZ: lobeRot,       w: vr * 0.80, h: vr * 1.30, tex: tShell, op: 0.82, blend: ADD, order: -8 },
+    { key: 'fill1',  x: lx,   y: ly,   rotZ: lobeRot + 0.2, w: vr * 0.64, h: vr * 1.05, tex: tFill,  op: 0.42, blend: ADD, order: -7 },
+    { key: 'fill2',  x: -lx,  y: -ly,  rotZ: lobeRot + 0.2, w: vr * 0.64, h: vr * 1.05, tex: tFill,  op: 0.42, blend: ADD, order: -7 },
+    { key: 'inn1',   x: lx * 0.52, y: ly * 0.52, rotZ: lobeRot, w: vr * 0.52, h: vr * 0.72, tex: tInner, op: 0.52, blend: ADD, order: -6 },
+    { key: 'inn2',   x: -lx * 0.52, y: -ly * 0.52, rotZ: lobeRot, w: vr * 0.52, h: vr * 0.72, tex: tInner, op: 0.52, blend: ADD, order: -6 },
+    { key: 'waist',  x: 0,    y: 0,    rotZ: 0,            w: vr * 0.55, h: vr * 0.55, tex: tWaist, op: 0.78, blend: ADD, order: -5 },
+    { key: 'star',   x: 0,    y: 0,    rotZ: 0,            w: vr * 0.06, h: vr * 0.06, tex: tStar,  op: 1.00, blend: ADD, order: -4 },
+  ];
+}
+
+// ── Bipolar Nebula 2: Cone/bowtie style ───────────────────────────────────────
+// One cone per side: narrow tip at the central star, flaring outward with soft
+// blobs and bright rims. Organic, non-geometric boundary via wide edge erosion.
+function bipolarLayers2(rng: () => number, vr: number, R: number, G: number, B: number): Layer[] {
+  const ax      = rng() * Math.PI;
+  const lobeRot = -ax;
+  const texSeed = Math.round(rng() * 999983);
+
+  const d  = vr * 0.58;
+  const lx = Math.sin(ax) * d;  const ly = Math.cos(ax) * d;
+  const lh = d * 2;
+  const lw = vr * 0.90;
+
+  const Ro = blend( 12, R); const Go = blend(182, G); const Bo = blend(218, B);
+  const Rd = blend(  6, R); const Gd = blend(108, G); const Bd = blend(162, B);
+  const Rw = blend(255, R); const Gw = blend(198, G); const Bw = blend(102, B);
+
+  const tCone  = coneFlareTex(256, Ro, Go, Bo, 1.00, texSeed);
+  const tGlow  = cloudTex(128,    Rd, Gd, Bd, 0.45, 0.38);
+  const tWaist = cloudTex(128,    Rw, Gw, Bw, 1.00, 0.14);
+  const tStar  = cloudTex(64,     255, 255, 255, 1.00, 0.04);
+
+  return [
+    { key: 'glow1',  x: lx,  y: ly,  rotZ: 0,                   w: lh * 1.05, h: lh * 1.05, tex: tGlow,  op: 0.26, blend: ADD, order: -9 },
+    { key: 'glow2',  x: -lx, y: -ly, rotZ: 0,                   w: lh * 1.05, h: lh * 1.05, tex: tGlow,  op: 0.26, blend: ADD, order: -9 },
+    { key: 'cone1',  x: lx,  y: ly,  rotZ: lobeRot,             w: lw,        h: lh,        tex: tCone,  op: 0.92, blend: ADD, order: -8 },
+    { key: 'cone2',  x: -lx, y: -ly, rotZ: lobeRot + Math.PI,   w: lw,        h: lh,        tex: tCone,  op: 0.92, blend: ADD, order: -8 },
+    { key: 'waist',  x: 0,   y: 0,   rotZ: 0,                   w: vr * 0.26, h: vr * 0.26, tex: tWaist, op: 0.82, blend: ADD, order: -5 },
+    { key: 'star',   x: 0,   y: 0,   rotZ: 0,                   w: vr * 0.06, h: vr * 0.06, tex: tStar,  op: 1.00, blend: ADD, order: -4 },
   ];
 }
 
@@ -425,11 +529,13 @@ export default function NebulaObject({ obj, onPositionUpdate }: Props) {
     const rng = mulberry32(seed + 7);
     const shape = obj.nebulaShape ?? 'emission';
     switch (shape) {
-      case 'planetary':  return planetaryLayers(rng, vr, R, G, B);
-      case 'supernova':  return supernovaLayers(rng, vr, R, G, B);
-      case 'reflection': return reflectionLayers(rng, vr, R, G, B);
-      case 'bipolar':    return bipolarLayers(rng, vr, R, G, B);
-      default:           return emissionLayers(rng, vr, R, G, B);
+      case 'planetary':   return planetaryLayers(rng, vr, R, G, B);
+      case 'supernova':   return supernovaLayers(rng, vr, R, G, B);
+      case 'reflection':  return reflectionLayers(rng, vr, R, G, B);
+      case 'bipolar1':    return bipolarLayers1(rng, vr, R, G, B);
+      case 'bipolar2':    return bipolarLayers2(rng, vr, R, G, B);
+      case 'bipolar':     return bipolarLayers2(rng, vr, R, G, B);  // default to bipolar2
+      default:            return emissionLayers(rng, vr, R, G, B);
     }
   }, [obj.colors, obj.nebulaShape, seed, vr]);
 

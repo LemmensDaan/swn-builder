@@ -2,12 +2,10 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
-import { getOrbitPosition } from './orbitUtils';
 
 const COUNT = 1200;
 const dummy = new THREE.Object3D();
 
-// Generate random earth-tone color (gray-brown spectrum)
 function getEarthToneColor(): THREE.Color {
   const tones = [
     '#8C7B6B', '#9a8878', '#7a6a5a', '#6B6B5A', '#8B8B7A',
@@ -25,12 +23,17 @@ interface Props {
 
 export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
+  // groupRef rotates around Y for orbital motion (inner)
+  // tiltGroupRef holds the static X-axis tilt for inclination (outer)
   const groupRef = useRef<THREE.Group>(null);
+  const tiltGroupRef = useRef<THREE.Group>(null);
   const focusMarker = useRef(new THREE.Object3D());
   const _wp = useRef(new THREE.Vector3());
 
-  // Match direction (+X → +Z) and speed to getOrbitPosition so belt-children stay in sync
   const orbitSpeed = obj.orbitRadius > 0 ? 0.2 / Math.sqrt(obj.orbitRadius) : 0.012;
+  // Inclination is applied as a static X rotation on the outer group so that the inner
+  // Y rotation traces the correct inclined circle — matching getOrbitPosition exactly.
+  const incRad = THREE.MathUtils.degToRad(obj.inclination);
 
   const geo = useMemo(() => new THREE.IcosahedronGeometry(0.08, 0), []);
   const beltColor = useMemo(() => getEarthToneColor(), [obj.id]);
@@ -39,26 +42,26 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) 
     [beltColor],
   );
 
-  // Place the focus marker at angle=0 on the belt ring so it orbits with the group
+  // Focus marker sits at angle=0 of the flat ring; its world position is tracked for camera focus
   useEffect(() => {
     if (!groupRef.current) return;
-    const incRad = THREE.MathUtils.degToRad(obj.inclination);
-    const [fx, fy, fz] = getOrbitPosition(0, obj.orbitRadius, incRad);
-    focusMarker.current.position.set(fx, fy, fz);
+    focusMarker.current.position.set(obj.orbitRadius, 0, 0);
     groupRef.current.add(focusMarker.current);
     return () => { groupRef.current?.remove(focusMarker.current); };
-  }, [obj.orbitRadius, obj.inclination]);
+  }, [obj.orbitRadius]);
 
+  // Asteroids are placed in a flat ring — inclination is handled by tiltGroupRef's X rotation
   useEffect(() => {
     if (!meshRef.current) return;
-    const incRad = THREE.MathUtils.degToRad(obj.inclination);
 
     for (let i = 0; i < COUNT; i++) {
       const angle = (i / COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
       const r = obj.orbitRadius * (0.88 + Math.random() * 0.24);
-      const [x, y, z] = getOrbitPosition(angle, r, incRad);
-
-      dummy.position.set(x, y + (Math.random() - 0.5) * 0.4, z);
+      dummy.position.set(
+        Math.cos(angle) * r,
+        (Math.random() - 0.5) * 0.4,
+        Math.sin(angle) * r,
+      );
       dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
       dummy.scale.setScalar(0.5 + Math.random() * 1.0);
       dummy.updateMatrix();
@@ -66,7 +69,7 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) 
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
     meshRef.current.computeBoundingSphere();
-  }, [obj.orbitRadius, obj.inclination]);
+  }, [obj.orbitRadius]);
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
@@ -77,16 +80,18 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) 
   });
 
   return (
-    <group ref={groupRef}>
-      <instancedMesh
-        ref={meshRef}
-        args={[geo, mat, COUNT]}
-        castShadow
-        receiveShadow
-        onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
-        onPointerEnter={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
-        onPointerLeave={() => { document.body.style.cursor = 'auto'; }}
-      />
+    <group ref={tiltGroupRef} rotation={[-incRad, 0, 0]}>
+      <group ref={groupRef}>
+        <instancedMesh
+          ref={meshRef}
+          args={[geo, mat, COUNT]}
+          castShadow
+          receiveShadow
+          onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
+          onPointerEnter={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+          onPointerLeave={() => { document.body.style.cursor = 'auto'; }}
+        />
+      </group>
     </group>
   );
 }

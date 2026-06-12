@@ -60,7 +60,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
         objectPositionsRef.current[obj.id] = pos;
       }
     };
-    const childShowOrbits = isInBelt ? false : prefs?.showOrbits;
+    const childShowOrbits = prefs?.showOrbits;
 
     if (obj.type === 'AsteroidBelt') return (
       <group key={obj.id}>
@@ -68,7 +68,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
         {children.map(c => renderObject(c, obj))}
       </group>
     );
-    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={effectiveObj} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
+    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
     if (obj.type === 'SpaceStation' || obj.type === 'JumpGate') return <SpaceStation key={obj.id} obj={effectiveObj} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
     return (
       <PlanetObject

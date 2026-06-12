@@ -111,8 +111,8 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
             distance={isBlackHole ? 180 : 220}
             decay={1}
             castShadow
-            shadow-mapSize-width={1024}
-            shadow-mapSize-height={1024}
+            shadow-mapSize-width={2048}
+            shadow-mapSize-height={2048}
           />
         )}
       {/* Soft glow behind the body */}

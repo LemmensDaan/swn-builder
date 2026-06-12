@@ -11,6 +11,7 @@ interface Props {
   onPositionUpdate?: (pos: [number, number, number]) => void;
   onClick?: (id: string) => void;
   showOrbits?: boolean;
+  isInBelt?: boolean;
 }
 
 function getEllipticalOrbitPosition(
@@ -63,20 +64,24 @@ const fragmentShader = `
 const HEAD_COLOR = new THREE.Color('#ffffff');
 const TAIL_COLOR = new THREE.Color('#110022');
 
-export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits = true }: Props) {
+export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits = true, isInBelt = false }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const particleTrailRef = useRef<THREE.InstancedMesh>(null);
   const [hovered, setHovered] = useState(false);
 
-  const eccentricity = 0.96;
-  const semiMajor = obj.orbitRadius * 2.5;
+  // Belt comets: fit within the belt ring (0.88r–1.12r), max eccentricity is 0.12
+  const eccentricity = useMemo(() => {
+    if (!isInBelt) return 0.96;
+    return mulberry32((obj.seed ?? obj.sortOrder * 137) + 1)() * 0.12;
+  }, [isInBelt, obj.seed, obj.sortOrder]);
+  const semiMajor = isInBelt ? obj.orbitRadius : obj.orbitRadius * 2.5;
 
   const initialAngle = useMemo(
     () => mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2,
     [obj.seed, obj.sortOrder]
   );
   const angleRef = useRef(initialAngle);
-  const orbitSpeed = 0.05;
+  const orbitSpeed = isInBelt ? (obj.orbitRadius > 0 ? 0.2 / Math.sqrt(obj.orbitRadius) : 0.05) : 0.05;
 
   const posHistoryRef = useRef<THREE.Vector3[]>([]);
   const prevPosRef = useRef<[number, number, number]>([0, 0, 0]);
@@ -156,7 +161,7 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
     const minDist = semiMajor * (1 - eccentricity);
     const maxDist = semiMajor * (1 + eccentricity);
     const midDist = (minDist + maxDist) / 2;
-    const distanceFactor = midDist / Math.max(distFromStar, minDist * 0.5);
+    const distanceFactor = isInBelt ? 1 : midDist / Math.max(distFromStar, minDist * 0.5);
     angleRef.current += delta * orbitSpeed * distanceFactor;
 
     groupRef.current.position.set(x, y, z);

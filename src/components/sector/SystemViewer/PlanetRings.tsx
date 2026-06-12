@@ -23,6 +23,7 @@ interface Props {
 export default function PlanetRings({ obj }: Props) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const groupRef = useRef<THREE.Group>(null);
+  const spinGroupRef = useRef<THREE.Group>(null);
 
   const ringColor = useMemo(() => {
     return getEarthToneColor();
@@ -57,17 +58,30 @@ export default function PlanetRings({ obj }: Props) {
   }, [obj.size]);
 
   useFrame((_, delta) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += delta * 0.08;
+    if (spinGroupRef.current) {
+      spinGroupRef.current.rotation.y += delta * 0.08;
     }
   });
 
   // Tilt rings according to their own inclination (independent of planet's orbital plane)
   const ringIncRad = THREE.MathUtils.degToRad(obj.ringInclination ?? 0);
+  // Match the particle ring bounds (1.3x – 2.2x planet size)
+  const innerRadius = 1.3 * obj.size;
+  const outerRadius = 2.2 * obj.size;
 
   return (
     <group ref={groupRef} rotation={[ringIncRad, 0, 0]}>
-      <instancedMesh ref={meshRef} args={[geo, mat, COUNT]} castShadow />
+      <group ref={spinGroupRef}>
+        {/* Visual particles — receive planet shadow, no longer cast (proxy does that) */}
+        <instancedMesh ref={meshRef} args={[geo, mat, COUNT]} receiveShadow />
+        {/* Invisible flat annulus — sole shadow caster, gives a smooth ring shadow on the planet.
+            RingGeometry is in the XY plane by default; rotate -90° around X to match the particle
+            ring which lies in the XZ plane. Outer group handles ringInclination tilt. */}
+        <mesh castShadow rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[innerRadius, outerRadius, 64]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
     </group>
   );
 }

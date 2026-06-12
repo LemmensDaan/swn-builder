@@ -8,7 +8,7 @@ import ObjectEditor from './ObjectEditor';
 
 const SYSTEM_TYPES: SystemType[] = ['Standard', 'Binary', 'Hostile', 'Rich', 'Dead', 'Frontier'];
 
-const QUICK_TYPES: { type: ObjectType; label: string }[] = [
+const QUICK_TYPES: { type: ObjectType; label: string; extra?: Partial<SystemObject> }[] = [
   { type: 'Star',         label: 'Star'        },
   { type: 'NeutronStar',  label: 'Neutron Star'},
   { type: 'Planet',       label: 'Planet'      },
@@ -22,6 +22,9 @@ const QUICK_TYPES: { type: ObjectType; label: string }[] = [
   { type: 'Nebula',       label: 'Nebula'      },
   { type: 'Other',        label: 'Other'       },
 ];
+
+const DEEP_ORBIT_BASE    = 80;
+const DEEP_ORBIT_SPACING = 15;
 
 // Orbit radius increments when placing a reparented object
 const TL_BASE_ORBIT    = 5;
@@ -94,18 +97,45 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
     return result;
   }
 
-  /** Reorder top-level objects and redistribute their orbit radii. */
+  /** Reorder top-level objects and redistribute orbit radii within each zone independently. */
   function reorderTopLevel(fromTlIdx: number, toTlIdx: number) {
     const tlIds = topLevelNonPrimary.map(o => o.id);
     const [moved] = tlIds.splice(fromTlIdx, 1);
     tlIds.splice(toTlIdx, 0, moved);
 
     const newTLOrder = tlIds.map(id => topLevelNonPrimary.find(o => o.id === id)!);
-    const sortedRadii = newTLOrder.map(o => o.orbitRadius).sort((a, b) => a - b);
+
+    // Keep system-zone and deep-zone orbit radii separate so they never cross the boundary.
     const perObjectUpdates: Record<string, Partial<SystemObject>> = {};
-    newTLOrder.forEach((obj, i) => { perObjectUpdates[obj.id] = { orbitRadius: sortedRadii[i] }; });
+    for (const isDeep of [false, true]) {
+      const zoneObjs = newTLOrder.filter(o => !!o.isDeepSpace === isDeep);
+      const sortedRadii = zoneObjs.map(o => o.orbitRadius).sort((a, b) => a - b);
+      zoneObjs.forEach((o, i) => { perObjectUpdates[o.id] = { orbitRadius: sortedRadii[i] }; });
+    }
 
     reorderObjects(system.id, buildAllIds(newTLOrder, childrenOf), perObjectUpdates);
+  }
+
+  /** Move an object to the system or deep-space zone, assigning a new orbit radius. */
+  function moveToZone(obj: SystemObject, toDeep: boolean) {
+    const others = topLevelNonPrimary.filter(o => o.id !== obj.id);
+    const zoneObjs = others.filter(o => !!o.isDeepSpace === toDeep);
+    const newOrbitRadius = zoneObjs.length > 0
+      ? Math.max(...zoneObjs.map(o => o.orbitRadius)) + (toDeep ? DEEP_ORBIT_SPACING : TL_SPACING)
+      : toDeep ? DEEP_ORBIT_BASE : TL_BASE_ORBIT;
+
+    // Place obj at the end of its new zone in the sorted order.
+    const sysObjs  = others.filter(o => !o.isDeepSpace);
+    const deepObjs = others.filter(o => o.isDeepSpace);
+    const newTLOrder = toDeep
+      ? [...sysObjs, ...deepObjs, obj]
+      : [...sysObjs, obj, ...deepObjs];
+
+    reorderObjects(
+      system.id,
+      buildAllIds(newTLOrder, childrenOf),
+      { [obj.id]: { isDeepSpace: toDeep, orbitRadius: newOrbitRadius } }
+    );
   }
 
   /** Reorder siblings within the same parent, redistributing their orbit radii. */
@@ -225,6 +255,9 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
         // Dropping a belt-compatible type onto an asteroid belt embeds it in the belt
         if (targetObj.type === 'AsteroidBelt' && BELT_ALLOWED_TYPES.has(dragged.type)) {
           reparentTo(dragged, targetObj.id);
+        } else if (!!dragged.isDeepSpace !== !!targetObj.isDeepSpace) {
+          // Cross-zone drop: move to the target's zone
+          moveToZone(dragged, !!targetObj.isDeepSpace);
         } else {
           const fromTlIdx = topLevelNonPrimary.findIndex(o => o.id === dragged.id);
           const toTlIdx   = topLevelNonPrimary.findIndex(o => o.id === targetObj.id);
@@ -364,26 +397,59 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
         )}
 
         {/* Top-level non-primary objects (draggable) with children nested below */}
-        {topLevelNonPrimary.map((obj, tlIdx) => (
-          <div key={obj.id}>
-            <div
-              draggable
-              onDragStart={e => onDragStart(e, obj)}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => onDrop(e, obj)}
-              className="cursor-grab active:cursor-grabbing"
-            >
-              <ObjectEditor
-                obj={obj}
-                allObjects={system.objects}
-                onChange={updates => updateObject(system.id, obj.id, updates)}
-                onRemove={() => removeObject(system.id, obj.id)}
-                draggable={true}
-              />
+        {(() => {
+          const sysZone  = topLevelNonPrimary.filter(o => !o.isDeepSpace);
+          const deepZone = topLevelNonPrimary.filter(o => o.isDeepSpace);
+
+          const renderObj = (obj: SystemObject) => (
+            <div key={obj.id}>
+              <div
+                draggable
+                onDragStart={e => onDragStart(e, obj)}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => onDrop(e, obj)}
+                className="cursor-grab active:cursor-grabbing"
+              >
+                <ObjectEditor
+                  obj={obj}
+                  allObjects={system.objects}
+                  onChange={updates => updateObject(system.id, obj.id, updates)}
+                  onRemove={() => removeObject(system.id, obj.id)}
+                  draggable={true}
+                />
+              </div>
+              {renderDescendants(obj.id)}
             </div>
-            {renderDescendants(obj.id)}
-          </div>
-        ))}
+          );
+
+          const onDropSeparator = (e: React.DragEvent) => {
+            e.preventDefault();
+            const raw = e.dataTransfer.getData('swn-drag');
+            if (!raw) return;
+            let payload: DragPayload;
+            try { payload = JSON.parse(raw); } catch { return; }
+            const dragged = sorted.find(o => o.id === payload.objId);
+            if (!dragged || dragged.isDeepSpace) return;
+            moveToZone(dragged, true);
+          };
+
+          return (
+            <>
+              {sysZone.map(renderObj)}
+              <div
+                onDragOver={e => e.preventDefault()}
+                onDrop={onDropSeparator}
+                className="my-1.5 flex items-center gap-2 rounded py-0.5 transition-colors [&:has(+*)]:hover:bg-gray-700/20"
+                title="Drop here to move to deep space"
+              >
+                <div className="flex-1 border-t border-gray-700/40" />
+                <span className="text-[9px] text-gray-700 uppercase tracking-wider font-medium select-none">Deep Space</span>
+                <div className="flex-1 border-t border-gray-700/40" />
+              </div>
+              {deepZone.map(renderObj)}
+            </>
+          );
+        })()}
       </div>
 
       {/* Add object row */}
@@ -399,11 +465,11 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
         ) : (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-1.5">
-              {QUICK_TYPES.map(({ type, label }) => (
+              {QUICK_TYPES.map(({ type, label, extra }) => (
                 <button
-                  key={type}
+                  key={label}
                   onClick={() => {
-                    addObject(system.id, { type });
+                    addObject(system.id, { type, ...extra });
                     setAddingType(false);
                   }}
                   className="px-2.5 py-1 rounded-md bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 text-xs font-medium transition-colors"

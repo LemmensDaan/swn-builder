@@ -290,7 +290,11 @@ export default function SystemViewer() {
                           />
                           <div className="min-w-0">
                             <p className="text-gray-200 text-xs font-medium truncate">{obj.name}</p>
-                            <p className="text-gray-600 text-[10px]">{obj.type}</p>
+                            <p className="text-gray-600 text-[10px]">
+                              {obj.type === 'SpaceStation'
+                                ? obj.isDeepSpace ? 'Deep Station' : 'Orbital Station'
+                                : obj.type}
+                            </p>
                           </div>
                         </button>
                         {renderTree(obj.id, depth + 1)}

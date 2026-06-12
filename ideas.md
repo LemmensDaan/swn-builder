@@ -34,7 +34,7 @@ also change the background, i will provide them though
 
 With any dice roll selection, roll actual dice that we can see the result of, so for example for rolling stats we should see the roll one by one. (could be silly mode addition)
 
-11. SWN SECTOR VIEWER — PROJECT OVERVIEW -> See separate file
+11. ✅ SWN SECTOR VIEWER — PROJECT OVERVIEW -> See separate file
 What exists (v0.1 — prototype) (in a different project, if you want source code, i can give it to you, but i think you can come up with better stuff)
 A working React + react-three-fiber proof of concept exists with:
 

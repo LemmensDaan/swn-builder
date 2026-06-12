@@ -10,6 +10,7 @@ import PlanetObject from './PlanetObject';
 import AsteroidBelt from './AsteroidBelt';
 import SpaceStation from './SpaceStation';
 import CometObject from './CometObject';
+import NebulaObject from './NebulaObject';
 
 interface Props {
   system: StarSystem;
@@ -84,7 +85,8 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
       </group>
     );
     if (obj.type === 'Comet') return <CometObject key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
-    if (obj.type === 'SpaceStation' || obj.type === 'JumpGate') return <SpaceStation key={obj.id} obj={effectiveObj} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
+    if (obj.type === 'Nebula') return <NebulaObject key={obj.id} obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />;
+    if (obj.type === 'SpaceStation' || obj.type === 'JumpGate') return <SpaceStation key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
     return (
       <PlanetObject
         key={obj.id}

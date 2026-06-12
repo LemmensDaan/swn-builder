@@ -4,9 +4,12 @@ export type ObjectType =
   | 'AsteroidBelt' | 'SpaceStation' | 'JumpGate' | 'Comet'
   | 'Other';
 
+
 export type PlanetType =
   | 'Terran' | 'Arid' | 'Ocean' | 'Ice'
   | 'GasGiant' | 'Toxic' | 'Barren' | 'Volcanic';
+
+export type NebulaShape = 'emission' | 'planetary' | 'supernova' | 'reflection' | 'bipolar';
 
 export type SystemType =
   | 'Standard' | 'Binary' | 'Hostile' | 'Rich' | 'Dead' | 'Frontier';
@@ -32,6 +35,8 @@ export interface SystemObject {
   rings?: boolean;
   ringInclination?: number;  // degrees — independent of orbital inclination
   seed?: number;
+  // Whether this object is in the deep-space zone (beyond the system's main bodies)
+  isDeepSpace?: boolean;
   // GM notes
   notes: string;
   tags: string[];
@@ -82,7 +87,7 @@ export const OBJECT_TYPE_DEFAULTS: Record<ObjectType, Partial<SystemObject>> = {
   Moon:        { colors: ['#9E9E9E'], size: 0.25, orbitRadius: 3, inclination: 6, selfRotationSpeed: 0.12,
                  planetType: 'Barren', primaryColor: '#777777', secondaryColor: '#555555', iceCaps: false, rings: false, ringInclination: 0, seed: 42 },
   AsteroidBelt:{ colors: ['#8C7B6B'], size: 0.1, orbitRadius: 15, inclination: 2, selfRotationSpeed: 0   },
-  SpaceStation:{ colors: ['#B0C4DE'], size: 0.3, orbitRadius: 4,  inclination: 0, selfRotationSpeed: 0.04 },
+  SpaceStation:{ colors: ['#B0C4DE'], size: 0.3, orbitRadius: 4,   inclination: 0, selfRotationSpeed: 0.04 },
   JumpGate:    { colors: ['#00FFCC'], size: 0.4, orbitRadius: 32, inclination: 0, selfRotationSpeed: 0    },
   Comet:       { colors: ['#E8F4F8'], size: 0.2, orbitRadius: 40, inclination: 25, selfRotationSpeed: 0, seed: 42 },
   Other:       { colors: ['#888888'], size: 0.5, orbitRadius: 10, inclination: 0, selfRotationSpeed: 0    },

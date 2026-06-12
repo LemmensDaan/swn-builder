@@ -263,6 +263,7 @@ export const useSectorStore = create<SectorStore>()(
           secondaryColor: partial.secondaryColor ?? defaults.secondaryColor,
           iceCaps: partial.iceCaps ?? defaults.iceCaps,
           seed,
+          isDeepSpace: partial.isDeepSpace,
         };
         set(s => {
           const updatedSystem = { ...s.systems[systemId], objects: [...s.systems[systemId].objects, obj] };

@@ -100,8 +100,8 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
 
   return (
     <>
-      {/* Orbit ring for binary stars */}
-      {showOrbits && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
+      {/* Orbit ring only for hierarchical orbits (has a specific parent), not binary barycenter orbits */}
+      {showOrbits && obj.parentId !== null && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
         {/* The only meaningful light source in the scene */}
         {!previewMode && (

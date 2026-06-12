@@ -24,9 +24,12 @@ interface Props {
 
 export default function SystemScene({ system, selectedObjectId: _selectedObjectId, onObjectClick, objectPositionsRef, previewMode, introOpacityRef, starfieldOpacity = 0.85, prefs }: Props) {
   const sorted = sortSystemObjects(system.objects);
-  const stars   = sorted.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
-  const topLevel = sorted.filter(o => !o.parentId && !['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
-  const hasStar = stars.length > 0;
+  const STELLAR = ['Star', 'BlackHole', 'NeutronStar'];
+  const stellarIds = new Set(sorted.filter(o => STELLAR.includes(o.type)).map(o => o.id));
+  // Root stellar objects: those not orbiting another stellar object
+  const rootStars = sorted.filter(o => STELLAR.includes(o.type) && (!o.parentId || !stellarIds.has(o.parentId)));
+  const topLevel  = sorted.filter(o => !o.parentId && !STELLAR.includes(o.type));
+  const hasStar = rootStars.length > 0;
 
   // Fade group: traverse every frame while intro is running, skip objects tagged isStar
   const fadeGroupRef = useRef<THREE.Group>(null);
@@ -62,6 +65,18 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
     };
     const childShowOrbits = isInBelt ? false : prefs?.showOrbits;
 
+    if (STELLAR.includes(obj.type)) return (
+      <StarObject
+        key={obj.id}
+        obj={obj}
+        previewMode={previewMode}
+        onPositionUpdate={positionUpdate}
+        onClick={onObjectClick}
+        showOrbits={prefs?.showOrbits}
+      >
+        {children.map(c => renderObject(c))}
+      </StarObject>
+    );
     if (obj.type === 'AsteroidBelt') return (
       <group key={obj.id}>
         {!previewMode && <AsteroidBelt obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />}
@@ -91,22 +106,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
 
       {/* Everything that participates in the intro fade */}
       <group ref={fadeGroupRef}>
-        {stars.map(s => (
-          <StarObject
-            key={s.id}
-            obj={s}
-            previewMode={previewMode}
-            onPositionUpdate={(pos) => {
-              if (objectPositionsRef) {
-                objectPositionsRef.current[s.id] = pos;
-              }
-            }}
-            onClick={onObjectClick}
-            showOrbits={prefs?.showOrbits}
-          >
-            {sorted.filter(c => c.parentId === s.id).map(c => renderObject(c))}
-          </StarObject>
-        ))}
+        {rootStars.map(s => renderObject(s))}
         {topLevel.map(o => renderObject(o))}
       </group>
     </>

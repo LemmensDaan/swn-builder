@@ -71,11 +71,10 @@ function CarouselRow<T extends string>({
 interface Props {
   prefs: GalaxyPrefs;
   onChange: (p: GalaxyPrefs) => void;
-  onSave: () => void;
   onClose: () => void;
 }
 
-export default function GalaxyPrefsPanel({ prefs, onChange, onSave, onClose }: Props) {
+export default function GalaxyPrefsPanel({ prefs, onChange, onClose }: Props) {
   return (
     <div style={{
       position: 'absolute',
@@ -142,28 +141,6 @@ export default function GalaxyPrefsPanel({ prefs, onChange, onSave, onClose }: P
         onChange={colorScheme => onChange({ ...prefs, colorScheme })}
       />
 
-      <button
-        onClick={onSave}
-        style={{
-          width: '100%',
-          fontFamily: 'monospace',
-          fontSize: '9px',
-          letterSpacing: '0.14em',
-          textTransform: 'uppercase',
-          padding: '7px 0',
-          background: 'rgba(50,70,170,0.32)',
-          border: '1px solid rgba(70,95,195,0.38)',
-          borderRadius: 4,
-          color: 'rgba(185,200,255,0.88)',
-          cursor: 'pointer',
-          marginTop: 2,
-          transition: 'background 0.12s, color 0.12s',
-        }}
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(60,85,195,0.50)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(220,230,255,1)'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(50,70,170,0.32)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(185,200,255,0.88)'; }}
-      >
-        Save
-      </button>
     </div>
   );
 }

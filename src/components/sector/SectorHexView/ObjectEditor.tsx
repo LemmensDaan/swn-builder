@@ -27,17 +27,21 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
   const isPlanet = ['Planet', 'GasGiant', 'Moon'].includes(obj.type);
   const isSingleColorType = ['Star', 'NeutronStar', 'BlackHole'].includes(obj.type);
 
-  const isStarType = ['Star', 'NeutronStar', 'BlackHole'].includes(obj.type);
   // SpaceStation, JumpGate, Other can orbit asteroid belts; everything else cannot
   const canOrbitBelt = ['SpaceStation', 'JumpGate', 'Other'].includes(obj.type);
-  const validParents = isStarType
+  // Stellar hierarchy: BlackHole > NeutronStar > Star
+  const validParents = obj.type === 'BlackHole'
     ? []
-    : allObjects.filter(o => {
-        if (o.id === obj.id) return false;
-        if (['Star', 'NeutronStar', 'BlackHole', 'Moon'].includes(o.type)) return false;
-        if (o.type === 'AsteroidBelt') return canOrbitBelt;
-        return true;
-      });
+    : obj.type === 'NeutronStar'
+      ? allObjects.filter(o => o.id !== obj.id && o.type === 'BlackHole')
+      : obj.type === 'Star'
+        ? allObjects.filter(o => o.id !== obj.id && ['BlackHole', 'NeutronStar'].includes(o.type))
+        : allObjects.filter(o => {
+            if (o.id === obj.id) return false;
+            if (['Star', 'NeutronStar', 'BlackHole', 'Moon'].includes(o.type)) return false;
+            if (o.type === 'AsteroidBelt') return canOrbitBelt;
+            return true;
+          });
 
   return (
     <div className="rounded-lg bg-gray-800/60 border border-gray-700/50">
@@ -129,7 +133,7 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                   }
                 }}
               >
-                <option value="">— None (orbits star) —</option>
+                <option value="">— None (top-level orbit) —</option>
                 {validParents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </label>

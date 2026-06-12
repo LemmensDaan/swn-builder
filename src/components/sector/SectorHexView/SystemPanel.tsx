@@ -196,6 +196,14 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
     const kind: DragPayload['kind'] = isTopLevelNonPrimary(obj) ? 'tl' : 'child';
     e.dataTransfer.setData('swn-drag', JSON.stringify({ kind, objId: obj.id } satisfies DragPayload));
     e.dataTransfer.effectAllowed = 'move';
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    // Clone into body so the drag ghost isn't affected by the scrolled container's offset
+    const ghost = el.cloneNode(true) as HTMLElement;
+    ghost.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${rect.width}px;margin:0;pointer-events:none`;
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, e.clientX - rect.left, e.clientY - rect.top);
+    setTimeout(() => document.body.removeChild(ghost), 0);
   }
 
   function onDrop(e: React.DragEvent, targetObj: SystemObject) {
@@ -259,21 +267,22 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
     return (
       <div className="ml-3 border-l-2 border-gray-700/30 mt-1 space-y-1 pb-0.5">
         {children.map(child => (
-          <div
-            key={child.id}
-            draggable
-            onDragStart={e => onDragStart(e, child)}
-            onDragOver={e => e.preventDefault()}
-            onDrop={e => onDrop(e, child)}
-            className="pl-2 cursor-grab active:cursor-grabbing"
-          >
-            <ObjectEditor
-              obj={child}
-              allObjects={system.objects}
-              onChange={updates => updateObject(system.id, child.id, updates)}
-              onRemove={() => removeObject(system.id, child.id)}
-              draggable={true}
-            />
+          <div key={child.id}>
+            <div
+              draggable
+              onDragStart={e => onDragStart(e, child)}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => onDrop(e, child)}
+              className="pl-2 cursor-grab active:cursor-grabbing"
+            >
+              <ObjectEditor
+                obj={child}
+                allObjects={system.objects}
+                onChange={updates => updateObject(system.id, child.id, updates)}
+                onRemove={() => removeObject(system.id, child.id)}
+                draggable={true}
+              />
+            </div>
             {renderDescendants(child.id)}
           </div>
         ))}

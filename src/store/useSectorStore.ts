@@ -155,17 +155,23 @@ export const useSectorStore = create<SectorStore>()(
         const nextOrder = partial.sortOrder ?? (system ? Math.max(0, ...system.objects.map(o => o.sortOrder)) + 1 : 0);
         const size = partial.size ?? defaults.size ?? 1;
 
-        // Default parentId: if adding a non-star object and no parent specified,
-        // use the first star as parent UNLESS the system has 2+ stars (binary),
-        // in which case objects orbit the barycenter directly (no parent)
+        // Default parentId respecting stellar hierarchy: BlackHole > NeutronStar > Star
         let parentId = partial.parentId ?? null;
-        if (!parentId && system && !['Star', 'BlackHole', 'NeutronStar'].includes(partial.type)) {
-          const stars = system.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
-          // Only make objects children of stars in single-star systems
-          if (stars.length === 1) {
-            parentId = stars[0].id;
+        if (!parentId && system) {
+          const existingStars = system.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
+          if (partial.type === 'NeutronStar') {
+            parentId = existingStars.find(o => o.type === 'BlackHole')?.id ?? null;
+          } else if (partial.type === 'Star') {
+            const bh = existingStars.find(o => o.type === 'BlackHole');
+            const ns = existingStars.find(o => o.type === 'NeutronStar');
+            parentId = bh?.id ?? ns?.id ?? null;
+          } else if (!['BlackHole', 'NeutronStar', 'Star'].includes(partial.type)) {
+            // Non-stellar: orbit the single stellar object if only one exists
+            if (existingStars.length === 1) {
+              parentId = existingStars[0].id;
+            }
           }
-          // In binary+ systems, objects orbit the barycenter (no parent, top-level)
+          // BlackHole: always parentId = null
         }
 
         const BASE_ORBIT = 5;
@@ -173,11 +179,27 @@ export const useSectorStore = create<SectorStore>()(
         const isStarType = ['Star', 'BlackHole', 'NeutronStar'].includes(partial.type);
 
         let autoOrbitRadius: number;
-        if (isStarType && system) {
-          const stars = system.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
-          if (stars.length >= 1) {
+        if (isStarType && parentId && system) {
+          // Hierarchical stellar: orbit parent like a planet orbits a star
+          const parent = system.objects.find(o => o.id === parentId);
+          const parentSize = parent?.size ?? 1;
+          const stellarSiblings = system.objects.filter(o =>
+            o.parentId === parentId && ['Star', 'BlackHole', 'NeutronStar'].includes(o.type)
+          );
+          const clearance = 1.5;
+          if (stellarSiblings.length > 0) {
+            autoOrbitRadius = Math.max(...stellarSiblings.map(s => s.orbitRadius)) + size * 2 + clearance;
+          } else {
+            autoOrbitRadius = parentSize + size + clearance + 4;
+          }
+        } else if (isStarType && system) {
+          // Binary / solo: share orbit radius among root-level stellar objects
+          const rootStars = system.objects.filter(o =>
+            ['Star', 'BlackHole', 'NeutronStar'].includes(o.type) && o.parentId === null
+          );
+          if (rootStars.length >= 1) {
             const sharedBinaryOrbit = randBetween(7, 11, Math.random);
-            stars.forEach(s => {
+            rootStars.forEach(s => {
               if (s.orbitRadius === 0) {
                 get().updateObject(systemId, s.id, { orbitRadius: sharedBinaryOrbit });
               }
@@ -206,13 +228,15 @@ export const useSectorStore = create<SectorStore>()(
         const autoRotationSpeed = (rng() * 0.2) + 0.05;
         const autoInclination = (rng() - 0.5) * 2 * (parentId ? 3 : 8);
 
-        // For binary stars: use shared seed so they always oppose 180°
+        // For binary (root-level) stars: share seed so they always oppose 180°
+        // Hierarchical stellar objects get their own seed
         let seed: number;
-        if (isStarType && system) {
-          const stars = system.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
-          if (stars.length >= 1) {
-            // Binary companion: use same seed as first star for guaranteed 180° opposition
-            seed = stars[0].seed ?? 999;
+        if (isStarType && !parentId && system) {
+          const rootStars = system.objects.filter(o =>
+            ['Star', 'BlackHole', 'NeutronStar'].includes(o.type) && o.parentId === null
+          );
+          if (rootStars.length >= 1) {
+            seed = rootStars[0].seed ?? 999;
           } else {
             seed = Math.floor(Math.random() * 999983);
           }
@@ -243,15 +267,18 @@ export const useSectorStore = create<SectorStore>()(
         set(s => {
           const updatedSystem = { ...s.systems[systemId], objects: [...s.systems[systemId].objects, obj] };
 
-          if (isStarType) {
-            const stars = updatedSystem.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
-            if (stars.length >= 2) {
-              const firstStarOrbit = stars[0].orbitRadius;
-              const secondStarOrbit = stars[1].orbitRadius;
-              if (firstStarOrbit !== secondStarOrbit) {
-                const targetOrbit = Math.max(firstStarOrbit, secondStarOrbit) || randBetween(7, 11, Math.random);
+          // Sync root-level stellar objects to a shared binary orbit radius
+          if (isStarType && !parentId) {
+            const rootStars = updatedSystem.objects.filter(o =>
+              ['Star', 'BlackHole', 'NeutronStar'].includes(o.type) && o.parentId === null
+            );
+            if (rootStars.length >= 2) {
+              const firstOrbit = rootStars[0].orbitRadius;
+              const secondOrbit = rootStars[1].orbitRadius;
+              if (firstOrbit !== secondOrbit) {
+                const targetOrbit = Math.max(firstOrbit, secondOrbit) || randBetween(7, 11, Math.random);
                 updatedSystem.objects = updatedSystem.objects.map(o =>
-                  stars.includes(o) ? { ...o, orbitRadius: targetOrbit } : o
+                  rootStars.includes(o) ? { ...o, orbitRadius: targetOrbit } : o
                 );
               }
             }

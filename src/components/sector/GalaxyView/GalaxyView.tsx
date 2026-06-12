@@ -130,11 +130,10 @@ export default function GalaxyView() {
 
   function handleOpenPrefs() { setDraftPrefs({ ...savedPrefs }); }
   function handleClosePrefs() { setDraftPrefs(null); }
-  function handleSavePrefs() {
-    if (!draftPrefs) return;
-    savePrefs(draftPrefs);
-    setSavedPrefs(draftPrefs);
-    setDraftPrefs(null);
+  function handleChangePrefs(p: GalaxyPrefs) {
+    setDraftPrefs(p);
+    savePrefs(p);
+    setSavedPrefs(p);
   }
   const [naming, setNaming] = useState(false);
   const [newName, setNewName] = useState('');
@@ -243,8 +242,7 @@ export default function GalaxyView() {
       {draftPrefs && (
         <GalaxyPrefsPanel
           prefs={draftPrefs}
-          onChange={setDraftPrefs}
-          onSave={handleSavePrefs}
+          onChange={handleChangePrefs}
           onClose={handleClosePrefs}
         />
       )}

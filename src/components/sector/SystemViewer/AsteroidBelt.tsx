@@ -29,6 +29,9 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) 
   const focusMarker = useRef(new THREE.Object3D());
   const _wp = useRef(new THREE.Vector3());
 
+  // Match direction (+X → +Z) and speed to getOrbitPosition so belt-children stay in sync
+  const orbitSpeed = obj.orbitRadius > 0 ? 0.2 / Math.sqrt(obj.orbitRadius) : 0.012;
+
   const geo = useMemo(() => new THREE.IcosahedronGeometry(0.08, 0), []);
   const beltColor = useMemo(() => getEarthToneColor(), [obj.id]);
   const mat = useMemo(
@@ -67,7 +70,7 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) 
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
-    groupRef.current.rotation.y += delta * 0.012;
+    groupRef.current.rotation.y -= delta * orbitSpeed;
     focusMarker.current.updateWorldMatrix(true, false);
     focusMarker.current.getWorldPosition(_wp.current);
     onPositionUpdate?.([_wp.current.x, _wp.current.y, _wp.current.z]);

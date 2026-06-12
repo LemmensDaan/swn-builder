@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { StarSystem } from '../../../types/sector';
+import { sortSystemObjects } from '../../../types/sector';
 import type { SystemPrefs } from './systemPrefs';
 import Starfield from '../shared/Starfield';
 import StarObject from './StarObject';
@@ -22,7 +23,7 @@ interface Props {
 }
 
 export default function SystemScene({ system, selectedObjectId: _selectedObjectId, onObjectClick, objectPositionsRef, previewMode, introOpacityRef, starfieldOpacity = 0.85, prefs }: Props) {
-  const sorted = [...system.objects].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sorted = sortSystemObjects(system.objects);
   const stars   = sorted.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
   const topLevel = sorted.filter(o => !o.parentId && !['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
   const hasStar = stars.length > 0;
@@ -47,24 +48,35 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
     });
   });
 
-  function renderObject(obj: typeof sorted[0]): React.ReactNode {
+  function renderObject(obj: typeof sorted[0], parentBelt?: typeof sorted[0]): React.ReactNode {
     const children = sorted.filter(c => c.parentId === obj.id);
+    const isInBelt = parentBelt?.type === 'AsteroidBelt';
+    // Belt children always orbit in the belt's plane at the belt's radius
+    const effectiveObj = isInBelt
+      ? { ...obj, orbitRadius: parentBelt!.orbitRadius, inclination: parentBelt!.inclination }
+      : obj;
     const positionUpdate = (pos: [number, number, number]) => {
       if (objectPositionsRef) {
         objectPositionsRef.current[obj.id] = pos;
       }
     };
+    const childShowOrbits = isInBelt ? false : prefs?.showOrbits;
 
-    if (obj.type === 'AsteroidBelt') return previewMode ? null : <AsteroidBelt key={obj.id} obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />;
-    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={prefs?.showOrbits} />;
-    if (obj.type === 'SpaceStation' || obj.type === 'JumpGate') return <SpaceStation key={obj.id} obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={prefs?.showOrbits} />;
+    if (obj.type === 'AsteroidBelt') return (
+      <group key={obj.id}>
+        {!previewMode && <AsteroidBelt obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />}
+        {children.map(c => renderObject(c, obj))}
+      </group>
+    );
+    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={effectiveObj} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
+    if (obj.type === 'SpaceStation' || obj.type === 'JumpGate') return <SpaceStation key={obj.id} obj={effectiveObj} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
     return (
       <PlanetObject
         key={obj.id}
-        obj={obj}
+        obj={effectiveObj}
         onPositionUpdate={positionUpdate}
         onClick={onObjectClick}
-        showOrbits={prefs?.showOrbits}
+        showOrbits={childShowOrbits}
       >
         {children.map(c => renderObject(c))}
       </PlanetObject>
@@ -89,6 +101,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
                 objectPositionsRef.current[s.id] = pos;
               }
             }}
+            onClick={onObjectClick}
             showOrbits={prefs?.showOrbits}
           >
             {sorted.filter(c => c.parentId === s.id).map(c => renderObject(c))}

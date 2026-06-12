@@ -21,20 +21,30 @@ function makeStarGlowTexture(): THREE.Texture {
   return new THREE.CanvasTexture(canvas);
 }
 
-function makeBlackHoleDiskTexture(): THREE.Texture {
+function makeBlackHoleDiskTexture(baseHex: string): THREE.Texture {
   const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext('2d')!;
 
+  const base = new THREE.Color(baseHex);
+  const hsl = { h: 0, s: 0, l: 0 };
+  base.getHSL(hsl);
+
+  const toRgba = (c: THREE.Color, a: number) =>
+    `rgba(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)},${a})`;
+
+  const inner = new THREE.Color().setHSL(hsl.h, hsl.s, Math.min(1, hsl.l + 0.35));
+  const mid   = base.clone();
+  const outer = new THREE.Color().setHSL(hsl.h, Math.max(0, hsl.s - 0.1), Math.max(0, hsl.l - 0.3));
+
   const cx = size / 2, cy = size / 2;
-  // Radial gradient: bright hot inner disk fading to dim outer edges
   const g = ctx.createRadialGradient(cx, cy, 30, cx, cy, size / 2);
-  g.addColorStop(0,   'rgba(255, 120, 40, 0.95)');  // event horizon - hot orange
-  g.addColorStop(0.25, 'rgba(200, 80, 30, 0.85)');  // inner disk
-  g.addColorStop(0.5,  'rgba(120, 40, 15, 0.6)');   // mid disk
-  g.addColorStop(0.8,  'rgba(60, 20, 8, 0.3)');     // outer disk
-  g.addColorStop(1,    'rgba(40, 10, 5, 0)');       // fade to black
+  g.addColorStop(0,    toRgba(inner, 0.95));
+  g.addColorStop(0.25, toRgba(mid,   0.85));
+  g.addColorStop(0.5,  toRgba(outer, 0.6));
+  g.addColorStop(0.8,  toRgba(outer, 0.3));
+  g.addColorStop(1,    toRgba(outer, 0));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
 
@@ -45,11 +55,12 @@ interface Props {
   obj: SystemObject;
   children?: React.ReactNode;
   onPositionUpdate?: (pos: [number, number, number]) => void;
+  onClick?: (id: string) => void;
   previewMode?: boolean;
   showOrbits?: boolean;
 }
 
-export default function StarObject({ obj, children, onPositionUpdate, previewMode, showOrbits = true }: Props) {
+export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -57,7 +68,7 @@ export default function StarObject({ obj, children, onPositionUpdate, previewMod
   const isBlackHole = obj.type === 'BlackHole';
   const isNeutron   = obj.type === 'NeutronStar';
   const glowTex = useMemo(() => makeStarGlowTexture(), []);
-  const bhDiskTex = useMemo(() => makeBlackHoleDiskTexture(), []);
+  const bhDiskTex = useMemo(() => makeBlackHoleDiskTexture(color), [color]);
 
   // Orbit setup (for binary stars)
   let initialAngle = mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2;
@@ -95,7 +106,7 @@ export default function StarObject({ obj, children, onPositionUpdate, previewMod
         {/* The only meaningful light source in the scene */}
         {!previewMode && (
           <pointLight
-            color={isBlackHole ? '#ff6620' : color}
+            color={color}
             intensity={isBlackHole ? 80 : 120}
             distance={isBlackHole ? 180 : 220}
             decay={1}
@@ -126,8 +137,9 @@ export default function StarObject({ obj, children, onPositionUpdate, previewMod
       <mesh
         ref={meshRef}
         userData={{ isStar: true }}
-        onPointerEnter={() => setHovered(true)}
-        onPointerLeave={() => setHovered(false)}
+        onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+        onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
+        onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
         castShadow={false}
         receiveShadow={false}
       >

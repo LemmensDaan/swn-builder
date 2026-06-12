@@ -7,7 +7,7 @@ import { PLANET_PRESETS } from '../SystemViewer/planetRenderer';
 const OBJECT_TYPES: ObjectType[] = [
   'Star', 'NeutronStar', 'BlackHole',
   'Planet', 'GasGiant', 'Moon',
-  'AsteroidBelt', 'SpaceStation', 'JumpGate',
+  'AsteroidBelt', 'Comet', 'SpaceStation', 'JumpGate',
   'Nebula', 'Other',
 ];
 
@@ -16,29 +16,34 @@ interface Props {
   allObjects: SystemObject[];
   onChange: (updates: Partial<SystemObject>) => void;
   onRemove: () => void;
+  draggable?: boolean;
 }
 
-export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Props) {
+export default function ObjectEditor({ obj, allObjects, onChange, onRemove, draggable = true }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [orbitalExpanded, setOrbitalExpanded] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   const isPlanet = ['Planet', 'GasGiant', 'Moon'].includes(obj.type);
+  const isSingleColorType = ['Star', 'NeutronStar', 'BlackHole'].includes(obj.type);
 
-  // Stars can never be children; non-stars can only have non-star parents
   const isStarType = ['Star', 'NeutronStar', 'BlackHole'].includes(obj.type);
+  // SpaceStation, JumpGate, Other can orbit asteroid belts; everything else cannot
+  const canOrbitBelt = ['SpaceStation', 'JumpGate', 'Other'].includes(obj.type);
   const validParents = isStarType
     ? []
-    : allObjects.filter(o =>
-        o.id !== obj.id &&
-        !['Moon', 'AsteroidBelt', 'Star', 'NeutronStar', 'BlackHole'].includes(o.type)
-      );
+    : allObjects.filter(o => {
+        if (o.id === obj.id) return false;
+        if (['Star', 'NeutronStar', 'BlackHole', 'Moon'].includes(o.type)) return false;
+        if (o.type === 'AsteroidBelt') return canOrbitBelt;
+        return true;
+      });
 
   return (
     <div className="rounded-lg bg-gray-800/60 border border-gray-700/50">
       <div className="flex items-center gap-2 px-3 py-2">
-        {/* Drag handle placeholder */}
-        <span className="text-gray-600 cursor-grab select-none text-xs">⠿</span>
+        {/* Drag handle */}
+        <span className={`select-none text-xs ${draggable ? 'text-gray-600 cursor-grab' : 'text-gray-700 invisible'}`}>⠿</span>
 
         {/* Color swatch */}
         <div className="flex gap-0.5">
@@ -60,14 +65,14 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Pr
               />
             </label>
           ))}
-          {obj.colors.length === 1 && (
+          {!isSingleColorType && obj.colors.length === 1 && (
             <button
               title="Add second color"
               onClick={() => onChange({ colors: [obj.colors[0], '#888888'] as [string, string] })}
               className="w-4 h-4 rounded-sm border border-dashed border-gray-600 text-gray-600 hover:text-gray-400 flex items-center justify-center text-[9px]"
             >+</button>
           )}
-          {obj.colors.length === 2 && (
+          {!isSingleColorType && obj.colors.length === 2 && (
             <button
               title="Remove second color"
               onClick={() => onChange({ colors: [obj.colors[0]] as [string] })}
@@ -114,7 +119,15 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove }: Pr
               <select
                 className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
                 value={obj.parentId ?? ''}
-                onChange={e => onChange({ parentId: e.target.value || null })}
+                onChange={e => {
+                  const newParentId = e.target.value || null;
+                  const newParent = allObjects.find(o => o.id === newParentId);
+                  if (newParent?.type === 'AsteroidBelt') {
+                    onChange({ parentId: newParentId, orbitRadius: newParent.orbitRadius, inclination: newParent.inclination });
+                  } else {
+                    onChange({ parentId: newParentId });
+                  }
+                }}
               >
                 <option value="">— None (orbits star) —</option>
                 {validParents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}

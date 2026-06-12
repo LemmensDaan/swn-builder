@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { ChevronLeft, ChevronRight, Sliders } from 'lucide-react';
+import { sortSystemObjects, getPrimaryObjectTypes } from '../../../types/sector';
 import { useSectorStore } from '../../../store/useSectorStore';
 import SystemScene from './SystemScene';
 import SystemPrefsPanel from './SystemPrefsPanel';
@@ -157,7 +158,7 @@ export default function SystemViewer() {
     ? (system.objects.find(o => o.id === selectedObjectId)?.size ?? 1)
     : 1;
 
-  const sorted = [...system.objects].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sorted = sortSystemObjects(system.objects);
 
   const furthestOrbit = Math.max(
     0,
@@ -265,29 +266,37 @@ export default function SystemViewer() {
                 <p className="text-gray-700 text-xs italic">No objects defined</p>
               )}
               {(() => {
+                const primaryTypes = getPrimaryObjectTypes();
                 const renderTree = (parentId: string | null, depth = 0) => {
                   const children = sorted.filter(o => o.parentId === parentId);
-                  return children.map(obj => (
-                    <div key={obj.id}>
-                      <button
-                        onClick={() => setSelectedObjectId(obj.id)}
-                        className={`w-full flex items-center gap-2 py-1.5 px-2 rounded text-left transition-colors ${
-                          selectedObjectId === obj.id ? 'bg-gray-700/50' : 'hover:bg-gray-700/30'
-                        }`}
-                        style={{ paddingLeft: `${8 + depth * 12}px` }}
-                      >
-                        <div
-                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                          style={{ background: obj.colors[0] }}
-                        />
-                        <div className="min-w-0">
-                          <p className="text-gray-200 text-xs font-medium truncate">{obj.name}</p>
-                          <p className="text-gray-600 text-[10px]">{obj.type}</p>
-                        </div>
-                      </button>
-                      {renderTree(obj.id, depth + 1)}
-                    </div>
-                  ));
+                  return children.map((obj, idx) => {
+                    const isLastPrimary = depth === 0 && idx === sorted.filter(o => o.parentId === null).findIndex(o => !primaryTypes.has(o.type));
+                    const shouldShowSeparator = depth === 0 && isLastPrimary && idx > 0;
+                    return (
+                      <div key={obj.id}>
+                        {shouldShowSeparator && (
+                          <div className="my-1 border-t border-gray-700/40" />
+                        )}
+                        <button
+                          onClick={() => setSelectedObjectId(obj.id)}
+                          className={`w-full flex items-center gap-2 py-1.5 px-2 rounded text-left transition-colors ${
+                            selectedObjectId === obj.id ? 'bg-gray-700/50' : 'hover:bg-gray-700/30'
+                          }`}
+                          style={{ paddingLeft: `${8 + depth * 12}px` }}
+                        >
+                          <div
+                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{ background: obj.colors[0] }}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-gray-200 text-xs font-medium truncate">{obj.name}</p>
+                            <p className="text-gray-600 text-[10px]">{obj.type}</p>
+                          </div>
+                        </button>
+                        {renderTree(obj.id, depth + 1)}
+                      </div>
+                    );
+                  });
                 };
                 return renderTree(null);
               })()}
@@ -297,7 +306,8 @@ export default function SystemViewer() {
       ) : (
         <button
           onClick={() => setSidebarOpen(true)}
-          className="flex-shrink-0 flex items-start justify-center pt-3 w-8 bg-gray-900/80 hover:bg-gray-800 border-l border-gray-700/60 text-gray-600 hover:text-gray-300 transition-colors"
+          className="absolute top-4 right-4 p-1.5 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-600 hover:text-gray-300 transition-colors backdrop-blur"
+          title="Open astrogation"
         >
           <ChevronLeft size={14} />
         </button>

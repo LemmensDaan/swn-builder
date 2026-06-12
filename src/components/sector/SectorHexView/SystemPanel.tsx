@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Plus, Eye, Trash2, Shuffle } from 'lucide-react';
-import type { StarSystem, ObjectType, SystemType } from '../../../types/sector';
+import type { StarSystem, SystemObject, ObjectType, SystemType } from '../../../types/sector';
+import { sortSystemObjects, getPrimaryObjectTypes } from '../../../types/sector';
 import { useSectorStore } from '../../../store/useSectorStore';
 import { randomizeSystem } from '../SystemViewer/systemRandomizer';
 import ObjectEditor from './ObjectEditor';
@@ -8,17 +9,28 @@ import ObjectEditor from './ObjectEditor';
 const SYSTEM_TYPES: SystemType[] = ['Standard', 'Binary', 'Hostile', 'Rich', 'Dead', 'Frontier'];
 
 const QUICK_TYPES: { type: ObjectType; label: string }[] = [
-  { type: 'Star',         label: 'Star'     },
-  { type: 'Planet',       label: 'Planet'   },
-  { type: 'GasGiant',     label: 'Gas Giant'},
-  { type: 'Moon',         label: 'Moon'     },
-  { type: 'AsteroidBelt', label: 'Belt'     },
-  { type: 'Comet',        label: 'Comet'    },
-  { type: 'SpaceStation', label: 'Station'  },
-  { type: 'JumpGate',     label: 'Gate'     },
-  { type: 'BlackHole',    label: 'Black Hole'},
-  { type: 'Nebula',       label: 'Nebula'   },
+  { type: 'Star',         label: 'Star'        },
+  { type: 'NeutronStar',  label: 'Neutron Star'},
+  { type: 'Planet',       label: 'Planet'      },
+  { type: 'GasGiant',     label: 'Gas Giant'   },
+  { type: 'Moon',         label: 'Moon'        },
+  { type: 'AsteroidBelt', label: 'Belt'        },
+  { type: 'Comet',        label: 'Comet'       },
+  { type: 'SpaceStation', label: 'Station'     },
+  { type: 'JumpGate',     label: 'Gate'        },
+  { type: 'BlackHole',    label: 'Black Hole'  },
+  { type: 'Nebula',       label: 'Nebula'      },
+  { type: 'Other',        label: 'Other'       },
 ];
+
+// Orbit radius increments when placing a reparented object
+const TL_BASE_ORBIT    = 5;
+const TL_SPACING       = 6.5;
+const CHILD_BASE_ORBIT = 1.5;
+const CHILD_SPACING    = 0.8;
+
+// Only these types may orbit an asteroid belt
+const BELT_ALLOWED_TYPES = new Set<ObjectType>(['SpaceStation', 'JumpGate', 'Other']);
 
 interface Props {
   system: StarSystem;
@@ -28,6 +40,8 @@ interface Props {
   onDeleteSystem: () => void;
 }
 
+type DragPayload = { kind: 'tl' | 'child'; objId: string };
+
 export default function SystemPanel({ system, sectorId: _sectorId, onClose, onViewSystem, onDeleteSystem }: Props) {
   const { updateSystem, addObject, updateObject, removeObject, reorderObjects } = useSectorStore();
   const [addingType, setAddingType] = useState(false);
@@ -35,25 +49,236 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
 
   function handleRandomize() {
     const newObjects = randomizeSystem(systemType);
-    // Clear existing objects then add the randomized ones
     system.objects.forEach(o => removeObject(system.id, o.id));
     newObjects.forEach(o => addObject(system.id, o));
   }
 
-  const sorted = [...system.objects].sort((a, b) => a.sortOrder - b.sortOrder);
+  // ── Derived structure ────────────────────────────────────────────────────
 
-  function handleDragStart(e: React.DragEvent, idx: number) {
-    e.dataTransfer.setData('text/plain', String(idx));
+  const sorted = sortSystemObjects(system.objects);
+  const primaryTypes = getPrimaryObjectTypes();
+  const primaryObjs = sorted.filter(o => primaryTypes.has(o.type));
+  const primaryIds = new Set(primaryObjs.map(o => o.id));
+
+  // parentId to assign when making an object orbit the star
+  const defaultTLParentId: string | null = primaryObjs.length === 1 ? primaryObjs[0].id : null;
+
+  const isTopLevelNonPrimary = (o: SystemObject) =>
+    !primaryTypes.has(o.type) && (o.parentId === null || primaryIds.has(o.parentId ?? ''));
+
+  const topLevelNonPrimary = sorted.filter(isTopLevelNonPrimary);
+
+  // Map each non-primary id → its direct children (pre-sorted by sortOrder)
+  const childrenOf = new Map<string, SystemObject[]>();
+  sorted.forEach(o => {
+    if (primaryTypes.has(o.type) || isTopLevelNonPrimary(o)) return;
+    const pid = o.parentId;
+    if (!pid) return;
+    if (!childrenOf.has(pid)) childrenOf.set(pid, []);
+    childrenOf.get(pid)!.push(o);
+  });
+
+  // ── Drag helpers ─────────────────────────────────────────────────────────
+
+  /** Build the flat sortOrder list: primaries, then each TL with all its descendants. */
+  function buildAllIds(
+    tlOrder: SystemObject[],
+    cMap: Map<string, SystemObject[]>
+  ): string[] {
+    const result: string[] = primaryObjs.map(o => o.id);
+    function appendDesc(id: string) {
+      result.push(id);
+      (cMap.get(id) ?? []).forEach(c => appendDesc(c.id));
+    }
+    tlOrder.forEach(o => appendDesc(o.id));
+    return result;
   }
 
-  function handleDrop(e: React.DragEvent, toIdx: number) {
+  /** Reorder top-level objects and redistribute their orbit radii. */
+  function reorderTopLevel(fromTlIdx: number, toTlIdx: number) {
+    const tlIds = topLevelNonPrimary.map(o => o.id);
+    const [moved] = tlIds.splice(fromTlIdx, 1);
+    tlIds.splice(toTlIdx, 0, moved);
+
+    const newTLOrder = tlIds.map(id => topLevelNonPrimary.find(o => o.id === id)!);
+    const sortedRadii = newTLOrder.map(o => o.orbitRadius).sort((a, b) => a - b);
+    const perObjectUpdates: Record<string, Partial<SystemObject>> = {};
+    newTLOrder.forEach((obj, i) => { perObjectUpdates[obj.id] = { orbitRadius: sortedRadii[i] }; });
+
+    reorderObjects(system.id, buildAllIds(newTLOrder, childrenOf), perObjectUpdates);
+  }
+
+  /** Reorder siblings within the same parent, redistributing their orbit radii. */
+  function reorderSiblings(draggedObj: SystemObject, targetObj: SystemObject) {
+    const siblings = childrenOf.get(draggedObj.parentId!) ?? [];
+    const fromIdx = siblings.findIndex(s => s.id === draggedObj.id);
+    const toIdx   = siblings.findIndex(s => s.id === targetObj.id);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+
+    const newSibIds = siblings.map(s => s.id);
+    const [moved] = newSibIds.splice(fromIdx, 1);
+    newSibIds.splice(toIdx, 0, moved);
+
+    const newSibOrder = newSibIds.map(id => siblings.find(s => s.id === id)!);
+    const newCMap = new Map(childrenOf);
+    newCMap.set(draggedObj.parentId!, newSibOrder);
+
+    const sortedRadii = newSibOrder.map(s => s.orbitRadius).sort((a, b) => a - b);
+    const perObjectUpdates: Record<string, Partial<SystemObject>> = {};
+    newSibOrder.forEach((sib, i) => { perObjectUpdates[sib.id] = { orbitRadius: sortedRadii[i] }; });
+
+    reorderObjects(system.id, buildAllIds(topLevelNonPrimary, newCMap), perObjectUpdates);
+  }
+
+  /**
+   * Move obj to a new parent (or to top-level when newParentId is a primary or null).
+   * Assigns a sensible orbit radius and updates the full sorted order atomically.
+   */
+  function reparentTo(obj: SystemObject, newParentId: string | null) {
+    const wasTopLevel  = isTopLevelNonPrimary(obj);
+    const willBeTopLevel = newParentId === null || primaryIds.has(newParentId ?? '');
+
+    // New TL order
+    const newTLOrder = wasTopLevel
+      ? topLevelNonPrimary.filter(o => o.id !== obj.id)
+      : [...topLevelNonPrimary];
+    if (willBeTopLevel) newTLOrder.push(obj);
+
+    // New children map: remove from old parent, add to new
+    const newCMap = new Map<string, SystemObject[]>();
+    childrenOf.forEach((children, pid) => {
+      newCMap.set(pid, children.filter(c => c.id !== obj.id));
+    });
+    if (!willBeTopLevel && newParentId) {
+      const existing = newCMap.get(newParentId) ?? [];
+      newCMap.set(newParentId, [...existing, obj]);
+    }
+
+    // Compute new orbit radius for the moved object
+    let newOrbitRadius: number;
+    if (willBeTopLevel) {
+      const otherRadii = newTLOrder.filter(o => o.id !== obj.id).map(o => o.orbitRadius);
+      newOrbitRadius = otherRadii.length > 0
+        ? Math.max(...otherRadii) + TL_SPACING
+        : TL_BASE_ORBIT;
+    } else {
+      const newParentObj = sorted.find(o => o.id === newParentId);
+      if (newParentObj?.type === 'AsteroidBelt') {
+        // Objects in a belt orbit at the belt's own radius and inclination so they
+        // appear embedded in the field rather than as a child offset from its center.
+        newOrbitRadius = newParentObj.orbitRadius;
+      } else {
+        const newSiblings = (newCMap.get(newParentId!) ?? []).filter(c => c.id !== obj.id);
+        newOrbitRadius = newSiblings.length > 0
+          ? Math.max(...newSiblings.map(s => s.orbitRadius)) + CHILD_SPACING
+          : CHILD_BASE_ORBIT;
+      }
+    }
+
+    const extraUpdates: Partial<SystemObject> =
+      (() => {
+        const newParentObj = !willBeTopLevel ? sorted.find(o => o.id === newParentId) : undefined;
+        return newParentObj?.type === 'AsteroidBelt'
+          ? { inclination: newParentObj.inclination }
+          : {};
+      })();
+
+    reorderObjects(
+      system.id,
+      buildAllIds(newTLOrder, newCMap),
+      { [obj.id]: { parentId: newParentId, orbitRadius: newOrbitRadius, ...extraUpdates } }
+    );
+  }
+
+  // ── Unified drop handler ─────────────────────────────────────────────────
+
+  function onDragStart(e: React.DragEvent, obj: SystemObject) {
+    const kind: DragPayload['kind'] = isTopLevelNonPrimary(obj) ? 'tl' : 'child';
+    e.dataTransfer.setData('swn-drag', JSON.stringify({ kind, objId: obj.id } satisfies DragPayload));
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function onDrop(e: React.DragEvent, targetObj: SystemObject) {
     e.preventDefault();
-    const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
-    if (fromIdx === toIdx) return;
-    const ids = sorted.map(o => o.id);
-    const [moved] = ids.splice(fromIdx, 1);
-    ids.splice(toIdx, 0, moved);
-    reorderObjects(system.id, ids);
+    const raw = e.dataTransfer.getData('swn-drag');
+    if (!raw) return;
+    let payload: DragPayload;
+    try { payload = JSON.parse(raw); } catch { return; }
+
+    const dragged = sorted.find(o => o.id === payload.objId);
+    if (!dragged || dragged.id === targetObj.id) return;
+
+    const targetIsPrimary = primaryTypes.has(targetObj.type);
+    const targetIsTL      = isTopLevelNonPrimary(targetObj);
+
+    if (payload.kind === 'tl') {
+      if (targetIsPrimary) return;
+      if (targetIsTL) {
+        // Dropping a belt-compatible type onto an asteroid belt embeds it in the belt
+        if (targetObj.type === 'AsteroidBelt' && BELT_ALLOWED_TYPES.has(dragged.type)) {
+          reparentTo(dragged, targetObj.id);
+        } else {
+          const fromTlIdx = topLevelNonPrimary.findIndex(o => o.id === dragged.id);
+          const toTlIdx   = topLevelNonPrimary.findIndex(o => o.id === targetObj.id);
+          reorderTopLevel(fromTlIdx, toTlIdx);
+        }
+      } else {
+        // TL dropped onto a child → reparent TL under that child's parent
+        if (wouldBeInBelt(targetObj.parentId) && !BELT_ALLOWED_TYPES.has(dragged.type)) return;
+        reparentTo(dragged, targetObj.parentId);
+      }
+      return;
+    }
+
+    // Resolve the belt the drop would end up in (if any) and validate the type
+    const wouldBeInBelt = (parentId: string | null | undefined) => {
+      const parent = parentId ? sorted.find(o => o.id === parentId) : undefined;
+      return parent?.type === 'AsteroidBelt';
+    };
+
+    // kind === 'child'
+    if (targetIsPrimary) {
+      reparentTo(dragged, defaultTLParentId); // orbit star
+    } else if (targetIsTL) {
+      if (targetObj.type === 'AsteroidBelt' && !BELT_ALLOWED_TYPES.has(dragged.type)) return;
+      reparentTo(dragged, targetObj.id);      // orbit this planet / belt
+    } else if (dragged.parentId === targetObj.parentId) {
+      reorderSiblings(dragged, targetObj);    // swap within same parent
+    } else {
+      // Moving to a different parent's group — validate if that parent is a belt
+      if (wouldBeInBelt(targetObj.parentId) && !BELT_ALLOWED_TYPES.has(dragged.type)) return;
+      reparentTo(dragged, targetObj.parentId);
+    }
+  }
+
+  // ── Recursive child renderer ─────────────────────────────────────────────
+
+  function renderDescendants(parentId: string): React.ReactNode {
+    const children = childrenOf.get(parentId) ?? [];
+    if (children.length === 0) return null;
+    return (
+      <div className="ml-3 border-l-2 border-gray-700/30 mt-1 space-y-1 pb-0.5">
+        {children.map(child => (
+          <div
+            key={child.id}
+            draggable
+            onDragStart={e => onDragStart(e, child)}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => onDrop(e, child)}
+            className="pl-2 cursor-grab active:cursor-grabbing"
+          >
+            <ObjectEditor
+              obj={child}
+              allObjects={system.objects}
+              onChange={updates => updateObject(system.id, child.id, updates)}
+              onRemove={() => removeObject(system.id, child.id)}
+              draggable={true}
+            />
+            {renderDescendants(child.id)}
+          </div>
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -105,20 +330,49 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
         {sorted.length === 0 && (
           <p className="text-gray-600 text-xs text-center py-6">No objects yet. Add one below.</p>
         )}
-        {sorted.map((obj, idx) => (
+
+        {/* Primary objects — accept drops but not draggable */}
+        {primaryObjs.map(obj => (
           <div
             key={obj.id}
-            draggable
-            onDragStart={e => handleDragStart(e, idx)}
             onDragOver={e => e.preventDefault()}
-            onDrop={e => handleDrop(e, idx)}
+            onDrop={e => onDrop(e, obj)}
+            title="Drop here to make an object orbit the star"
           >
             <ObjectEditor
               obj={obj}
               allObjects={system.objects}
               onChange={updates => updateObject(system.id, obj.id, updates)}
               onRemove={() => removeObject(system.id, obj.id)}
+              draggable={false}
             />
+          </div>
+        ))}
+
+        {/* Separator */}
+        {primaryObjs.length > 0 && sorted.length > primaryObjs.length && (
+          <div className="border-t border-gray-700/40" />
+        )}
+
+        {/* Top-level non-primary objects (draggable) with children nested below */}
+        {topLevelNonPrimary.map((obj, tlIdx) => (
+          <div key={obj.id}>
+            <div
+              draggable
+              onDragStart={e => onDragStart(e, obj)}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => onDrop(e, obj)}
+              className="cursor-grab active:cursor-grabbing"
+            >
+              <ObjectEditor
+                obj={obj}
+                allObjects={system.objects}
+                onChange={updates => updateObject(system.id, obj.id, updates)}
+                onRemove={() => removeObject(system.id, obj.id)}
+                draggable={true}
+              />
+            </div>
+            {renderDescendants(obj.id)}
           </div>
         ))}
       </div>

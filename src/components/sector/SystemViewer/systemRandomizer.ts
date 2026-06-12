@@ -1,4 +1,5 @@
 import type { SystemObject, SystemType, PlanetType, ObjectType } from '../../../types/sector';
+import { OBJECT_TYPE_DEFAULTS } from '../../../types/sector';
 import { PLANET_PRESETS, mulberry32 } from './planetRenderer';
 
 const BASE_ORBIT = 5;
@@ -92,9 +93,11 @@ function makeId(): string {
 }
 
 function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng: () => number, binaryOrbitRad?: number): Omit<SystemObject, 'id'> {
-  const color = pick(STAR_COLORS[systemType], rng);
   const isDead = systemType === 'Dead';
   const type: ObjectType = isDead ? (rng() > 0.5 ? 'BlackHole' : 'NeutronStar') : 'Star';
+  const color = type === 'BlackHole' || type === 'NeutronStar'
+    ? (OBJECT_TYPE_DEFAULTS[type].colors as [string])[0]
+    : pick(STAR_COLORS[systemType], rng);
   const size = type === 'BlackHole' ? 1.4 : type === 'NeutronStar' ? 1.0 : randBetween(1.5, 2.5, rng);
 
   // Binary stars: both orbit shared barycenter at equal distance, exactly opposite
@@ -118,7 +121,14 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
   };
 }
 
-function makePlanet(planetType: PlanetType, order: number, parentId: string | null, rng: () => number): Omit<SystemObject, 'id'> {
+function makePlanet(
+  planetType: PlanetType,
+  order: number,
+  parentId: string | null,
+  rng: () => number,
+  parentSize?: number,
+  prevMoonOrbit?: number,
+): Omit<SystemObject, 'id'> {
   const preset = PLANET_PRESETS[planetType];
   const isGas = planetType === 'GasGiant';
   const isMoon = parentId !== null;
@@ -127,9 +137,16 @@ function makePlanet(planetType: PlanetType, order: number, parentId: string | nu
     ? randBetween(0.15, 0.35, rng)
     : planetSize(rng, isGas);
 
-  const radius = isMoon
-    ? randBetween(0.6, 2.0, rng)
-    : orbitRadius(order, (rng() - 0.5) * 2);
+  let radius: number;
+  if (isMoon) {
+    const clearance = 0.3;
+    const fromParent = (parentSize ?? 0) + size + clearance;
+    const fromPrevMoon = (prevMoonOrbit ?? 0) + size * 2 + clearance;
+    const minOrbit = Math.max(fromParent, fromPrevMoon);
+    radius = randBetween(minOrbit, minOrbit + 1.0, rng);
+  } else {
+    radius = orbitRadius(order, (rng() - 0.5) * 2);
+  }
 
   // Inclination: minimal variation (±8° for planets, ±3° for moons)
   const inclinationRange = isMoon ? 3 : 8;
@@ -234,7 +251,7 @@ export function randomizeSystem(systemType: SystemType): SystemObject[] {
     objects.push(planet);
     // Inner planets rarely have moons
     if (rng() < 0.1) {
-      objects.push({ id: makeId(), ...makePlanet('Barren', 0, planet.id, rng) });
+      objects.push({ id: makeId(), ...makePlanet('Barren', 0, planet.id, rng, planet.size) });
     }
   }
 
@@ -246,9 +263,12 @@ export function randomizeSystem(systemType: SystemType): SystemObject[] {
     objects.push(planet);
     // Mid planets: 0–2 moons
     const moonCount = randInt(0, pt === 'GasGiant' ? 3 : 1, rng);
+    let prevMoonOrbit = 0;
     for (let m = 0; m < moonCount; m++) {
       const moonPt = pick(['Barren', 'Ice', 'Barren'] as PlanetType[], rng);
-      objects.push({ id: makeId(), ...makePlanet(moonPt, m, planet.id, rng) });
+      const moon = { id: makeId(), ...makePlanet(moonPt, m, planet.id, rng, planet.size, prevMoonOrbit) };
+      prevMoonOrbit = moon.orbitRadius;
+      objects.push(moon);
     }
   }
 
@@ -265,9 +285,12 @@ export function randomizeSystem(systemType: SystemType): SystemObject[] {
     objects.push(planet);
     // Gas giants: 0–3 moons
     const moonCount = randInt(0, 3, rng);
+    let prevMoonOrbit = 0;
     for (let m = 0; m < moonCount; m++) {
       const moonPt = pick(['Barren', 'Ice', 'Toxic', 'Barren'] as PlanetType[], rng);
-      objects.push({ id: makeId(), ...makePlanet(moonPt, m, planet.id, rng) });
+      const moon = { id: makeId(), ...makePlanet(moonPt, m, planet.id, rng, planet.size, prevMoonOrbit) };
+      prevMoonOrbit = moon.orbitRadius;
+      objects.push(moon);
     }
   }
 

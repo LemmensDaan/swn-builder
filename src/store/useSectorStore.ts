@@ -31,7 +31,7 @@ interface SectorActions {
   addObject: (systemId: string, partial: Partial<SystemObject> & { type: SystemObject['type'] }) => SystemObject;
   updateObject: (systemId: string, objId: string, updates: Partial<SystemObject>) => void;
   removeObject: (systemId: string, objId: string) => void;
-  reorderObjects: (systemId: string, orderedIds: string[]) => void;
+  reorderObjects: (systemId: string, orderedIds: string[], perObjectUpdates?: Record<string, Partial<SystemObject>>) => void;
 
   // Navigation
   navigateToSector: (sectorId: string) => void;
@@ -153,6 +153,7 @@ export const useSectorStore = create<SectorStore>()(
         const defaults = OBJECT_TYPE_DEFAULTS[partial.type];
         const system = get().systems[systemId];
         const nextOrder = partial.sortOrder ?? (system ? Math.max(0, ...system.objects.map(o => o.sortOrder)) + 1 : 0);
+        const size = partial.size ?? defaults.size ?? 1;
 
         // Default parentId: if adding a non-star object and no parent specified,
         // use the first star as parent UNLESS the system has 2+ stars (binary),
@@ -185,10 +186,20 @@ export const useSectorStore = create<SectorStore>()(
           } else {
             autoOrbitRadius = 0;
           }
+        } else if (parentId && system) {
+          // Orbit must clear the parent body + own radius, then space beyond any existing siblings
+          const parent = system.objects.find(o => o.id === parentId);
+          const parentSize = parent?.size ?? 1;
+          const siblings = system.objects.filter(o => o.parentId === parentId);
+          const clearance = 0.3;
+          if (siblings.length > 0) {
+            const maxSiblingOrbit = Math.max(...siblings.map(s => s.orbitRadius));
+            autoOrbitRadius = maxSiblingOrbit + size * 2 + clearance;
+          } else {
+            autoOrbitRadius = parentSize + size + clearance;
+          }
         } else {
-          autoOrbitRadius = parentId
-            ? (defaults.orbitRadius ?? randBetween(0.6, 2.0, Math.random))
-            : BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 1.5;
+          autoOrbitRadius = BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 1.5;
         }
 
         const rng = Math.random;
@@ -214,7 +225,7 @@ export const useSectorStore = create<SectorStore>()(
           type: partial.type,
           name: partial.name ?? `New ${partial.type}`,
           colors: partial.colors ?? defaults.colors ?? ['#888888'],
-          size: partial.size ?? defaults.size ?? 1,
+          size,
           orbitRadius: partial.orbitRadius ?? autoOrbitRadius,
           inclination: partial.inclination ?? autoInclination,
           selfRotationSpeed: partial.selfRotationSpeed ?? autoRotationSpeed,
@@ -282,13 +293,14 @@ export const useSectorStore = create<SectorStore>()(
         }));
       },
 
-      reorderObjects(systemId, orderedIds) {
+      reorderObjects(systemId, orderedIds, perObjectUpdates) {
         set(s => {
           const objs = s.systems[systemId].objects;
           const reordered = orderedIds
             .map((id, i) => {
               const o = objs.find(x => x.id === id);
-              return o ? { ...o, sortOrder: i } : null;
+              if (!o) return null;
+              return { ...o, sortOrder: i, ...(perObjectUpdates?.[id] ?? {}) };
             })
             .filter(Boolean) as SystemObject[];
           return {

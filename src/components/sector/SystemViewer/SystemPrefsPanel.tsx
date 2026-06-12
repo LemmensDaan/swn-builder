@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import type { SystemPrefs } from './systemPrefs';
 
 interface Props {
@@ -8,6 +8,17 @@ interface Props {
 }
 
 export default function SystemPrefsPanel({ prefs, onChange, onClose }: Props) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
   const switchTrackStyle: CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -34,7 +45,7 @@ export default function SystemPrefsPanel({ prefs, onChange, onClose }: Props) {
   };
 
   return (
-    <div style={{
+    <div ref={panelRef} style={{
       position: 'absolute',
       bottom: 60,
       right: 20,

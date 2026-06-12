@@ -61,7 +61,6 @@ const fragmentShader = `
   }
 `;
 
-const HEAD_COLOR = new THREE.Color('#ffffff');
 const TAIL_COLOR = new THREE.Color('#110022');
 
 export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits = true, isInBelt = false }: Props) {
@@ -151,6 +150,8 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
   const tmpRight = useMemo(() => new THREE.Vector3(), []);
   const tmpToCamera = useMemo(() => new THREE.Vector3(), []);
   const tmpColor = useMemo(() => new THREE.Color(), []);
+  const velDirRef = useRef(new THREE.Vector3(0, 0, 1));
+  const forwardAxis = useMemo(() => new THREE.Vector3(0, 0, 1), []);
 
   useFrame((state, delta) => {
     if (!groupRef.current || !particleTrailRef.current) return;
@@ -167,13 +168,18 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
     groupRef.current.position.set(x, y, z);
     onPositionUpdate?.([x, y, z]);
 
-    // Velocity for particle spawn direction
+    // Velocity for particle spawn direction and oval orientation
     const velocity = new THREE.Vector3(
       x - prevPosRef.current[0],
       y - prevPosRef.current[1],
       z - prevPosRef.current[2]
     );
     prevPosRef.current = [x, y, z];
+
+    if (velocity.lengthSq() > 0.000001) {
+      velDirRef.current.copy(velocity).normalize();
+    }
+    groupRef.current.quaternion.setFromUnitVectors(forwardAxis, velDirRef.current);
 
     // Push new world position to front of history (index 0 = head)
     const history = posHistoryRef.current;
@@ -207,7 +213,7 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
         posAttr.setXYZ(i * 2,     px + tmpRight.x * halfW, py + tmpRight.y * halfW, pz + tmpRight.z * halfW);
         posAttr.setXYZ(i * 2 + 1, px - tmpRight.x * halfW, py - tmpRight.y * halfW, pz - tmpRight.z * halfW);
 
-        tmpColor.copy(HEAD_COLOR).lerp(TAIL_COLOR, t);
+        tmpColor.copy(cometColor).lerp(TAIL_COLOR, t);
         colorAttr.setXYZ(i * 2,     tmpColor.r, tmpColor.g, tmpColor.b);
         colorAttr.setXYZ(i * 2 + 1, tmpColor.r, tmpColor.g, tmpColor.b);
 
@@ -296,13 +302,14 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
 
       <group ref={groupRef}>
         <mesh
+          scale={[0.65, 0.65, 1.6]}
           onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
           onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
           onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
           castShadow
           receiveShadow
         >
-          <icosahedronGeometry args={[obj.size * 0.7, 1]} />
+          <icosahedronGeometry args={[obj.size * 0.7, 2]} />
           <meshLambertMaterial color={cometColor} flatShading emissive={cometColor} emissiveIntensity={0.5} />
         </mesh>
 

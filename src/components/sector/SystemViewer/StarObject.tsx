@@ -128,7 +128,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
             <spriteMaterial map={bhDiskTex} transparent depthWrite={false} toneMapped={false} />
           </sprite>
           <mesh userData={{ isStar: true }} position={[0, 0, 0]}>
-            <icosahedronGeometry args={[obj.size * 0.85, 1]} />
+            <icosahedronGeometry args={[obj.size * 0.85, 3]} />
             <meshBasicMaterial color="#000000" toneMapped={false} />
           </mesh>
         </>
@@ -143,7 +143,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
         castShadow={false}
         receiveShadow={false}
       >
-        <icosahedronGeometry args={[obj.size, 2]} />
+        <icosahedronGeometry args={[obj.size, 4]} />
         <meshLambertMaterial
           color={isBlackHole ? '#050008' : color}
           emissive={isBlackHole ? '#000000' : color}

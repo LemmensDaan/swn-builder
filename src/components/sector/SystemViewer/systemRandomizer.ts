@@ -2,8 +2,8 @@ import type { SystemObject, SystemType, PlanetType, ObjectType } from '../../../
 import { OBJECT_TYPE_DEFAULTS } from '../../../types/sector';
 import { PLANET_PRESETS, mulberry32 } from './planetRenderer';
 
-const BASE_ORBIT = 5;
-const ORBIT_SPACING = 6.5;
+const BASE_ORBIT = 8;
+const ORBIT_SPACING = 10;
 
 function orbitRadius(order: number, jitter: number): number {
   return BASE_ORBIT + order * ORBIT_SPACING + jitter;
@@ -236,7 +236,7 @@ export function randomizeSystem(systemType: SystemType): SystemObject[] {
 
   // For binary systems, calculate shared orbit radius for both stars
   const isBinary = cfg.starCount === 2;
-  const binaryOrbitRad = isBinary ? randBetween(7, 11, rng) : undefined;
+  const binaryOrbitRad = isBinary ? randBetween(10, 16, rng) : undefined;
 
   // Stars
   for (let s = 0; s < cfg.starCount; s++) {

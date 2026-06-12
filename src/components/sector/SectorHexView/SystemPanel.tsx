@@ -42,8 +42,8 @@ const DEEP_ORBIT_BASE    = 80;
 const DEEP_ORBIT_SPACING = 15;
 
 // Orbit radius increments when placing a reparented object
-const TL_BASE_ORBIT    = 5;
-const TL_SPACING       = 6.5;
+const TL_BASE_ORBIT    = 8;
+const TL_SPACING       = 10;
 const CHILD_BASE_ORBIT = 1.5;
 const CHILD_SPACING    = 0.8;
 

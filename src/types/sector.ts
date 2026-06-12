@@ -84,7 +84,7 @@ export const OBJECT_TYPE_DEFAULTS: Record<ObjectType, Partial<SystemObject>> = {
   BlackHole:   { colors: ['#ff7828'], size: 1.4, orbitRadius: 0,  inclination: 0, selfRotationSpeed: 0    },
   Planet:      { colors: ['#4E9AF1'], size: 0.7, orbitRadius: 10, inclination: 5, selfRotationSpeed: 0.15,
                  planetType: 'Terran', primaryColor: '#3a7bd5', secondaryColor: '#3d9e3d', iceCaps: true, rings: false, ringInclination: 0, seed: 42 },
-  GasGiant:    { colors: ['#D4924A'], size: 1.4, orbitRadius: 22, inclination: 3, selfRotationSpeed: 0.06,
+  GasGiant:    { colors: ['#D4924A', '#C1783B'], size: 1.4, orbitRadius: 22, inclination: 3, selfRotationSpeed: 0.06,
                  planetType: 'GasGiant', primaryColor: '#d4924a', secondaryColor: '#c1783b', iceCaps: false, rings: true, ringInclination: 45, seed: 42 },
   Moon:        { colors: ['#9E9E9E'], size: 0.25, orbitRadius: 3, inclination: 6, selfRotationSpeed: 0.12,
                  planetType: 'Barren', primaryColor: '#777777', secondaryColor: '#555555', iceCaps: false, rings: false, ringInclination: 0, seed: 42 },

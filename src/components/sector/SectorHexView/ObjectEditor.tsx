@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2, Orbit, Info, Palette, Pencil } from 'lucide-react';
-import type { SystemObject, ObjectType, PlanetType } from '../../../types/sector';
+import type { SystemObject, ObjectType, PlanetType, NebulaShape } from '../../../types/sector';
 import { OBJECT_TYPE_DEFAULTS } from '../../../types/sector';
 import { PLANET_PRESETS } from '../SystemViewer/planetRenderer';
 
@@ -30,18 +30,20 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
   // SpaceStation, JumpGate, Other can orbit asteroid belts; everything else cannot
   const canOrbitBelt = ['SpaceStation', 'JumpGate', 'Other'].includes(obj.type);
   // Stellar hierarchy: BlackHole > NeutronStar > Star
-  const validParents = obj.type === 'BlackHole'
+  const validParents = obj.type === 'Nebula'
     ? []
-    : obj.type === 'NeutronStar'
-      ? allObjects.filter(o => o.id !== obj.id && o.type === 'BlackHole')
-      : obj.type === 'Star'
-        ? allObjects.filter(o => o.id !== obj.id && ['BlackHole', 'NeutronStar'].includes(o.type))
-        : allObjects.filter(o => {
-            if (o.id === obj.id) return false;
-            if (['Star', 'NeutronStar', 'BlackHole', 'Moon'].includes(o.type)) return false;
-            if (o.type === 'AsteroidBelt') return canOrbitBelt;
-            return true;
-          });
+    : obj.type === 'BlackHole'
+      ? []
+      : obj.type === 'NeutronStar'
+        ? allObjects.filter(o => o.id !== obj.id && o.type === 'BlackHole')
+        : obj.type === 'Star'
+          ? allObjects.filter(o => o.id !== obj.id && ['BlackHole', 'NeutronStar'].includes(o.type))
+          : allObjects.filter(o => {
+              if (o.id === obj.id) return false;
+              if (['Star', 'NeutronStar', 'BlackHole', 'Moon'].includes(o.type)) return false;
+              if (o.type === 'AsteroidBelt') return canOrbitBelt;
+              return true;
+            });
 
   return (
     <div className="rounded-lg bg-gray-800/60 border border-gray-700/50">
@@ -139,6 +141,24 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
             </label>
           )}
 
+          {/* Nebula Shape */}
+          {obj.type === 'Nebula' && (
+            <label className="flex flex-col gap-0.5">
+              <span className="text-gray-500">Nebula Shape</span>
+              <select
+                className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                value={obj.nebulaShape ?? 'emission'}
+                onChange={e => onChange({ nebulaShape: e.target.value as NebulaShape })}
+              >
+                <option value="emission">Emission</option>
+                <option value="planetary">Planetary</option>
+                <option value="supernova">Supernova Remnant</option>
+                <option value="reflection">Reflection</option>
+                <option value="bipolar">Bipolar</option>
+              </select>
+            </label>
+          )}
+
           {/* Planet Type */}
           {isPlanet && (
             <label className="flex flex-col gap-0.5">
@@ -197,8 +217,8 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
             </div>
           )}
 
-          {/* Orbital Properties Section */}
-          <div className="rounded bg-gray-900/30 border border-gray-700/30">
+          {/* Orbital Properties Section — hidden for Nebula */}
+          {obj.type !== 'Nebula' && <div className="rounded bg-gray-900/30 border border-gray-700/30">
             <button
               onClick={() => setOrbitalExpanded(v => !v)}
               className="w-full flex items-center gap-2 px-2 py-1.5 text-gray-400 hover:text-gray-300 transition-colors"
@@ -243,7 +263,7 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                 </label>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Tags */}
           <label className="flex flex-col gap-0.5">

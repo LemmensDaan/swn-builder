@@ -165,7 +165,7 @@ export const useSectorStore = create<SectorStore>()(
             const bh = existingStars.find(o => o.type === 'BlackHole');
             const ns = existingStars.find(o => o.type === 'NeutronStar');
             parentId = bh?.id ?? ns?.id ?? null;
-          } else if (!['BlackHole', 'NeutronStar', 'Star'].includes(partial.type)) {
+          } else if (!['BlackHole', 'NeutronStar', 'Star', 'Nebula'].includes(partial.type)) {
             // Non-stellar: orbit the single stellar object if only one exists
             if (existingStars.length === 1) {
               parentId = existingStars[0].id;
@@ -174,8 +174,8 @@ export const useSectorStore = create<SectorStore>()(
           // BlackHole: always parentId = null
         }
 
-        const BASE_ORBIT = 5;
-        const ORBIT_SPACING = 6.5;
+        const BASE_ORBIT = 8;
+        const ORBIT_SPACING = 10;
         const isStarType = ['Star', 'BlackHole', 'NeutronStar'].includes(partial.type);
 
         let autoOrbitRadius: number;
@@ -198,7 +198,7 @@ export const useSectorStore = create<SectorStore>()(
             ['Star', 'BlackHole', 'NeutronStar'].includes(o.type) && o.parentId === null
           );
           if (rootStars.length >= 1) {
-            const sharedBinaryOrbit = randBetween(7, 11, Math.random);
+            const sharedBinaryOrbit = randBetween(10, 16, Math.random);
             rootStars.forEach(s => {
               if (s.orbitRadius === 0) {
                 get().updateObject(systemId, s.id, { orbitRadius: sharedBinaryOrbit });
@@ -216,12 +216,14 @@ export const useSectorStore = create<SectorStore>()(
           const clearance = 0.3;
           if (siblings.length > 0) {
             const maxSiblingOrbit = Math.max(...siblings.map(s => s.orbitRadius));
-            autoOrbitRadius = maxSiblingOrbit + size * 2 + clearance;
+            const minOrbit = maxSiblingOrbit + size * 2 + clearance;
+            autoOrbitRadius = minOrbit + rng() * 1.0;
           } else {
-            autoOrbitRadius = parentSize + size + clearance;
+            const minOrbit = parentSize + size + clearance;
+            autoOrbitRadius = minOrbit + rng() * 1.0;
           }
         } else {
-          autoOrbitRadius = BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 1.5;
+          autoOrbitRadius = BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 2;
         }
 
         const rng = Math.random;
@@ -263,7 +265,8 @@ export const useSectorStore = create<SectorStore>()(
           secondaryColor: partial.secondaryColor ?? defaults.secondaryColor,
           iceCaps: partial.iceCaps ?? defaults.iceCaps,
           seed,
-          isDeepSpace: partial.isDeepSpace,
+          isDeepSpace: partial.isDeepSpace ?? defaults.isDeepSpace,
+          nebulaShape: partial.nebulaShape ?? defaults.nebulaShape,
         };
         set(s => {
           const updatedSystem = { ...s.systems[systemId], objects: [...s.systems[systemId].objects, obj] };
@@ -277,7 +280,7 @@ export const useSectorStore = create<SectorStore>()(
               const firstOrbit = rootStars[0].orbitRadius;
               const secondOrbit = rootStars[1].orbitRadius;
               if (firstOrbit !== secondOrbit) {
-                const targetOrbit = Math.max(firstOrbit, secondOrbit) || randBetween(7, 11, Math.random);
+                const targetOrbit = Math.max(firstOrbit, secondOrbit) || randBetween(10, 16, Math.random);
                 updatedSystem.objects = updatedSystem.objects.map(o =>
                   rootStars.includes(o) ? { ...o, orbitRadius: targetOrbit } : o
                 );

@@ -41,11 +41,9 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
   const meshRef  = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
 
-  const angle = useRef(mulberry32(obj.seed ?? obj.sortOrder * 137)());
-  angle.current = angle.current * Math.PI * 2; // convert to starting angle
+  const angleRef = useRef(mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2);
 
   const orbitSpeed = obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0;
-  const angleRef   = useRef(angle.current);
 
   const geo = useMemo(
     () => buildGeo(obj),

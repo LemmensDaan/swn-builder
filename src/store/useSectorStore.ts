@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import localforage from 'localforage';
-import type { Sector, StarSystem, SystemObject, Faction, HexCell } from '../types/sector';
+import type { Sector, StarSystem, SystemObject, Faction, HexCell, NebulaShape } from '../types/sector';
 import { makeEmptyHexGrid, OBJECT_TYPE_DEFAULTS } from '../types/sector';
 import { GALAXY_TRIANGLES } from '../components/sector/GalaxyView/galaxyData';
 
@@ -272,7 +272,9 @@ export const useSectorStore = create<SectorStore>()(
           iceCaps: partial.iceCaps ?? defaults.iceCaps,
           seed,
           isDeepSpace: partial.isDeepSpace ?? defaults.isDeepSpace,
-          nebulaShape: partial.nebulaShape ?? defaults.nebulaShape,
+          nebulaShape: partial.nebulaShape ?? (partial.type === 'Nebula'
+            ? (['emission', 'planetary', 'supernova', 'reflection', 'bipolar'] as NebulaShape[])[Math.floor(Math.random() * 5)]
+            : defaults.nebulaShape),
         };
         set(s => {
           const updatedSystem = { ...s.systems[systemId], objects: [...s.systems[systemId].objects, obj] };

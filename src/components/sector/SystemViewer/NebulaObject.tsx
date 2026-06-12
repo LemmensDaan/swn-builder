@@ -431,20 +431,18 @@ function coneFlareTex(size: number, r: number, g: number, b: number, alpha: numb
   return new THREE.CanvasTexture(canvas);
 }
 
-// ── Bipolar Nebula 0: Original style with lumpy lobes and finger projections ────
+// ── Bipolar Nebula 0: Lumpy lobes with finger projections ────────────────────
 // Two lumpy cloud lobes with finger-like internal projections; outer diffuse halo
-// per lobe; bright knots at the wing tips; simple structure.
+// per lobe; extended shaft/cone; no end orbs.
 function bipolarLayers0(rng: () => number, vr: number, R: number, G: number, B: number): Layer[] {
   const ax      = rng() * Math.PI;
   const lobeRot = -ax;
   const texSeed = Math.round(rng() * 999983);
 
-  const d  = vr * 0.72;
+  const d  = vr * 0.85;
   const lx = Math.sin(ax) * d;  const ly = Math.cos(ax) * d;
-  const od = d + vr * 0.30;
+  const od = d + vr * 0.35;
   const ox = Math.sin(ax) * od; const oy = Math.cos(ax) * od;
-  const kd = d + vr * 0.58;
-  const kx = Math.sin(ax) * kd; const ky = Math.cos(ax) * kd;
 
   const numFingers = 5 + Math.floor(rng() * 4);
   const px = Math.cos(ax); const py = -Math.sin(ax);
@@ -475,12 +473,12 @@ function bipolarLayers0(rng: () => number, vr: number, R: number, G: number, B: 
 
   return [
     { key: 'haze',    x: 0,   y: 0,   rotZ: 0,       w: vr * 2.7,  h: vr * 2.7,  tex: tHaze,   op: 0.16, blend: ADD, order: -10 },
-    { key: 'lobeO1',  x: ox,  y: oy,  rotZ: lobeRot,  w: vr * 0.95, h: vr * 1.60, tex: tLobeO,  op: 0.35, blend: ADD, order: -9 },
-    { key: 'lobeO2',  x: -ox, y: -oy, rotZ: lobeRot,  w: vr * 0.95, h: vr * 1.60, tex: tLobeO,  op: 0.35, blend: ADD, order: -9 },
-    { key: 'lobe1',   x: lx,  y: ly,  rotZ: lobeRot,  w: vr * 0.66, h: vr * 1.25, tex: tLobe,   op: 0.85, blend: ADD, order: -8 },
-    { key: 'lobe2',   x: -lx, y: -ly, rotZ: lobeRot,  w: vr * 0.66, h: vr * 1.25, tex: tLobe,   op: 0.85, blend: ADD, order: -8 },
-    { key: 'lobe1b',  x: lx,  y: ly,  rotZ: lobeRot + 0.3, w: vr * 0.55, h: vr * 1.10, tex: tLobe2, op: 0.45, blend: ADD, order: -7 },
-    { key: 'lobe2b',  x: -lx, y: -ly, rotZ: lobeRot + 0.3, w: vr * 0.55, h: vr * 1.10, tex: tLobe2, op: 0.45, blend: ADD, order: -7 },
+    { key: 'lobeO1',  x: ox,  y: oy,  rotZ: lobeRot,  w: vr * 0.95, h: vr * 1.90, tex: tLobeO,  op: 0.35, blend: ADD, order: -9 },
+    { key: 'lobeO2',  x: -ox, y: -oy, rotZ: lobeRot,  w: vr * 0.95, h: vr * 1.90, tex: tLobeO,  op: 0.35, blend: ADD, order: -9 },
+    { key: 'lobe1',   x: lx,  y: ly,  rotZ: lobeRot,  w: vr * 0.66, h: vr * 1.60, tex: tLobe,   op: 0.85, blend: ADD, order: -8 },
+    { key: 'lobe2',   x: -lx, y: -ly, rotZ: lobeRot,  w: vr * 0.66, h: vr * 1.60, tex: tLobe,   op: 0.85, blend: ADD, order: -8 },
+    { key: 'lobe1b',  x: lx,  y: ly,  rotZ: lobeRot + 0.3, w: vr * 0.55, h: vr * 1.40, tex: tLobe2, op: 0.45, blend: ADD, order: -7 },
+    { key: 'lobe2b',  x: -lx, y: -ly, rotZ: lobeRot + 0.3, w: vr * 0.55, h: vr * 1.40, tex: tLobe2, op: 0.45, blend: ADD, order: -7 },
     ...fingers.map((f, i) => ({
       key: `fa${i}`, x: f.x, y: f.y, rotZ: f.rot,
       w: vr * 0.10, h: vr * f.fh,
@@ -491,8 +489,6 @@ function bipolarLayers0(rng: () => number, vr: number, R: number, G: number, B: 
       w: vr * 0.10, h: vr * f.fh,
       tex: tFinger, op: f.op, blend: ADD, order: -6,
     })),
-    { key: 'knot1',   x: kx,  y: ky,  rotZ: 0,        w: vr * 0.24, h: vr * 0.24, tex: tKnot,   op: 0.90, blend: ADD, order: -5 },
-    { key: 'knot2',   x: -kx, y: -ky, rotZ: 0,        w: vr * 0.24, h: vr * 0.24, tex: tKnot,   op: 0.90, blend: ADD, order: -5 },
     { key: 'star',    x: 0,   y: 0,   rotZ: 0,        w: vr * 0.06, h: vr * 0.06, tex: tStar,   op: 1.00, blend: ADD, order: -4 },
   ];
 }
@@ -601,7 +597,6 @@ export default function NebulaObject({ obj, onPositionUpdate }: Props) {
       case 'bipolar0':    return bipolarLayers0(rng, vr, R, G, B);
       case 'bipolar1':    return bipolarLayers1(rng, vr, R, G, B);
       case 'bipolar2':    return bipolarLayers2(rng, vr, R, G, B);
-      case 'bipolar':     return bipolarLayers2(rng, vr, R, G, B);  // default to bipolar2
       default:            return emissionLayers(rng, vr, R, G, B);
     }
   }, [obj.colors, obj.nebulaShape, seed, vr]);

@@ -87,8 +87,8 @@ function ringTex(size: number, r: number, g: number, b: number, innerFrac: numbe
   return new THREE.CanvasTexture(canvas);
 }
 
-// Bezier strands radiating from the centre — for supernova filaments
-function filamentTex(size: number, fr: number, fg: number, fb: number, alpha: number, seed: number): THREE.CanvasTexture {
+// Tangled web of filaments — strands start/end anywhere, creating a chaotic crosshatch
+function webFilamentTex(size: number, fr: number, fg: number, fb: number, alpha: number, seed: number): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext('2d')!;
@@ -96,25 +96,76 @@ function filamentTex(size: number, fr: number, fg: number, fb: number, alpha: nu
   let s = (seed | 1) >>> 0;
   const rnd = (): number => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 
-  for (let i = 0; i < 24; i++) {
-    const angle = (i / 24) * Math.PI * 2 + (rnd() - 0.5) * 0.60;
-    const len   = h * (0.30 + rnd() * 0.65);
-    const curve = (rnd() - 0.5) * 1.2;
-    const ex    = h + Math.cos(angle) * len;
-    const ey    = h + Math.sin(angle) * len;
-    const cx    = h + Math.cos(angle + curve * 0.5) * len * 0.52;
-    const cy    = h + Math.sin(angle + curve * 0.5) * len * 0.52;
-    const a     = alpha * (0.50 + rnd() * 0.40);
-    const lw    = 1.5 + rnd() * 4.0;
-    const grd   = ctx.createLinearGradient(h, h, ex, ey);
-    grd.addColorStop(0, `rgba(${fr},${fg},${fb},${a.toFixed(3)})`);
-    grd.addColorStop(1, `rgba(${fr},${fg},${fb},0)`);
+  for (let i = 0; i < 38; i++) {
+    // Start anywhere within inner 65% of the canvas
+    const sa = rnd() * Math.PI * 2;
+    const sd = h * rnd() * 0.65;
+    const sx = h + Math.cos(sa) * sd;
+    const sy = h + Math.sin(sa) * sd;
+    // End anywhere, biased toward the outer zone
+    const ea = rnd() * Math.PI * 2;
+    const ed = h * (0.30 + rnd() * 0.65);
+    const ex = h + Math.cos(ea) * ed;
+    const ey = h + Math.sin(ea) * ed;
+    // Curved control point
+    const mx = (sx + ex) / 2 + (rnd() - 0.5) * h * 0.55;
+    const my = (sy + ey) / 2 + (rnd() - 0.5) * h * 0.55;
+    const a  = alpha * (0.42 + rnd() * 0.45);
+    const lw = 0.7 + rnd() * 3.0;
+    // Strand is visible along its whole length (fades at endpoints only)
+    const grd = ctx.createLinearGradient(sx, sy, ex, ey);
+    grd.addColorStop(0,    `rgba(${fr},${fg},${fb},0)`);
+    grd.addColorStop(0.12, `rgba(${fr},${fg},${fb},${a.toFixed(3)})`);
+    grd.addColorStop(0.88, `rgba(${fr},${fg},${fb},${a.toFixed(3)})`);
+    grd.addColorStop(1,    `rgba(${fr},${fg},${fb},0)`);
     ctx.beginPath();
-    ctx.moveTo(h, h);
-    ctx.quadraticCurveTo(cx, cy, ex, ey);
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(mx, my, ex, ey);
     ctx.strokeStyle = grd;
     ctx.lineWidth = lw;
     ctx.stroke();
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+
+// Ring with lumpy knot-etchings along the edge — characteristic of planetary nebula shells
+function lumpyRingTex(size: number, r: number, g: number, b: number, innerFrac: number, alpha: number, seed: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const h = size / 2;
+  let s = (seed | 1) >>> 0;
+  const rnd = (): number => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+
+  const f = innerFrac;
+  // Base smooth ring
+  const grd = ctx.createRadialGradient(h, h, 0, h, h, h);
+  grd.addColorStop(0,                     `rgba(${r},${g},${b},0)`);
+  grd.addColorStop(f * 0.50,              `rgba(${r},${g},${b},${(alpha * 0.06).toFixed(3)})`);
+  grd.addColorStop(f * 0.85,              `rgba(${r},${g},${b},${(alpha * 0.50).toFixed(3)})`);
+  grd.addColorStop(f,                     `rgba(${r},${g},${b},${alpha.toFixed(3)})`);
+  grd.addColorStop(Math.min(1, f + 0.12), `rgba(${r},${g},${b},${(alpha * 0.22).toFixed(3)})`);
+  grd.addColorStop(1,                     `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, size, size);
+
+  // Knot etchings dotted around the ring edge
+  const ringR    = h * f;
+  const knotCount = 14 + Math.floor(rnd() * 8);
+  for (let i = 0; i < knotCount; i++) {
+    const angle = (i / knotCount) * Math.PI * 2 + rnd() * 0.5;
+    const kRad  = ringR * (0.87 + rnd() * 0.26);
+    const kx    = h + Math.cos(angle) * kRad;
+    const ky    = h + Math.sin(angle) * kRad;
+    const kr    = h * (0.030 + rnd() * 0.055);
+    const ka    = alpha * (0.45 + rnd() * 0.42);
+    const kgrd  = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
+    kgrd.addColorStop(0, `rgba(${r},${g},${b},${ka.toFixed(3)})`);
+    kgrd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = kgrd;
+    ctx.beginPath();
+    ctx.arc(kx, ky, kr, 0, Math.PI * 2);
+    ctx.fill();
   }
   return new THREE.CanvasTexture(canvas);
 }
@@ -176,59 +227,73 @@ function emissionLayers(rng: () => number, vr: number, R: number, G: number, B: 
   ];
 }
 
-// ── Planetary Nebula (Ring / Helix style) ─────────────────────────────────────
-// Three clean concentric shells: teal inner, blended middle, red outer. White dwarf at centre.
+// ── Planetary Nebula (Ring / Helix / Hourglass style) ────────────────────────
+// Three lumpy-edged shells in distinct emission-line colours + inner hot glow + white dwarf.
 function planetaryLayers(rng: () => number, vr: number, R: number, G: number, B: number): Layer[] {
-  const ellipse = 0.68 + rng() * 0.26;
-  const rot2    = rng() * Math.PI;
-  // Inner: OIII teal-blue (fixed)
-  const Ri = blend(  5, R); const Gi = blend(168, G); const Bi = blend(165, B);
-  // Outer: Ha red (fixed)
-  const Ro = blend(200, R); const Go = blend( 22, G); const Bo = blend( 20, B);
-  // Middle: blend
-  const Rm = Math.round((Ri + Ro) / 2);
-  const Gm = Math.round((Gi + Go) / 2);
-  const Bm = Math.round((Bi + Bo) / 2);
+  const ellipse  = 0.68 + rng() * 0.26;
+  const rot2     = rng() * Math.PI;
+  const texSeedO = Math.round(rng() * 999983);
+  const texSeedM = texSeedO + 13;
+  const texSeedI = texSeedO + 29;
+  // Outer shell: nitrogen red
+  const Rn = blend(200, R); const Gn = blend( 22, G); const Bn = blend( 20, B);
+  // Middle shell: hydrogen green
+  const Rg = blend( 22, R); const Gg = blend(162, G); const Bg = blend( 58, B);
+  // Inner shell: OIII teal-blue
+  const Ri = blend(  5, R); const Gi = blend(165, G); const Bi = blend(210, B);
+  // Innermost hot glow: blue-white
+  const Rw = blend( 80, R); const Gw = blend(140, G); const Bw = blend(255, B);
 
-  const tHaze   = cloudTex(128, Ri, Gi, Bi, 0.30, 0.30);
-  const tOuter  = ringTex(256,  Ro, Go, Bo, 0.46, 0.68);
-  const tMiddle = ringTex(256,  Rm, Gm, Bm, 0.37, 0.84);
-  const tInner  = ringTex(256,  Ri, Gi, Bi, 0.28, 1.00);
-  const tStar   = cloudTex(64,  255, 255, 255, 1.00, 0.04);
+  const tHaze   = cloudTex(128,    Ri, Gi, Bi, 0.28, 0.34);
+  const tOuter  = lumpyRingTex(256, Rn, Gn, Bn, 0.46, 0.72, texSeedO);
+  const tMiddle = lumpyRingTex(256, Rg, Gg, Bg, 0.36, 0.88, texSeedM);
+  const tInner  = lumpyRingTex(256, Ri, Gi, Bi, 0.27, 1.00, texSeedI);
+  const tGlow   = cloudTex(128,    Rw, Gw, Bw, 0.50, 0.20);
+  const tStar   = cloudTex(64,     255, 255, 255, 1.00, 0.04);
 
   return [
-    { key: 'haze',   x: 0, y: 0, rotZ: 0,    w: vr * 2.3,  h: vr * 2.3  * ellipse, tex: tHaze,   op: 0.20, blend: ADD, order: -10 },
-    { key: 'outer',  x: 0, y: 0, rotZ: rot2,  w: vr * 1.95, h: vr * 1.95 * ellipse, tex: tOuter,  op: 0.58, blend: ADD, order: -9 },
-    { key: 'middle', x: 0, y: 0, rotZ: 0,    w: vr * 1.60, h: vr * 1.60 * ellipse, tex: tMiddle, op: 0.75, blend: ADD, order: -8 },
+    { key: 'haze',   x: 0, y: 0, rotZ: 0,    w: vr * 2.35, h: vr * 2.35 * ellipse, tex: tHaze,   op: 0.18, blend: ADD, order: -10 },
+    { key: 'outer',  x: 0, y: 0, rotZ: rot2,  w: vr * 2.02, h: vr * 2.02 * ellipse, tex: tOuter,  op: 0.62, blend: ADD, order: -9 },
+    { key: 'middle', x: 0, y: 0, rotZ: 0,    w: vr * 1.64, h: vr * 1.64 * ellipse, tex: tMiddle, op: 0.78, blend: ADD, order: -8 },
     { key: 'inner',  x: 0, y: 0, rotZ: 0,    w: vr * 1.30, h: vr * 1.30 * ellipse, tex: tInner,  op: 0.98, blend: ADD, order: -7 },
+    { key: 'glow',   x: 0, y: 0, rotZ: 0,    w: vr * 0.80, h: vr * 0.80 * ellipse, tex: tGlow,   op: 0.42, blend: ADD, order: -6 },
     { key: 'star',   x: 0, y: 0, rotZ: 0,    w: vr * 0.07, h: vr * 0.07,           tex: tStar,   op: 1.00, blend: ADD, order: -4 },
   ];
 }
 
 // ── Supernova Remnant (Crab / Veil style) ─────────────────────────────────────
-// Filaments are the hero: red outer, blue-white inner. Broken shell ring behind.
+// Tangled web of crossed filaments in three colour zones; no clean rings.
 function supernovaLayers(rng: () => number, vr: number, R: number, G: number, B: number): Layer[] {
-  const texSeed    = Math.round(rng() * 999983);
+  const seed1      = Math.round(rng() * 999983);
+  const seed2      = seed1 + 73;
+  const seed3      = seed1 + 151;
+  const seed4      = seed1 + 229;
   const brightSide = rng() * Math.PI * 2;
-  // Outer filaments: Ha red
-  const Rf  = blend(210, R); const Gf  = blend(20, G);  const Bf  = blend(18, B);
-  // Inner synchrotron: bright blue-white
-  const Rc2 = blend( 80, R); const Gc2 = blend(120, G); const Bc2 = blend(255, B);
-  // Shell: muted mixed version
-  const Rsh = blend(155, R); const Gsh = blend( 55, G); const Bsh = blend( 95, B);
+  // Orange-red hydrogen filaments (outermost, dominant)
+  const Rf  = blend(220, R); const Gf  = blend( 75, G); const Bf  = blend( 12, B);
+  // Green sulphur filaments (middle zone)
+  const Rg2 = blend( 18, R); const Gg2 = blend(182, G); const Bg2 = blend( 75, B);
+  // Blue-white inner synchrotron web
+  const Rb  = blend( 55, R); const Gb  = blend(108, G); const Bb  = blend(255, B);
+  // Faint outer shell ring
+  const Rsh = blend(148, R); const Gsh = blend( 52, G); const Bsh = blend( 92, B);
 
-  const tFilOuter = filamentTex(256, Rf,  Gf,  Bf,  0.90, texSeed);
-  const tFilInner = filamentTex(256, Rc2, Gc2, Bc2, 0.75, texSeed + 37);
-  const tShell    = ringTex(256,  Rsh, Gsh, Bsh, 0.37, 0.78);
-  const tInner    = cloudTex(128, Rc2, Gc2, Bc2, 0.38, 0.40);
-  const tPulsar   = cloudTex(64,  230, 245, 255, 1.00, 0.04);
+  const tWebOuter  = webFilamentTex(256, Rf,  Gf,  Bf,  0.88, seed1);
+  const tWebOuter2 = webFilamentTex(256, Rf,  Gf,  Bf,  0.65, seed2); // second pass, more chaos
+  const tWebGreen  = webFilamentTex(256, Rg2, Gg2, Bg2, 0.60, seed3);
+  const tWebBlue   = webFilamentTex(256, Rb,  Gb,  Bb,  0.72, seed4);
+  const tShell     = ringTex(256,   Rsh, Gsh, Bsh, 0.37, 0.65);
+  const tInner     = cloudTex(128,  Rb,  Gb,  Bb,  0.42, 0.38);
+  const tPulsar    = cloudTex(64,   230, 245, 255, 1.00, 0.04);
 
   return [
-    { key: 'fil_outer', x: 0, y: 0, rotZ: 0,          w: vr * 2.6,  h: vr * 2.6,  tex: tFilOuter, op: 0.78, blend: ADD, order: -10 },
-    { key: 'shell',     x: 0, y: 0, rotZ: brightSide,  w: vr * 2.25, h: vr * 2.25, tex: tShell,    op: 0.55, blend: ADD, order: -9 },
-    { key: 'fil_inner', x: 0, y: 0, rotZ: 0.72,        w: vr * 1.50, h: vr * 1.50, tex: tFilInner, op: 0.60, blend: ADD, order: -7 },
-    { key: 'inner',     x: 0, y: 0, rotZ: 0,           w: vr * 0.90, h: vr * 0.90, tex: tInner,    op: 0.28, blend: ADD, order: -6 },
-    { key: 'pulsar',    x: 0, y: 0, rotZ: 0,           w: vr * 0.06, h: vr * 0.06, tex: tPulsar,   op: 1.00, blend: ADD, order: -4 },
+    { key: 'web_outer',  x: 0, y: 0, rotZ: 0,          w: vr * 2.65, h: vr * 2.65, tex: tWebOuter,  op: 0.78, blend: ADD, order: -10 },
+    { key: 'web_outer2', x: 0, y: 0, rotZ: 1.05,        w: vr * 2.40, h: vr * 2.40, tex: tWebOuter2, op: 0.50, blend: ADD, order: -9 },
+    { key: 'shell',      x: 0, y: 0, rotZ: brightSide,  w: vr * 2.25, h: vr * 2.25, tex: tShell,     op: 0.38, blend: ADD, order: -8 },
+    { key: 'web_green',  x: 0, y: 0, rotZ: 0.38,        w: vr * 1.90, h: vr * 1.90, tex: tWebGreen,  op: 0.45, blend: ADD, order: -7 },
+    { key: 'web_blue',   x: 0, y: 0, rotZ: 0.72,        w: vr * 1.48, h: vr * 1.48, tex: tWebBlue,   op: 0.60, blend: ADD, order: -6 },
+    { key: 'inner',      x: 0, y: 0, rotZ: 0,           w: vr * 0.88, h: vr * 0.88, tex: tInner,     op: 0.30, blend: ADD, order: -5 },
+    { key: 'pulsar',     x: 0, y: 0, rotZ: 0,           w: vr * 0.06, h: vr * 0.06, tex: tPulsar,    op: 1.00, blend: ADD, order: -4 },
   ];
 }
 
@@ -274,40 +339,61 @@ function reflectionLayers(rng: () => number, vr: number, R: number, G: number, B
 }
 
 // ── Bipolar Nebula (Butterfly / Hourglass style) ──────────────────────────────
-// Two far-apart red lobes with a clear dark gap between them. Off-axis central star.
+// Two long tapered lobes extending from a pinched waist; finger-like internal projections.
 function bipolarLayers(rng: () => number, vr: number, R: number, G: number, B: number): Layer[] {
   const ax      = rng() * Math.PI;
   const lobeRot = -ax;
-  // Lobes are well-separated — the gap is what makes this type recognisable
-  const d   = vr * 0.72;
-  const lx  = Math.sin(ax) * d;  const ly  = Math.cos(ax) * d;
-  const od  = d + vr * 0.30;
-  const ox  = Math.sin(ax) * od; const oy  = Math.cos(ax) * od;
-  const kd  = d + vr * 0.56;
-  const kx  = Math.sin(ax) * kd; const ky  = Math.cos(ax) * kd;
+  const texSeed = Math.round(rng() * 999983);
 
-  // Lobes: Ha red-orange
-  const Rl = blend(205, R); const Gl = blend(30, G); const Bl = blend(22, B);
-  // Outer halo: warmer, slightly orange
-  const Ro = blend(175, R); const Go = blend(75, G); const Bo = blend(28, B);
-  // Knot tips: bright orange-white
-  const Rk = blend(255, R); const Gk = blend(140, G); const Bk = blend(50, B);
+  // Geometry — lobes pushed further out and taller for long shaft/cone appearance
+  const d  = vr * 0.92;
+  const lx = Math.sin(ax) * d;        const ly = Math.cos(ax) * d;
 
-  const tHaze  = cloudTex(128, Rl, Gl, Bl, 0.35, 0.30);
-  const tLobeO = cloudTex(256, Ro, Go, Bo, 0.55, 0.46);
-  const tLobe  = cloudTex(256, Rl, Gl, Bl, 0.92, 0.38);
-  const tKnot  = cloudTex(64,  Rk, Gk, Bk, 1.00, 0.10);
-  const tStar  = cloudTex(64,  255, 255, 255, 1.00, 0.04);
+  // Finger projections scattered inside each lobe, pointing roughly toward centre
+  const numFingers = 5 + Math.floor(rng() * 4);
+  const px = Math.cos(ax); const py = -Math.sin(ax);
+  const fingers = Array.from({ length: numFingers }, () => {
+    const tAlong = 0.20 + rng() * 0.75;
+    const tPerp  = (rng() - 0.5) * 0.42;
+    return {
+      x:   Math.sin(ax) * d * tAlong + px * vr * tPerp,
+      y:   Math.cos(ax) * d * tAlong + py * vr * tPerp,
+      rot: -ax + (rng() - 0.5) * 0.45,
+      fh:  0.38 + rng() * 0.34,
+      op:  0.38 + rng() * 0.35,
+    };
+  });
+
+  // Lobe colours
+  const Rl = blend(208, R); const Gl = blend( 28, G); const Bl = blend( 20, B);
+  // Second lobe pass: slightly warmer/orange
+  const Ro = blend(178, R); const Go = blend( 72, G); const Bo = blend( 25, B);
+  // Finger projections: bright warm
+  const Rfp = blend(255, R); const Gfp = blend(108, G); const Bfp = blend( 38, B);
+
+  const tHaze   = cloudTex(128,     Rl,  Gl,  Bl,  0.35, 0.30);
+  const tLobe   = lumpyCloudTex(256, Rl,  Gl,  Bl,  1.00, texSeed);
+  const tLobe2  = lumpyCloudTex(256, Ro,  Go,  Bo,  0.70, texSeed + 17);
+  const tFinger = cloudTex(64,      Rfp, Gfp, Bfp, 0.88, 0.22);
+  const tStar   = cloudTex(64,      255, 255, 255, 1.00, 0.04);
 
   return [
-    { key: 'haze',   x: 0,   y: 0,   rotZ: 0,      w: vr * 2.6,  h: vr * 2.6,  tex: tHaze,  op: 0.16, blend: ADD, order: -10 },
-    { key: 'lobeO1', x: ox,  y: oy,  rotZ: lobeRot, w: vr * 0.92, h: vr * 1.55, tex: tLobeO, op: 0.35, blend: ADD, order: -9 },
-    { key: 'lobeO2', x: -ox, y: -oy, rotZ: lobeRot, w: vr * 0.92, h: vr * 1.55, tex: tLobeO, op: 0.35, blend: ADD, order: -9 },
-    { key: 'lobe1',  x: lx,  y: ly,  rotZ: lobeRot, w: vr * 0.64, h: vr * 1.22, tex: tLobe,  op: 0.84, blend: ADD, order: -8 },
-    { key: 'lobe2',  x: -lx, y: -ly, rotZ: lobeRot, w: vr * 0.64, h: vr * 1.22, tex: tLobe,  op: 0.84, blend: ADD, order: -8 },
-    { key: 'knot1',  x: kx,  y: ky,  rotZ: 0,       w: vr * 0.22, h: vr * 0.22, tex: tKnot,  op: 0.88, blend: ADD, order: -6 },
-    { key: 'knot2',  x: -kx, y: -ky, rotZ: 0,       w: vr * 0.22, h: vr * 0.22, tex: tKnot,  op: 0.88, blend: ADD, order: -6 },
-    { key: 'star',   x: 0,   y: 0,   rotZ: 0,       w: vr * 0.06, h: vr * 0.06, tex: tStar,  op: 1.00, blend: ADD, order: -4 },
+    { key: 'haze',   x: 0,   y: 0,   rotZ: 0,            w: vr * 2.7,  h: vr * 2.7,  tex: tHaze,  op: 0.16, blend: ADD, order: -10 },
+    { key: 'lobe1',  x: lx,  y: ly,  rotZ: lobeRot,       w: vr * 0.68, h: vr * 1.72, tex: tLobe,  op: 0.85, blend: ADD, order: -8 },
+    { key: 'lobe2',  x: -lx, y: -ly, rotZ: lobeRot,       w: vr * 0.68, h: vr * 1.72, tex: tLobe,  op: 0.85, blend: ADD, order: -8 },
+    { key: 'lobe1b', x: lx,  y: ly,  rotZ: lobeRot + 0.3, w: vr * 0.56, h: vr * 1.52, tex: tLobe2, op: 0.45, blend: ADD, order: -7 },
+    { key: 'lobe2b', x: -lx, y: -ly, rotZ: lobeRot + 0.3, w: vr * 0.56, h: vr * 1.52, tex: tLobe2, op: 0.45, blend: ADD, order: -7 },
+    ...fingers.map((f, i) => ({
+      key: `fa${i}`, x: f.x, y: f.y, rotZ: f.rot,
+      w: vr * 0.10, h: vr * f.fh,
+      tex: tFinger, op: f.op, blend: ADD, order: -6,
+    })),
+    ...fingers.map((f, i) => ({
+      key: `fb${i}`, x: -f.x, y: -f.y, rotZ: f.rot + Math.PI,
+      w: vr * 0.10, h: vr * f.fh,
+      tex: tFinger, op: f.op, blend: ADD, order: -6,
+    })),
+    { key: 'star',   x: 0,   y: 0,   rotZ: 0,            w: vr * 0.06, h: vr * 0.06, tex: tStar,  op: 1.00, blend: ADD, order: -4 },
   ];
 }
 

@@ -302,14 +302,14 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
 
       <group ref={groupRef}>
         <mesh
-          scale={[0.65, 0.65, 1.6]}
+          scale={[0.9, 0.85, 1.1]}
           onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
           onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
           onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
           castShadow
           receiveShadow
         >
-          <icosahedronGeometry args={[obj.size * 0.7, 2]} />
+          <icosahedronGeometry args={[obj.size * 0.7, 1]} />
           <meshLambertMaterial color={cometColor} flatShading emissive={cometColor} emissiveIntensity={0.5} />
         </mesh>
 

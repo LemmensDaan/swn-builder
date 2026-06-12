@@ -91,7 +91,7 @@ export const OBJECT_TYPE_DEFAULTS: Record<ObjectType, Partial<SystemObject>> = {
   AsteroidBelt:{ colors: ['#8C7B6B'], size: 0.1, orbitRadius: 15, inclination: 2, selfRotationSpeed: 0   },
   SpaceStation:{ colors: ['#B0C4DE'], size: 0.3, orbitRadius: 4,   inclination: 0, selfRotationSpeed: 0.04 },
   JumpGate:    { colors: ['#00FFCC'], size: 0.4, orbitRadius: 32, inclination: 0, selfRotationSpeed: 0    },
-  Comet:       { colors: ['#E8F4F8'], size: 0.2, orbitRadius: 40, inclination: 25, selfRotationSpeed: 0, seed: 42 },
+  Comet:       { colors: ['#E8F4F8'], size: 0.2, orbitRadius: 40, inclination: 25, selfRotationSpeed: 0, seed: 42, isDeepSpace: true },
   Other:       { colors: ['#888888'], size: 0.5, orbitRadius: 10, inclination: 0, selfRotationSpeed: 0    },
   Nebula:      { colors: ['#9b0d7c'], size: 0.1, orbitRadius: 0,  inclination: 0, selfRotationSpeed: 0, isDeepSpace: true, nebulaShape: 'emission' as NebulaShape },
 };

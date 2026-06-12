@@ -260,7 +260,7 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
 
     const dragged = sorted.find(o => o.id === payload.objId);
     if (!dragged || dragged.id === targetObj.id) return;
-    if (dragged.type === 'Nebula') return;
+    if (dragged.type === 'Nebula' || dragged.type === 'Comet') return;
 
     const targetIsPrimary = primaryTypes.has(targetObj.type);
     const targetIsTL      = isTopLevelNonPrimary(targetObj);
@@ -418,7 +418,7 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
           const deepZone = topLevelNonPrimary.filter(o => o.isDeepSpace);
 
           const renderObj = (obj: SystemObject) => {
-            if (obj.type === 'Nebula') return (
+            if (obj.type === 'Nebula' || obj.type === 'Comet') return (
               <div key={obj.id}>
                 <ObjectEditor
                   obj={obj}
@@ -468,12 +468,12 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
               <div
                 onDragOver={e => e.preventDefault()}
                 onDrop={onDropSeparator}
-                className="my-1.5 flex items-center gap-2 rounded py-0.5 transition-colors [&:has(+*)]:hover:bg-gray-700/20"
+                className="my-2 flex items-center gap-2 rounded py-0.5 transition-colors hover:bg-gray-700/20"
                 title="Drop here to move to deep space"
               >
-                <div className="flex-1 border-t border-gray-700/40" />
-                <span className="text-[9px] text-gray-700 uppercase tracking-wider font-medium select-none">Deep Space</span>
-                <div className="flex-1 border-t border-gray-700/40" />
+                <div className="flex-1 border-t border-gray-600/60" />
+                <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold select-none">Deep Space</span>
+                <div className="flex-1 border-t border-gray-600/60" />
               </div>
               {deepZone.map(renderObj)}
             </>

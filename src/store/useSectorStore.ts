@@ -156,6 +156,7 @@ export const useSectorStore = create<SectorStore>()(
         const size = partial.size ?? defaults.size ?? 1;
 
         // Default parentId respecting stellar hierarchy: BlackHole > NeutronStar > Star
+        const effectiveIsDeepSpace = partial.isDeepSpace ?? defaults.isDeepSpace ?? false;
         let parentId = partial.parentId ?? null;
         if (!parentId && system) {
           const existingStars = system.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type));
@@ -165,18 +166,19 @@ export const useSectorStore = create<SectorStore>()(
             const bh = existingStars.find(o => o.type === 'BlackHole');
             const ns = existingStars.find(o => o.type === 'NeutronStar');
             parentId = bh?.id ?? ns?.id ?? null;
-          } else if (!['BlackHole', 'NeutronStar', 'Star', 'Nebula'].includes(partial.type)) {
-            // Non-stellar: orbit the single stellar object if only one exists
+          } else if (!['BlackHole', 'NeutronStar', 'Star', 'Nebula'].includes(partial.type) && !effectiveIsDeepSpace) {
+            // Non-stellar, non-deep-space: orbit the single stellar object if only one exists
             if (existingStars.length === 1) {
               parentId = existingStars[0].id;
             }
           }
-          // BlackHole: always parentId = null
+          // BlackHole and deep-space objects: always parentId = null
         }
 
         const BASE_ORBIT = 8;
         const ORBIT_SPACING = 10;
         const isStarType = ['Star', 'BlackHole', 'NeutronStar'].includes(partial.type);
+        const rng = Math.random;
 
         let autoOrbitRadius: number;
         if (isStarType && parentId && system) {
@@ -222,11 +224,15 @@ export const useSectorStore = create<SectorStore>()(
             const minOrbit = parentSize + size + clearance;
             autoOrbitRadius = minOrbit + rng() * 1.0;
           }
+        } else if (effectiveIsDeepSpace && system) {
+          const existingDeep = system.objects.filter(o => o.isDeepSpace && o.parentId === null);
+          autoOrbitRadius = existingDeep.length > 0
+            ? Math.max(...existingDeep.map(o => o.orbitRadius)) + 15
+            : 80;
         } else {
           autoOrbitRadius = BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 2;
         }
 
-        const rng = Math.random;
         const autoRotationSpeed = (rng() * 0.2) + 0.05;
         const autoInclination = (rng() - 0.5) * 2 * (parentId ? 3 : 8);
 

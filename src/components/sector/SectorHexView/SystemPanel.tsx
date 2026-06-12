@@ -19,9 +19,24 @@ const QUICK_TYPES: { type: ObjectType; label: string; extra?: Partial<SystemObje
   { type: 'SpaceStation', label: 'Station'     },
   { type: 'JumpGate',     label: 'Gate'        },
   { type: 'BlackHole',    label: 'Black Hole'  },
-  { type: 'Nebula',       label: 'Nebula'      },
+  { type: 'Nebula',       label: 'Nebula',     extra: { isDeepSpace: true } },
   { type: 'Other',        label: 'Other'       },
 ];
+
+const OBJECT_TYPE_COLORS: Record<ObjectType, string> = {
+  Star:        '#FFF4C2',
+  NeutronStar: '#A0CFFF',
+  BlackHole:   '#ff7828',
+  Planet:      '#4E9AF1',
+  GasGiant:    '#D4924A',
+  Moon:        '#9E9E9E',
+  AsteroidBelt:'#8C7B6B',
+  SpaceStation:'#B0C4DE',
+  JumpGate:    '#00FFCC',
+  Comet:       '#E8F4F8',
+  Other:       '#888888',
+  Nebula:      '#9b0d7c',
+};
 
 const DEEP_ORBIT_BASE    = 80;
 const DEEP_ORBIT_SPACING = 15;
@@ -245,6 +260,7 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
 
     const dragged = sorted.find(o => o.id === payload.objId);
     if (!dragged || dragged.id === targetObj.id) return;
+    if (dragged.type === 'Nebula') return;
 
     const targetIsPrimary = primaryTypes.has(targetObj.type);
     const targetIsTL      = isTopLevelNonPrimary(targetObj);
@@ -401,26 +417,39 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
           const sysZone  = topLevelNonPrimary.filter(o => !o.isDeepSpace);
           const deepZone = topLevelNonPrimary.filter(o => o.isDeepSpace);
 
-          const renderObj = (obj: SystemObject) => (
-            <div key={obj.id}>
-              <div
-                draggable
-                onDragStart={e => onDragStart(e, obj)}
-                onDragOver={e => e.preventDefault()}
-                onDrop={e => onDrop(e, obj)}
-                className="cursor-grab active:cursor-grabbing"
-              >
+          const renderObj = (obj: SystemObject) => {
+            if (obj.type === 'Nebula') return (
+              <div key={obj.id}>
                 <ObjectEditor
                   obj={obj}
                   allObjects={system.objects}
                   onChange={updates => updateObject(system.id, obj.id, updates)}
                   onRemove={() => removeObject(system.id, obj.id)}
-                  draggable={true}
+                  draggable={false}
                 />
               </div>
-              {renderDescendants(obj.id)}
-            </div>
-          );
+            );
+            return (
+              <div key={obj.id}>
+                <div
+                  draggable
+                  onDragStart={e => onDragStart(e, obj)}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => onDrop(e, obj)}
+                  className="cursor-grab active:cursor-grabbing"
+                >
+                  <ObjectEditor
+                    obj={obj}
+                    allObjects={system.objects}
+                    onChange={updates => updateObject(system.id, obj.id, updates)}
+                    onRemove={() => removeObject(system.id, obj.id)}
+                    draggable={true}
+                  />
+                </div>
+                {renderDescendants(obj.id)}
+              </div>
+            );
+          };
 
           const onDropSeparator = (e: React.DragEvent) => {
             e.preventDefault();
@@ -465,18 +494,25 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
         ) : (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-1.5">
-              {QUICK_TYPES.map(({ type, label, extra }) => (
-                <button
-                  key={label}
-                  onClick={() => {
-                    addObject(system.id, { type, ...extra });
-                    setAddingType(false);
-                  }}
-                  className="px-2.5 py-1 rounded-md bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 text-xs font-medium transition-colors"
-                >
-                  {label}
-                </button>
-              ))}
+              {QUICK_TYPES.map(({ type, label, extra }) => {
+                const color = OBJECT_TYPE_COLORS[type];
+                return (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      addObject(system.id, { type, ...extra });
+                      setAddingType(false);
+                    }}
+                    className="px-2.5 py-1 rounded-md bg-gray-800 hover:bg-gray-700 border text-xs font-medium transition-colors"
+                    style={{
+                      borderColor: color,
+                      color: color,
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
             <button
               onClick={() => setAddingType(false)}

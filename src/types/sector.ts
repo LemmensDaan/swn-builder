@@ -37,6 +37,8 @@ export interface SystemObject {
   seed?: number;
   // Whether this object is in the deep-space zone (beyond the system's main bodies)
   isDeepSpace?: boolean;
+  // Nebula visual shape
+  nebulaShape?: NebulaShape;
   // GM notes
   notes: string;
   tags: string[];
@@ -91,7 +93,7 @@ export const OBJECT_TYPE_DEFAULTS: Record<ObjectType, Partial<SystemObject>> = {
   JumpGate:    { colors: ['#00FFCC'], size: 0.4, orbitRadius: 32, inclination: 0, selfRotationSpeed: 0    },
   Comet:       { colors: ['#E8F4F8'], size: 0.2, orbitRadius: 40, inclination: 25, selfRotationSpeed: 0, seed: 42 },
   Other:       { colors: ['#888888'], size: 0.5, orbitRadius: 10, inclination: 0, selfRotationSpeed: 0    },
-  Nebula:      { colors: ['#9b0d7c'], size: 0.1, orbitRadius: 50, inclination: 1, selfRotationSpeed: 0    },
+  Nebula:      { colors: ['#9b0d7c'], size: 0.1, orbitRadius: 0,  inclination: 0, selfRotationSpeed: 0, isDeepSpace: true, nebulaShape: 'emission' as NebulaShape },
 };
 
 export const GRID_COLS = 8;
@@ -100,7 +102,13 @@ export const GRID_ROWS = 10;
 const PRIMARY_OBJECT_TYPES = new Set(['Star', 'BlackHole', 'NeutronStar']);
 
 export function sortSystemObjects(objects: SystemObject[]): SystemObject[] {
-  return [...objects].sort((a, b) => a.sortOrder - b.sortOrder);
+  return [...objects].sort((a, b) => {
+    // Nebula always sorts last regardless of sortOrder
+    const aN = a.type === 'Nebula' ? 1 : 0;
+    const bN = b.type === 'Nebula' ? 1 : 0;
+    if (aN !== bN) return aN - bN;
+    return a.sortOrder - b.sortOrder;
+  });
 }
 
 export function getPrimaryObjectTypes(): Set<string> {

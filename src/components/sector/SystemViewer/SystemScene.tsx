@@ -60,7 +60,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
         objectPositionsRef.current[obj.id] = pos;
       }
     };
-    const childShowOrbits = prefs?.showOrbits;
+    const childShowOrbits = isInBelt ? false : prefs?.showOrbits;
 
     if (obj.type === 'AsteroidBelt') return (
       <group key={obj.id}>

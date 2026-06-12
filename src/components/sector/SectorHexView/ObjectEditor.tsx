@@ -168,6 +168,7 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                 <option value="planetary">Planetary</option>
                 <option value="supernova">Supernova Remnant</option>
                 <option value="reflection">Reflection</option>
+                <option value="bipolar0">Bipolar 0 (Lumpy Lobes)</option>
                 <option value="bipolar1">Bipolar 1 (Shell Rim)</option>
                 <option value="bipolar2">Bipolar 2 (Cone)</option>
               </select>

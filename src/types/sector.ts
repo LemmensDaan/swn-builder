@@ -9,7 +9,7 @@ export type PlanetType =
   | 'Terran' | 'Arid' | 'Ocean' | 'Ice'
   | 'GasGiant' | 'Toxic' | 'Barren' | 'Volcanic' | 'TidallyLocked';
 
-export type NebulaShape = 'emission' | 'planetary' | 'supernova' | 'reflection' | 'bipolar1' | 'bipolar2';
+export type NebulaShape = 'emission' | 'planetary' | 'supernova' | 'reflection' | 'bipolar0' | 'bipolar1' | 'bipolar2';
 
 export type SystemType =
   | 'Standard' | 'Binary' | 'Hostile' | 'Rich' | 'Dead' | 'Frontier';

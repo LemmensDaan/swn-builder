@@ -431,6 +431,72 @@ function coneFlareTex(size: number, r: number, g: number, b: number, alpha: numb
   return new THREE.CanvasTexture(canvas);
 }
 
+// ── Bipolar Nebula 0: Original style with lumpy lobes and finger projections ────
+// Two lumpy cloud lobes with finger-like internal projections; outer diffuse halo
+// per lobe; bright knots at the wing tips; simple structure.
+function bipolarLayers0(rng: () => number, vr: number, R: number, G: number, B: number): Layer[] {
+  const ax      = rng() * Math.PI;
+  const lobeRot = -ax;
+  const texSeed = Math.round(rng() * 999983);
+
+  const d  = vr * 0.72;
+  const lx = Math.sin(ax) * d;  const ly = Math.cos(ax) * d;
+  const od = d + vr * 0.30;
+  const ox = Math.sin(ax) * od; const oy = Math.cos(ax) * od;
+  const kd = d + vr * 0.58;
+  const kx = Math.sin(ax) * kd; const ky = Math.cos(ax) * kd;
+
+  const numFingers = 5 + Math.floor(rng() * 4);
+  const px = Math.cos(ax); const py = -Math.sin(ax);
+  const fingers = Array.from({ length: numFingers }, () => {
+    const tAlong = 0.20 + rng() * 0.75;
+    const tPerp  = (rng() - 0.5) * 0.42;
+    return {
+      x:   Math.sin(ax) * d * tAlong + px * vr * tPerp,
+      y:   Math.cos(ax) * d * tAlong + py * vr * tPerp,
+      rot: -ax + (rng() - 0.5) * 0.45,
+      fh:  0.30 + rng() * 0.28,
+      op:  0.38 + rng() * 0.35,
+    };
+  });
+
+  const Rl = blend(208, R); const Gl = blend( 28, G); const Bl = blend( 20, B);
+  const Ro = blend(178, R); const Go = blend( 72, G); const Bo = blend( 25, B);
+  const Rk = blend(255, R); const Gk = blend(150, G); const Bk = blend( 60, B);
+  const Rfp = blend(255, R); const Gfp = blend(108, G); const Bfp = blend( 38, B);
+
+  const tHaze   = cloudTex(128,     Rl,  Gl,  Bl,  0.35, 0.30);
+  const tLobeO  = cloudTex(256,     Ro,  Go,  Bo,  0.55, 0.46);
+  const tLobe   = lumpyCloudTex(256, Rl,  Gl,  Bl,  1.00, texSeed);
+  const tLobe2  = lumpyCloudTex(256, Ro,  Go,  Bo,  0.70, texSeed + 17);
+  const tKnot   = cloudTex(64,      Rk,  Gk,  Bk,  1.00, 0.10);
+  const tFinger = cloudTex(64,      Rfp, Gfp, Bfp, 0.88, 0.22);
+  const tStar   = cloudTex(64,      255, 255, 255, 1.00, 0.04);
+
+  return [
+    { key: 'haze',    x: 0,   y: 0,   rotZ: 0,       w: vr * 2.7,  h: vr * 2.7,  tex: tHaze,   op: 0.16, blend: ADD, order: -10 },
+    { key: 'lobeO1',  x: ox,  y: oy,  rotZ: lobeRot,  w: vr * 0.95, h: vr * 1.60, tex: tLobeO,  op: 0.35, blend: ADD, order: -9 },
+    { key: 'lobeO2',  x: -ox, y: -oy, rotZ: lobeRot,  w: vr * 0.95, h: vr * 1.60, tex: tLobeO,  op: 0.35, blend: ADD, order: -9 },
+    { key: 'lobe1',   x: lx,  y: ly,  rotZ: lobeRot,  w: vr * 0.66, h: vr * 1.25, tex: tLobe,   op: 0.85, blend: ADD, order: -8 },
+    { key: 'lobe2',   x: -lx, y: -ly, rotZ: lobeRot,  w: vr * 0.66, h: vr * 1.25, tex: tLobe,   op: 0.85, blend: ADD, order: -8 },
+    { key: 'lobe1b',  x: lx,  y: ly,  rotZ: lobeRot + 0.3, w: vr * 0.55, h: vr * 1.10, tex: tLobe2, op: 0.45, blend: ADD, order: -7 },
+    { key: 'lobe2b',  x: -lx, y: -ly, rotZ: lobeRot + 0.3, w: vr * 0.55, h: vr * 1.10, tex: tLobe2, op: 0.45, blend: ADD, order: -7 },
+    ...fingers.map((f, i) => ({
+      key: `fa${i}`, x: f.x, y: f.y, rotZ: f.rot,
+      w: vr * 0.10, h: vr * f.fh,
+      tex: tFinger, op: f.op, blend: ADD, order: -6,
+    })),
+    ...fingers.map((f, i) => ({
+      key: `fb${i}`, x: -f.x, y: -f.y, rotZ: f.rot + Math.PI,
+      w: vr * 0.10, h: vr * f.fh,
+      tex: tFinger, op: f.op, blend: ADD, order: -6,
+    })),
+    { key: 'knot1',   x: kx,  y: ky,  rotZ: 0,        w: vr * 0.24, h: vr * 0.24, tex: tKnot,   op: 0.90, blend: ADD, order: -5 },
+    { key: 'knot2',   x: -kx, y: -ky, rotZ: 0,        w: vr * 0.24, h: vr * 0.24, tex: tKnot,   op: 0.90, blend: ADD, order: -5 },
+    { key: 'star',    x: 0,   y: 0,   rotZ: 0,        w: vr * 0.06, h: vr * 0.06, tex: tStar,   op: 1.00, blend: ADD, order: -4 },
+  ];
+}
+
 // ── Bipolar Nebula 1: Shell-rim style with inner H-alpha zones ─────────────────
 // Elongated oval shell rim (lumpyRingTex) per lobe; lumpy fill; H-alpha inner zone
 // near star; soft outer diffuse halo; warm waist glow at crossing point.
@@ -532,6 +598,7 @@ export default function NebulaObject({ obj, onPositionUpdate }: Props) {
       case 'planetary':   return planetaryLayers(rng, vr, R, G, B);
       case 'supernova':   return supernovaLayers(rng, vr, R, G, B);
       case 'reflection':  return reflectionLayers(rng, vr, R, G, B);
+      case 'bipolar0':    return bipolarLayers0(rng, vr, R, G, B);
       case 'bipolar1':    return bipolarLayers1(rng, vr, R, G, B);
       case 'bipolar2':    return bipolarLayers2(rng, vr, R, G, B);
       case 'bipolar':     return bipolarLayers2(rng, vr, R, G, B);  // default to bipolar2

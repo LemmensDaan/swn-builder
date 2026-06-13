@@ -104,6 +104,7 @@ export interface Faction {
   tags: string[];
   assets: FactionAsset[];
   goals: FactionGoal[];
+  retired?: boolean;
 }
 
 export interface Sector {

@@ -12,6 +12,8 @@ import type { Character } from './types/character';
 import type { Ship } from './types/ship';
 import { CURRENT_VERSION } from './types/appData';
 import SectorViewer from './components/sector/SectorViewer';
+import FactionSheet from './components/factions/FactionSheet';
+import { useSectorStore } from './store/useSectorStore';
 
 type View =
   | { type: 'home'; activeTab?: 'characters' | 'ships' | 'factions' | 'sector' }
@@ -19,10 +21,12 @@ type View =
   | { type: 'sheet'; id: string }
   | { type: 'ship-wizard'; editId?: string }
   | { type: 'ship-sheet'; id: string; activeTab?: 'characters' | 'ships' | 'factions' | 'sector' }
-  | { type: 'sector' };
+  | { type: 'sector' }
+  | { type: 'faction-sheet'; factionId: string; sectorId: string };
 
 export default function App() {
   const { characters, upsert, remove, setAll, loaded, ships, upsertShip, removeShip } = useCharacters();
+  const { sectors, addFaction, updateFaction, removeFaction } = useSectorStore();
   const [view, setView] = useState<View>({ type: 'home', activeTab: 'characters' });
   const [showRules, setShowRules] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -41,6 +45,16 @@ export default function App() {
 
   const viewingShip = view.type === 'ship-sheet'
     ? ships.find(s => s.id === (view as { type: 'ship-sheet'; id: string }).id)
+    : undefined;
+
+  const viewingFactionInfo = view.type === 'faction-sheet'
+    ? (() => {
+        const v = view as { type: 'faction-sheet'; factionId: string; sectorId: string };
+        const sector = sectors.find(s => s.id === v.sectorId);
+        return sector
+          ? { faction: sector.factions.find(f => f.id === v.factionId), sector }
+          : undefined;
+      })()
     : undefined;
 
   if (!loaded) {
@@ -139,6 +153,7 @@ export default function App() {
             if (tab === 'sector') { setView({ type: 'sector' }); return; }
             setView({ ...view, type: 'home', activeTab: tab as 'characters' | 'ships' | 'factions' });
           }}
+          onOpenFaction={(factionId, sectorId) => setView({ type: 'faction-sheet', factionId, sectorId })}
         />
       )}
 
@@ -191,6 +206,38 @@ export default function App() {
 
       {view.type === 'sector' && (
         <SectorViewer onBack={() => setView({ type: 'home', activeTab: 'sector' })} />
+      )}
+
+      {view.type === 'faction-sheet' && viewingFactionInfo?.faction && (
+        <FactionSheet
+          key={viewingFactionInfo.faction.id}
+          faction={viewingFactionInfo.faction}
+          sectorId={viewingFactionInfo.sector.id}
+          sectorName={viewingFactionInfo.sector.name}
+          onBack={() => setView({ type: 'home', activeTab: 'factions' })}
+          onDelete={() => {
+            const v = view as { type: 'faction-sheet'; factionId: string; sectorId: string };
+            removeFaction(v.sectorId, v.factionId);
+            setView({ type: 'home', activeTab: 'factions' });
+          }}
+          onCopy={() => {
+            const v = view as { type: 'faction-sheet'; factionId: string; sectorId: string };
+            const sector = sectors.find(s => s.id === v.sectorId);
+            const src = sector?.factions.find(f => f.id === v.factionId);
+            if (src) {
+              const copy = addFaction(v.sectorId, src.name ? `${src.name}-copy` : 'copy', src.color);
+              updateFaction(v.sectorId, copy.id, {
+                force: src.force, cunning: src.cunning, wealth: src.wealth,
+                hp: src.hp, xp: src.xp,
+                tags: [...src.tags],
+                assets: src.assets.map(a => ({ ...a, id: crypto.randomUUID() })),
+                goals: src.goals.map(g => ({ ...g, id: crypto.randomUUID() })),
+                notes: src.notes,
+              });
+              setView({ type: 'faction-sheet', factionId: copy.id, sectorId: v.sectorId });
+            }
+          }}
+        />
       )}
 
       {showRules && <PDFViewer onClose={() => setShowRules(false)} />}

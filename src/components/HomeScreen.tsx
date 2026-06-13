@@ -52,9 +52,10 @@ interface Props {
   onShipImageChange: (id: string, dataUrl: string) => void;
   initialActiveTab?: 'characters' | 'ships' | 'factions' | 'sector';
   onTabChange: (tab: 'characters' | 'ships' | 'factions' | 'sector') => void;
+  onOpenFaction: (factionId: string, sectorId: string) => void;
 }
 
-export default function HomeScreen({ characters, onNew, onOpen, onDelete, onRetire, onUnretire, onCopy, onImageChange, onExport, onImport, onOpenRules, onOpenHelp, ships, onNewShip, onOpenShip, onDeleteShip, onRetireShip, onUnretireShip, onCopyShip, onShipImageChange, initialActiveTab = 'characters', onTabChange }: Props) {
+export default function HomeScreen({ characters, onNew, onOpen, onDelete, onRetire, onUnretire, onCopy, onImageChange, onExport, onImport, onOpenRules, onOpenHelp, ships, onNewShip, onOpenShip, onDeleteShip, onRetireShip, onUnretireShip, onCopyShip, onShipImageChange, initialActiveTab = 'characters', onTabChange, onOpenFaction }: Props) {
   const [graveyardOpen, setGraveyardOpen] = useState(false);
   const [importPending, setImportPending] = useState<File | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -242,7 +243,7 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
           </>
         )}
 
-        {activeTab === 'factions' && <FactionScreen />}
+        {activeTab === 'factions' && <FactionScreen onOpen={onOpenFaction} />}
 
         {activeTab === 'ships' && (
           <>

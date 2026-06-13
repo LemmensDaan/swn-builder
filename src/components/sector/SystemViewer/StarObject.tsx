@@ -136,81 +136,245 @@ function makeBlackHoleChunks(
   return { group, orbits };
 }
 
-// ─── Normal star solar prominence particles ────────────────────────────────────
+// ─── Solar prominence lifecycle (particle-based) ───────────────────────────────
 
-function makeProminenceGroup(baseHex: string, size: number, rng: () => number, hq: boolean): THREE.Group {
-  const group = new THREE.Group();
-  group.userData.isStar = true;
+const PROM_N = 32;  // particles per arc
 
-  const base = new THREE.Color(baseHex);
-  const hsl  = { h: 0, s: 0, l: 0 };
-  base.getHSL(hsl);
+// Shared low-poly geometries — created once, scaled per particle
+let _pIco: THREE.IcosahedronGeometry | null = null;
+let _pTet: THREE.TetrahedronGeometry | null = null;
 
-  const arcCount = hq ? 6 : 4; // 2 large loops, rest smaller
+interface PromParticle {
+  mesh:       THREE.Mesh;
+  basePos:    THREE.Vector3;
+  scatterVel: THREE.Vector3;
+  baseOp:     number;
+  rotSpeed:   number;
+}
 
-  for (let p = 0; p < arcCount; p++) {
-    const isLarge = p < 2;
+interface PromSlot {
+  slotGroup:   THREE.Group;
+  rng:         () => number;
+  particles:   PromParticle[];
+  hsl:         { h: number; s: number; l: number };
+  phase:       'erupting' | 'retracting' | 'dissipating' | 'dead';
+  progress:    number;
+  maxProgress: number;   // <1 = partial arc that diffuses before completing
+  isOpen:      boolean;  // open jet: doesn't return to star surface
+  eruptSpd:    number;
+  finishSpd:   number;
+  willRetract: boolean;
+  deadTime:    number;
+  deadDur:     number;
+}
 
-    const axis = new THREE.Vector3(rng()-0.5, rng()-0.5, rng()-0.5).normalize();
-    const perp = new THREE.Vector3(rng()-0.5, rng()-0.5, rng()-0.5);
-    perp.crossVectors(axis, perp).normalize();
+function buildPromParticles(
+  slotGroup: THREE.Group,
+  baseHex:   string,
+  size:      number,
+  rng:       () => number,
+  isOpen:    boolean,
+): PromParticle[] {
+  if (!_pIco) _pIco = new THREE.IcosahedronGeometry(1, 0);
+  if (!_pTet) _pTet = new THREE.TetrahedronGeometry(1);
 
-    const spread = 0.22 + rng() * 0.32;
+  const hsl = { h: 0, s: 0, l: 0 };
+  new THREE.Color(baseHex).getHSL(hsl);
 
-    const p0 = axis.clone()
-      .multiplyScalar(Math.cos(spread))
-      .addScaledVector(perp,  Math.sin(spread))
-      .normalize().multiplyScalar(size * 0.97);
+  const axis = new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize();
+  const tmp  = Math.abs(axis.x) < 0.9
+    ? new THREE.Vector3(1, 0, 0)
+    : new THREE.Vector3(0, 1, 0);
+  const perp = new THREE.Vector3().crossVectors(axis, tmp).normalize();
+  const side = new THREE.Vector3().crossVectors(axis, perp).normalize();
 
-    const p2 = axis.clone()
-      .multiplyScalar(Math.cos(spread))
-      .addScaledVector(perp, -Math.sin(spread))
-      .normalize().multiplyScalar(size * 0.97);
+  const spread = 0.14 + rng() * 0.32;
+  const p0 = axis.clone()
+    .multiplyScalar(Math.cos(spread)).addScaledVector(perp, Math.sin(spread))
+    .normalize().multiplyScalar(size * 0.98);
+  const h  = size * (0.45 + rng() * 1.3);
+  const p1 = axis.clone()
+    .multiplyScalar(size + h)
+    .addScaledVector(side, h * (rng() - 0.5) * 0.7);
 
-    const arcHeight = isLarge
-      ? size * (1.1 + rng() * 1.0)   // clearly visible beyond the glow halo
-      : size * (0.4 + rng() * 0.5);
-    const p1 = axis.clone().multiplyScalar(size + arcHeight);
+  // Open arcs continue outward; loop arcs return to the surface
+  const p2 = isOpen
+    ? axis.clone().multiplyScalar(size + h * 1.7).addScaledVector(side, h * (rng() - 0.5) * 0.3)
+    : axis.clone()
+        .multiplyScalar(Math.cos(spread)).addScaledVector(perp, -Math.sin(spread))
+        .normalize().multiplyScalar(size * 0.98);
 
-    const arcPhase   = rng() * Math.PI * 2;
-    const pulseSpeed = 0.28 + rng() * 0.45; // each arc breathes at its own rate
+  const curve = new THREE.QuadraticBezierCurve3(p0.clone(), p1.clone(), p2.clone());
+  const particles: PromParticle[] = [];
 
-    const curve = new THREE.QuadraticBezierCurve3(
-      new THREE.Vector3(p0.x, p0.y, p0.z),
-      new THREE.Vector3(p1.x, p1.y, p1.z),
-      new THREE.Vector3(p2.x, p2.y, p2.z),
+  for (let i = 0; i < PROM_N; i++) {
+    const t        = i / (PROM_N - 1);
+    const curvePos = curve.getPoint(t);
+    const outward  = curvePos.clone().normalize();
+
+    const sineT = Math.sin(t * Math.PI);
+    const r     = size * (0.012 + sineT * 0.018) * (0.65 + rng() * 0.65);
+
+    // Tight jitter — particles hug the curve
+    const jitterDir = new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize();
+    const basePos   = curvePos.clone().addScaledVector(jitterDir, r * (0.2 + rng() * 0.7));
+
+    const col = new THREE.Color().setHSL(
+      Math.max(0, hsl.h - sineT * 0.10),
+      Math.min(1, hsl.s + 0.15 + sineT * 0.10),
+      Math.min(1, hsl.l * (0.85 + sineT * 0.35)),
     );
 
-    const tubeR    = size * (isLarge ? 0.013 : 0.008);
-    const segments = isLarge ? (hq ? 36 : 18) : (hq ? 22 : 12);
-    const tubeGeo  = new THREE.TubeGeometry(curve, segments, tubeR, 4, false);
-
-    const pColor = new THREE.Color().setHSL(
-      hsl.h + (rng() - 0.5) * 0.06,
-      Math.min(1, hsl.s),
-      Math.min(1, hsl.l * (0.82 + rng() * 0.18)),
-    );
-
-    const baseOp = isLarge ? 0.40 + rng() * 0.30 : 0.22 + rng() * 0.20;
-
+    const geo = rng() > 0.45 ? _pIco : _pTet;
     const mat = new THREE.MeshBasicMaterial({
-      color: pColor, transparent: true, opacity: baseOp,
+      color: col, transparent: true, opacity: 0,
       toneMapped: false, blending: THREE.AdditiveBlending, depthWrite: false,
     });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData.isStar = true;
+    mesh.scale.setScalar(r);
+    mesh.position.copy(basePos);
+    mesh.rotation.set(rng() * Math.PI * 2, rng() * Math.PI * 2, rng() * Math.PI * 2);
+    mesh.visible = false;
+    slotGroup.add(mesh);
 
-    const tube = new THREE.Mesh(tubeGeo, mat);
-    tube.castShadow    = false;
-    tube.receiveShadow = false;
-    tube.userData.isStar      = true;
-    tube.userData.isTube      = true;
-    tube.userData.baseOp      = baseOp;
-    tube.userData.arcPhase    = arcPhase;
-    tube.userData.pulseSpeed  = pulseSpeed;
+    const scatterVel = outward.clone()
+      .addScaledVector(new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize(), 0.55)
+      .normalize()
+      .multiplyScalar(size * (0.25 + rng() * 0.45));
 
-    group.add(tube);
+    particles.push({
+      mesh, basePos, scatterVel,
+      baseOp:   0.45 + sineT * 0.40 + rng() * 0.12,
+      rotSpeed: (rng() - 0.5) * 1.8,
+    });
   }
 
-  return group;
+  return particles;
+}
+
+function respawnPromSlot(slot: PromSlot, baseHex: string, size: number): void {
+  for (const p of slot.particles) {
+    (p.mesh.material as THREE.MeshBasicMaterial).dispose();
+    slot.slotGroup.remove(p.mesh);
+  }
+
+  new THREE.Color(baseHex).getHSL(slot.hsl);
+
+  // 30% open jets, 40% partial arcs, rest full loops
+  slot.isOpen       = slot.rng() < 0.30;
+  slot.maxProgress  = (!slot.isOpen && slot.rng() < 0.40)
+    ? 0.35 + slot.rng() * 0.50   // partial: stop at 35–85%
+    : 1.0;
+
+  slot.particles  = buildPromParticles(slot.slotGroup, baseHex, size, slot.rng, slot.isOpen);
+  slot.phase      = 'erupting';
+  slot.progress   = 0;
+  slot.eruptSpd   = 0.35 + slot.rng() * 0.35;
+  slot.finishSpd  = 0.25 + slot.rng() * 0.30;
+  // Open arcs and partial arcs always dissipate — no retraction
+  slot.willRetract = !slot.isOpen && slot.maxProgress >= 1.0 && slot.rng() > 0.40;
+}
+
+function makeProminenceRoot(
+  baseHex: string, size: number, seed: number, hq: boolean,
+): { root: THREE.Group; slots: PromSlot[] } {
+  const root = new THREE.Group();
+  root.userData.isStar = true;
+  const N     = hq ? 7 : 4;
+  const slots: PromSlot[] = [];
+
+  for (let i = 0; i < N; i++) {
+    const rng = mulberry32(((seed + i * 7919) >>> 0));
+    const slotGroup = new THREE.Group();
+    slotGroup.userData.isStar = true;
+    root.add(slotGroup);
+
+    slots.push({
+      slotGroup, rng,
+      particles: [],
+      hsl: { h: 0, s: 0, l: 0 },
+      phase: 'dead',
+      progress: 0, maxProgress: 1, isOpen: false,
+      eruptSpd: 0, finishSpd: 0, willRetract: false,
+      deadTime: 0,
+      deadDur: (i / N) * 4.0,
+    });
+  }
+
+  return { root, slots };
+}
+
+function advancePromSlot(
+  slot: PromSlot, dt: number, time: number, baseHex: string, size: number,
+): void {
+  if (slot.phase === 'dead') {
+    slot.deadTime += dt;
+    if (slot.deadTime >= slot.deadDur) respawnPromSlot(slot, baseHex, size);
+    return;
+  }
+
+  const N = slot.particles.length;
+  if (N === 0) return;
+
+  if (slot.phase === 'erupting') {
+    slot.progress = Math.min(slot.maxProgress, slot.progress + dt * slot.eruptSpd);
+    const wavefront = slot.progress * N;
+    for (let i = 0; i < N; i++) {
+      const alpha = Math.max(0, Math.min(1, wavefront - i));
+      const p = slot.particles[i];
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha;
+      p.mesh.visible = alpha > 0.005;
+    }
+    if (slot.progress >= slot.maxProgress) {
+      // Flow directly into next phase — no static hold
+      slot.phase = slot.willRetract ? 'retracting' : 'dissipating';
+      slot.progress = 1;
+    }
+    return;
+  }
+
+  if (slot.phase === 'retracting') {
+    slot.progress = Math.max(0, slot.progress - dt * slot.finishSpd);
+    const half   = (N - 1) / 2;
+    const FADE_W = 0.18;
+    for (let i = 0; i < N; i++) {
+      const distFromEnd = Math.min(i, N - 1 - i) / half;
+      const threshold   = 1 - distFromEnd;
+      const alpha = Math.max(0, Math.min(1,
+        (slot.progress - (threshold - FADE_W)) / FADE_W,
+      ));
+      const p = slot.particles[i];
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha;
+      p.mesh.visible = alpha > 0.005;
+      p.mesh.rotation.y += dt * p.rotSpeed;
+    }
+    if (slot.progress <= 0) {
+      for (const p of slot.particles) p.mesh.visible = false;
+      slot.phase = 'dead'; slot.deadTime = 0; slot.deadDur = 1.5 + slot.rng() * 3.0;
+    }
+    return;
+  }
+
+  if (slot.phase === 'dissipating') {
+    slot.progress = Math.max(0, slot.progress - dt * slot.finishSpd * 0.55);
+    // Eased scatter: slow drift at first, accelerates as particles fade
+    const scatter  = Math.pow(1 - slot.progress, 1.6) * 0.60;
+    // Smooth opacity curve: stays bright longer, then graceful fade
+    const easedOp  = Math.sqrt(slot.progress);
+    for (const p of slot.particles) {
+      if (!p.mesh.visible) continue;  // skip particles never reached by eruption
+      p.mesh.position.copy(p.basePos).addScaledVector(p.scatterVel, scatter);
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * easedOp;
+      p.mesh.visible = p.mesh.visible && easedOp > 0.01;
+      p.mesh.rotation.y += dt * p.rotSpeed;
+    }
+    if (slot.progress <= 0) {
+      for (const p of slot.particles) p.mesh.visible = false;
+      slot.phase = 'dead'; slot.deadTime = 0; slot.deadDur = 1.0 + slot.rng() * 2.5;
+    }
+    return;
+  }
 }
 
 // ─── Neutron star bipolar jets ─────────────────────────────────────────────────
@@ -282,7 +446,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   const diskGroupRef    = useRef<THREE.Group>(null);
   const photonGroupRef  = useRef<THREE.Group>(null);
   const chunkGroupRef   = useRef<THREE.Group>(null);
-  const coronaRef       = useRef<THREE.Group>(null);
+  const coronaRootRef   = useRef<THREE.Group>(null);
   const nsJetsRef       = useRef<THREE.Group>(null);
   const localTimeRef    = useRef(0);
 
@@ -299,12 +463,14 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
     return makeBlackHoleChunks(color, obj.size, rng, highQuality);
   }, [color, obj.size, obj.seed, obj.id, highQuality]);
 
-  // Normal star corona
-  const coronaGroup = useMemo(() => {
+  // Normal star prominence lifecycle
+  const coronaData = useMemo(() => {
     if (isBlackHole || isNeutron) return null;
-    const rng = mulberry32((obj.seed ?? obj.id.charCodeAt(0) * 191) >>> 0);
-    return makeProminenceGroup(color, obj.size, rng, highQuality);
+    const seed = (obj.seed ?? obj.id.charCodeAt(0) * 191) >>> 0;
+    return makeProminenceRoot(color, obj.size, seed, highQuality);
   }, [color, obj.size, obj.seed, obj.id, isBlackHole, isNeutron, highQuality]);
+  const coronaDataRef = useRef(coronaData);
+  coronaDataRef.current = coronaData;
 
   // Neutron star effects
   const nsJets = useMemo(() => isNeutron ? makeNeutronJets(color, obj.size) : null, [color, obj.size, isNeutron]);
@@ -383,15 +549,11 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
       }
     }
 
-    // Solar prominence arcs — each tube breathes at its own rate
-    if (coronaRef.current) {
-      for (const child of coronaRef.current.children) {
-        if (!child.userData.isTube) continue;
-        const mat = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
-        const pulse = 0.5 + 0.5 * Math.sin(
-          time * (child.userData.pulseSpeed as number) + (child.userData.arcPhase as number)
-        );
-        mat.opacity = (child.userData.baseOp as number) * (0.45 + 0.55 * pulse);
+    // Solar prominence lifecycle
+    const cd = coronaDataRef.current;
+    if (cd) {
+      for (const slot of cd.slots) {
+        advancePromSlot(slot, delta, time, color, obj.size);
       }
     }
 
@@ -441,8 +603,8 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
               <spriteMaterial map={glowTex} color="white" transparent depthWrite={false} opacity={0.85}
                 blending={THREE.AdditiveBlending} toneMapped={false} />
             </sprite>
-            {/* Animated corona spikes */}
-            {coronaGroup && <primitive ref={coronaRef} object={coronaGroup} />}
+            {/* Solar prominence arcs — lifecycle driven */}
+            {coronaData && <primitive ref={coronaRootRef} object={coronaData.root} />}
           </>
         )}
 

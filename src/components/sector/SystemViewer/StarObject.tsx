@@ -26,67 +26,57 @@ function makeBlackHoleAccretionDisk(baseHex: string, size: number): THREE.Group 
   const base = new THREE.Color(baseHex);
   const hsl = { h: 0, s: 0, l: 0 };
   base.getHSL(hsl);
+  const hue = Math.round(hsl.h * 360);
 
-  // 5 rings with significant tilt for 3D effect
-  const ringCount = 5;
-  const segmentCount = 32;
+  // Disk gradient: white-hot inner edge → warm color → transparent outer
+  const texCanvas = document.createElement('canvas');
+  texCanvas.width = 512; texCanvas.height = 1;
+  const texCtx = texCanvas.getContext('2d')!;
+  const grad = texCtx.createLinearGradient(0, 0, 512, 0);
+  grad.addColorStop(0,    'rgba(255,255,255,1)');
+  grad.addColorStop(0.05, 'rgba(255,248,220,1)');
+  grad.addColorStop(0.15, `hsla(${hue},100%,72%,1)`);
+  grad.addColorStop(0.38, `hsla(${hue},95%,52%,0.92)`);
+  grad.addColorStop(0.62, `hsla(${hue},85%,32%,0.55)`);
+  grad.addColorStop(0.84, `hsla(${hue},70%,18%,0.14)`);
+  grad.addColorStop(1,    'rgba(0,0,0,0)');
+  texCtx.fillStyle = grad;
+  texCtx.fillRect(0, 0, 512, 1);
+  const diskTex = new THREE.CanvasTexture(texCanvas);
 
-  for (let ringIdx = 0; ringIdx < ringCount; ringIdx++) {
-    const ringProgress = ringIdx / (ringCount - 1);
-    const innerRadius = size * (1.2 + ringProgress * 0.8);
-    const outerRadius = size * (1.8 + ringProgress * 1.2);
-
-    // More pronounced tilt for 3D look
-    const tiltAngle = (ringProgress - 0.5) * 0.4;
-
-    // Color: highly vibrant, closer to chosen color, with more saturation for outer discs
-    const brightness = 0.45 + (1 - ringProgress) * 0.2;
-    const saturation = Math.min(1, hsl.s * 1.6 + 0.4);
-    const ringColor = new THREE.Color().setHSL(hsl.h, saturation, brightness);
-
-    const geometry = new THREE.BufferGeometry();
-    const positions: number[] = [];
-    const indices: number[] = [];
-
-    for (let i = 0; i < segmentCount; i++) {
-      const angle = (i / segmentCount) * Math.PI * 2;
-      const x = Math.cos(angle) * innerRadius;
-      const z = Math.sin(angle) * innerRadius;
-      const y = Math.sin(tiltAngle) * (innerRadius * 0.25);
-      positions.push(x, y, z);
-    }
-
-    for (let i = 0; i < segmentCount; i++) {
-      const angle = (i / segmentCount) * Math.PI * 2;
-      const x = Math.cos(angle) * outerRadius;
-      const z = Math.sin(angle) * outerRadius;
-      const y = Math.sin(tiltAngle) * (outerRadius * 0.2);
-      positions.push(x, y, z);
-    }
-
-    for (let i = 0; i < segmentCount; i++) {
-      const next = (i + 1) % segmentCount;
-      indices.push(i, next, segmentCount + i);
-      indices.push(next, segmentCount + next, segmentCount + i);
-    }
-
-    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-    geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
-    geometry.computeVertexNormals();
-
-    const material = new THREE.MeshStandardMaterial({
-      color: ringColor,
-      emissive: ringColor,
-      emissiveIntensity: 1.2 + ringProgress * 0.2,
-      roughness: 0.4,
-      metalness: 0.3,
-      toneMapped: false,
-      side: THREE.DoubleSide,
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    group.add(mesh);
+  // Flat ring with UV remapped to radial (u=0 inner edge, u=1 outer edge)
+  const innerR = size * 1.12;
+  const outerR = size * 5.8;
+  const ringGeo = new THREE.RingGeometry(innerR, outerR, 128, 8);
+  const posAttr = ringGeo.attributes.position as THREE.BufferAttribute;
+  const uvAttr  = ringGeo.attributes.uv  as THREE.BufferAttribute;
+  for (let i = 0; i < posAttr.count; i++) {
+    const x = posAttr.getX(i);
+    const y = posAttr.getY(i); // RingGeometry lies in XY plane
+    const r = Math.sqrt(x * x + y * y);
+    const t = (r - innerR) / (outerR - innerR);
+    uvAttr.setXY(i, Math.max(0, Math.min(1, t)), 0.5);
   }
+  uvAttr.needsUpdate = true;
+
+  const diskMat = new THREE.MeshBasicMaterial({
+    map: diskTex,
+    side: THREE.DoubleSide,
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    blending: THREE.AdditiveBlending,
+  });
+
+  // Two layers: main disk + slightly smaller second for extra inner glow depth
+  const disk1 = new THREE.Mesh(ringGeo, diskMat);
+  disk1.rotation.x = -Math.PI / 2; // lay flat in XZ plane
+  group.add(disk1);
+
+  const disk2 = new THREE.Mesh(ringGeo, diskMat.clone());
+  disk2.rotation.x = -Math.PI / 2;
+  disk2.scale.setScalar(0.96);
+  group.add(disk2);
 
   return group;
 }
@@ -101,38 +91,32 @@ interface Props {
 }
 
 export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true }: Props) {
-  const groupRef = useRef<THREE.Group>(null);
-  const meshRef = useRef<THREE.Mesh>(null);
-  const diskGroupRef = useRef<THREE.Group>(null);
-  const ringRef = useRef<THREE.Mesh>(null);
+  const groupRef      = useRef<THREE.Group>(null);
+  const meshRef       = useRef<THREE.Mesh>(null);
+  const diskGroupRef  = useRef<THREE.Group>(null);
+  const photonGroupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const color = obj.colors[0] ?? '#FFF4C2';
   const isBlackHole = obj.type === 'BlackHole';
   const isNeutron   = obj.type === 'NeutronStar';
   const glowTex = useMemo(() => makeStarGlowTexture(), []);
-  const bhDisk = useMemo(() => makeBlackHoleAccretionDisk(color, obj.size), [color, obj.size]);
-  const camera = useThree(state => state.camera);
+  const bhDisk  = useMemo(() => makeBlackHoleAccretionDisk(color, obj.size), [color, obj.size]);
+  const camera  = useThree(state => state.camera);
+
+  // Disk inclination: random tilt based on seed for variety
+  const discInclination = useMemo(() => {
+    const rng = mulberry32(obj.seed ?? obj.id.charCodeAt(0) * 137);
+    return (rng() - 0.5) * Math.PI * 0.35; // ±31° tilt around X
+  }, [obj.seed, obj.id]);
 
   // Orbit setup (for binary stars)
   let initialAngle = mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2;
-  // Secondary star (sortOrder 1) starts 180° opposite from primary
-  if (obj.sortOrder === 1) {
-    initialAngle += Math.PI;
-  }
+  if (obj.sortOrder === 1) initialAngle += Math.PI;
 
   const orbitSpeed = obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0;
   const angleRef = useRef(initialAngle);
 
-  // Random black hole disc inclination based on object seed
-  // const discInclination = useMemo(() => {
-  //   const rng = mulberry32(obj.seed ?? obj.id.charCodeAt(0) * 137);
-  //   const inclX = rng() * Math.PI * 2;
-  //   const inclZ = rng() * Math.PI * 2;
-  //   return { inclX, inclZ };
-  // }, [obj.seed, obj.id]);
-
   useFrame((_, delta) => {
-    // Update orbit position if this star orbits (secondary in binary)
     if (obj.orbitRadius > 0 && groupRef.current) {
       angleRef.current += delta * orbitSpeed;
       const incRad = THREE.MathUtils.degToRad(obj.inclination);
@@ -140,7 +124,6 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
       groupRef.current.position.set(x, y, z);
       onPositionUpdate?.([x, y, z]);
     } else if (groupRef.current && obj.orbitRadius === 0) {
-      // Star at center
       onPositionUpdate?.([0, 0, 0]);
     }
 
@@ -148,30 +131,22 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
       meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.08);
     }
 
-    // Rotate the accretion disk faster and update disk material emissive intensity for glow effect
     if (diskGroupRef.current) {
-      diskGroupRef.current.rotation.y += delta * 0.6;
-      // Add pulsing glow effect
-      const glowIntensity = 0.9 + Math.sin(Date.now() * 0.003) * 0.15;
-      diskGroupRef.current.children.forEach((child) => {
-        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-          child.material.emissiveIntensity = glowIntensity;
-        }
-      });
+      diskGroupRef.current.rotation.y += delta * 0.5;
     }
 
-    // Make the ring face the camera (billboard effect)
-    if (ringRef.current) {
-      ringRef.current.lookAt(camera.position);
+    // Billboard: photon ring always faces the camera (simulates Einstein ring)
+    if (photonGroupRef.current) {
+      photonGroupRef.current.lookAt(camera.position);
     }
   });
 
+  const photonR = obj.size * 1.06;
+
   return (
     <>
-      {/* Orbit ring only for hierarchical orbits (has a specific parent), not binary barycenter orbits */}
       {showOrbits && obj.parentId !== null && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
-        {/* The only meaningful light source in the scene */}
         {!previewMode && (
           <pointLight
             color={color}
@@ -183,64 +158,95 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
             shadow-mapSize-height={2048}
           />
         )}
-      {/* Soft glow behind the body */}
-      {!isBlackHole && (
-        <sprite userData={{ isStar: true }} scale={[obj.size * 5, obj.size * 5, 1]}>
-          <spriteMaterial map={glowTex} color={color} transparent depthWrite={false} />
-        </sprite>
-      )}
-      {/* Black hole accretion disk: clean minimal design */}
-      {isBlackHole && (
-        <group userData={{ isStar: true }} position={[0, 0, 0]} /*rotation={[discInclination.inclX, 0, discInclination.inclZ]}*/>
-          <primitive ref={diskGroupRef} object={bhDisk} />
-          {/* Event horizon */}
-          <mesh position={[0, 0, 0]}>
-            <icosahedronGeometry args={[obj.size * 0.85, 4]} />
-            <meshBasicMaterial color="#000000" toneMapped={false} />
-          </mesh>
-          {/* Colored outline ring around event horizon */}
-          <mesh ref={ringRef} position={[0, 0, 0]}>
-            <torusGeometry args={[obj.size * 1.0, obj.size * 0.03, 16, 100]} />
-            <meshStandardMaterial
-              color={color}
-              emissive={color}
-              emissiveIntensity={1.5}
-              roughness={0.4}
-              metalness={0.3}
-              toneMapped={false}
-            />
-          </mesh>
-        </group>
-      )}
-      {/* Main body: IcosahedronGeometry detail 2, flatShading, MeshLambertMaterial */}
-      <mesh
-        ref={meshRef}
-        userData={{ isStar: true }}
-        onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
-        onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
-        onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
-        castShadow={false}
-        receiveShadow={false}
-      >
-        <icosahedronGeometry args={[obj.size, 4]} />
-        <meshLambertMaterial
-          color={isBlackHole ? '#050008' : color}
-          emissive={isBlackHole ? '#000000' : color}
-          emissiveIntensity={isBlackHole ? 0 : isNeutron ? 1.5 : 0.9}
-          flatShading
-          toneMapped={false}
-        />
-      </mesh>
-      {/* Hover label — plain monospace text, no box, no line */}
-      {hovered && (
-        <Html center distanceFactor={50} position={[0, obj.size + 1.2, 0]} style={{ pointerEvents: 'none' }}>
-          <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#fff', whiteSpace: 'nowrap', textShadow: '0 1px 4px #000' }}>
-            {obj.name}
-          </div>
-        </Html>
-      )}
-      {/* Children (planets, moons, stations) orbit in this star's local space */}
-      {children}
+        {!isBlackHole && (
+          <sprite userData={{ isStar: true }} scale={[obj.size * 5, obj.size * 5, 1]}>
+            <spriteMaterial map={glowTex} color={color} transparent depthWrite={false} />
+          </sprite>
+        )}
+
+        {isBlackHole && (
+          <group userData={{ isStar: true }} rotation={[discInclination, 0, 0]}>
+            {/* Rotating accretion disk */}
+            <primitive ref={diskGroupRef} object={bhDisk} />
+
+            {/* Photon ring — billboards to camera to simulate gravitational lensing */}
+            <group ref={photonGroupRef}>
+              {/* Core: thin, very bright warm-white ring */}
+              <mesh>
+                <torusGeometry args={[photonR, photonR * 0.048, 16, 128]} />
+                <meshBasicMaterial
+                  color={new THREE.Color(1, 0.97, 0.92)}
+                  toneMapped={false}
+                  transparent
+                  opacity={0.95}
+                  blending={THREE.AdditiveBlending}
+                  depthWrite={false}
+                  depthTest={false}
+                />
+              </mesh>
+              {/* Inner glow halo */}
+              <mesh>
+                <torusGeometry args={[photonR, photonR * 0.13, 16, 128]} />
+                <meshBasicMaterial
+                  color={new THREE.Color(1, 0.82, 0.55)}
+                  toneMapped={false}
+                  transparent
+                  opacity={0.52}
+                  blending={THREE.AdditiveBlending}
+                  depthWrite={false}
+                  depthTest={false}
+                />
+              </mesh>
+              {/* Outer bloom */}
+              <mesh>
+                <torusGeometry args={[photonR, photonR * 0.30, 16, 128]} />
+                <meshBasicMaterial
+                  color={new THREE.Color(0.9, 0.55, 0.25)}
+                  toneMapped={false}
+                  transparent
+                  opacity={0.22}
+                  blending={THREE.AdditiveBlending}
+                  depthWrite={false}
+                  depthTest={false}
+                />
+              </mesh>
+            </group>
+
+            {/* Event horizon — solid black, occludes disk behind it */}
+            <mesh renderOrder={1}>
+              <icosahedronGeometry args={[obj.size * 0.85, 4]} />
+              <meshBasicMaterial color="#000000" toneMapped={false} />
+            </mesh>
+          </group>
+        )}
+
+        <mesh
+          ref={meshRef}
+          userData={{ isStar: true }}
+          onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+          onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
+          onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
+          castShadow={false}
+          receiveShadow={false}
+        >
+          <icosahedronGeometry args={[obj.size, 4]} />
+          <meshLambertMaterial
+            color={isBlackHole ? '#050008' : color}
+            emissive={isBlackHole ? '#000000' : color}
+            emissiveIntensity={isBlackHole ? 0 : isNeutron ? 1.5 : 0.9}
+            flatShading
+            toneMapped={false}
+          />
+        </mesh>
+
+        {hovered && (
+          <Html center distanceFactor={50} position={[0, obj.size + 1.2, 0]} style={{ pointerEvents: 'none' }}>
+            <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#fff', whiteSpace: 'nowrap', textShadow: '0 1px 4px #000' }}>
+              {obj.name}
+            </div>
+          </Html>
+        )}
+        {children}
       </group>
     </>
   );

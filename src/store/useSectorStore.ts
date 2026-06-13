@@ -219,10 +219,10 @@ export const useSectorStore = create<SectorStore>()(
           if (siblings.length > 0) {
             const maxSiblingOrbit = Math.max(...siblings.map(s => s.orbitRadius));
             const minOrbit = maxSiblingOrbit + size * 2 + clearance;
-            autoOrbitRadius = minOrbit + rng() * 1.0;
+            autoOrbitRadius = minOrbit + rng() * 4.0;
           } else {
             const minOrbit = parentSize + size + clearance;
-            autoOrbitRadius = minOrbit + rng() * 1.0;
+            autoOrbitRadius = minOrbit + rng() * 4.0;
           }
         } else if (effectiveIsDeepSpace && system) {
           const existingDeep = system.objects.filter(o => o.isDeepSpace && o.parentId === null);
@@ -230,11 +230,11 @@ export const useSectorStore = create<SectorStore>()(
             ? Math.max(...existingDeep.map(o => o.orbitRadius)) + 15
             : 80;
         } else {
-          autoOrbitRadius = BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 2;
+          autoOrbitRadius = BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 6;
         }
 
         const autoRotationSpeed = (rng() * 0.2) + 0.05;
-        const autoInclination = (rng() - 0.5) * 2 * (parentId ? 3 : 8);
+        const autoInclination = (rng() - 0.5) * 2 * (partial.type === 'Moon' ? 3 : 8);
 
         // For binary (root-level) stars: share seed so they always oppose 180°
         // Hierarchical stellar objects get their own seed

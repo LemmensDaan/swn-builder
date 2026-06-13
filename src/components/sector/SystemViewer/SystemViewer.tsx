@@ -164,7 +164,7 @@ export default function SystemViewer() {
     0,
     ...system.objects.filter(o => !o.parentId).map(o => o.orbitRadius)
   );
-  const camDistance = Math.max(80, furthestOrbit * 4.5 + 40);
+  const camDistance = Math.max(60, furthestOrbit * 2.5 + 30);
 
   return (
     <div className="flex h-full relative">

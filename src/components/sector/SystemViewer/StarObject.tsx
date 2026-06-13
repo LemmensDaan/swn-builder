@@ -52,7 +52,7 @@ function makeBlackHoleAccretionDisk(baseHex: string, size: number): THREE.Group 
   const uvAttr  = ringGeo.attributes.uv  as THREE.BufferAttribute;
   for (let i = 0; i < posAttr.count; i++) {
     const x = posAttr.getX(i);
-    const y = posAttr.getY(i); // RingGeometry lies in XY plane
+    const y = posAttr.getY(i);
     const r = Math.sqrt(x * x + y * y);
     const t = (r - innerR) / (outerR - innerR);
     uvAttr.setXY(i, Math.max(0, Math.min(1, t)), 0.5);
@@ -68,9 +68,8 @@ function makeBlackHoleAccretionDisk(baseHex: string, size: number): THREE.Group 
     blending: THREE.AdditiveBlending,
   });
 
-  // Two layers: main disk + slightly smaller second for extra inner glow depth
   const disk1 = new THREE.Mesh(ringGeo, diskMat);
-  disk1.rotation.x = -Math.PI / 2; // lay flat in XZ plane
+  disk1.rotation.x = -Math.PI / 2;
   group.add(disk1);
 
   const disk2 = new THREE.Mesh(ringGeo, diskMat.clone());
@@ -79,6 +78,74 @@ function makeBlackHoleAccretionDisk(baseHex: string, size: number): THREE.Group 
   group.add(disk2);
 
   return group;
+}
+
+interface ChunkOrbit { radius: number; speed: number; }
+
+function makeBlackHoleChunks(
+  baseHex: string,
+  size: number,
+  rng: () => number,
+): { group: THREE.Group; orbits: ChunkOrbit[] } {
+  const group = new THREE.Group();
+  const base = new THREE.Color(baseHex);
+  const hsl = { h: 0, s: 0, l: 0 };
+  base.getHSL(hsl);
+
+  const innerR = size * 1.35;
+  const outerR = size * 5.2;
+  const count  = 80;
+  const orbits: ChunkOrbit[] = [];
+
+  for (let i = 0; i < count; i++) {
+    // Bias distribution toward inner radii (denser hot material closer in)
+    const t      = Math.pow(rng(), 1.6);
+    const radius = innerR + t * (outerR - innerR);
+    const normR  = (radius - innerR) / (outerR - innerR); // 0 = inner, 1 = outer
+
+    // Keplerian: angular speed ∝ 1 / sqrt(r)
+    const speed = 1.6 / Math.sqrt(radius / size);
+
+    const angle = rng() * Math.PI * 2;
+
+    // Wide size variation: tiny dust to large boulders
+    const sizeClass = rng(); // 0–1, drives the distribution
+    const baseSize  = sizeClass < 0.55
+      ? size * (0.025 + rng() * 0.04)          // 55 %: small shards
+      : sizeClass < 0.85
+      ? size * (0.07  + rng() * 0.07)           // 30 %: medium chunks
+      : size * (0.10  + rng() * 0.12);          // 15 %: large boulders
+    const chunkSize = baseSize * (0.8 + normR * 0.5); // outer chunks slightly larger
+
+    // Color: hot white/yellow at inner edge → full configured color at outer edge
+    const lightness   = 0.85 - normR * 0.52;
+    const saturation  = 0.15 + normR * 0.85;
+    const chunkColor  = new THREE.Color().setHSL(hsl.h, Math.min(1, saturation), lightness);
+
+    const geo = rng() > 0.45
+      ? new THREE.TetrahedronGeometry(chunkSize)
+      : new THREE.IcosahedronGeometry(chunkSize, 0);
+
+    const mat = new THREE.MeshLambertMaterial({
+      color: chunkColor,
+      emissive: chunkColor,
+      emissiveIntensity: 0.25 + (1 - normR) * 0.4,
+      flatShading: true,
+      toneMapped: false,
+    });
+
+    const mesh = new THREE.Mesh(geo, mat);
+    // Random initial tumble orientation
+    mesh.rotation.set(rng() * Math.PI * 2, rng() * Math.PI * 2, rng() * Math.PI * 2);
+    // Self-spin speed stored for animation
+    mesh.userData.selfRot = (rng() - 0.5) * 1.8;
+    mesh.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+    group.add(mesh);
+
+    orbits.push({ radius, speed });
+  }
+
+  return { group, orbits };
 }
 
 interface Props {
@@ -91,22 +158,38 @@ interface Props {
 }
 
 export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true }: Props) {
-  const groupRef      = useRef<THREE.Group>(null);
-  const meshRef       = useRef<THREE.Mesh>(null);
-  const diskGroupRef  = useRef<THREE.Group>(null);
+  const groupRef       = useRef<THREE.Group>(null);
+  const meshRef        = useRef<THREE.Mesh>(null);
+  const diskGroupRef   = useRef<THREE.Group>(null);
   const photonGroupRef = useRef<THREE.Group>(null);
+  const chunkGroupRef  = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
-  const color = obj.colors[0] ?? '#FFF4C2';
+  const color      = obj.colors[0] ?? '#FFF4C2';
   const isBlackHole = obj.type === 'BlackHole';
   const isNeutron   = obj.type === 'NeutronStar';
-  const glowTex = useMemo(() => makeStarGlowTexture(), []);
-  const bhDisk  = useMemo(() => makeBlackHoleAccretionDisk(color, obj.size), [color, obj.size]);
-  const camera  = useThree(state => state.camera);
+  const glowTex    = useMemo(() => makeStarGlowTexture(), []);
+  const bhDisk     = useMemo(() => makeBlackHoleAccretionDisk(color, obj.size), [color, obj.size]);
+  const bhChunks   = useMemo(() => {
+    const rng = mulberry32((obj.seed ?? obj.id.charCodeAt(0) * 73) >>> 0);
+    return makeBlackHoleChunks(color, obj.size, rng);
+  }, [color, obj.size, obj.seed, obj.id]);
+  const camera     = useThree(state => state.camera);
 
-  // Disk inclination: random tilt based on seed for variety
+  // Track current chunk angles separately so they animate independently of the rng seed
+  const chunkAnglesRef = useRef<number[]>([]);
+  if (chunkAnglesRef.current.length !== bhChunks.orbits.length) {
+    // Initialise (or re-sync on bhChunks change) from the initial positions baked into the group
+    const children = bhChunks.group.children;
+    chunkAnglesRef.current = bhChunks.orbits.map((o, i) => {
+      const p = children[i]?.position;
+      return p ? Math.atan2(p.z, p.x) : 0;
+    });
+  }
+
+  // Disk inclination: seed-based tilt for variety
   const discInclination = useMemo(() => {
     const rng = mulberry32(obj.seed ?? obj.id.charCodeAt(0) * 137);
-    return (rng() - 0.5) * Math.PI * 0.35; // ±31° tilt around X
+    return (rng() - 0.5) * Math.PI * 0.35;
   }, [obj.seed, obj.id]);
 
   // Orbit setup (for binary stars)
@@ -114,7 +197,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   if (obj.sortOrder === 1) initialAngle += Math.PI;
 
   const orbitSpeed = obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0;
-  const angleRef = useRef(initialAngle);
+  const angleRef   = useRef(initialAngle);
 
   useFrame((_, delta) => {
     if (obj.orbitRadius > 0 && groupRef.current) {
@@ -135,9 +218,22 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
       diskGroupRef.current.rotation.y += delta * 0.5;
     }
 
-    // Billboard: photon ring always faces the camera (simulates Einstein ring)
     if (photonGroupRef.current) {
       photonGroupRef.current.lookAt(camera.position);
+    }
+
+    // Keplerian chunk orbits: inner chunks overtake outer ones
+    if (chunkGroupRef.current) {
+      const children = chunkGroupRef.current.children;
+      const angles   = chunkAnglesRef.current;
+      const orbits   = bhChunks.orbits;
+      for (let i = 0; i < children.length; i++) {
+        angles[i] += delta * orbits[i].speed;
+        const r = orbits[i].radius;
+        children[i].position.set(Math.cos(angles[i]) * r, 0, Math.sin(angles[i]) * r);
+        // Tumble as they fly
+        children[i].rotation.y += delta * (children[i].userData.selfRot as number);
+      }
     }
   });
 
@@ -166,12 +262,14 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
 
         {isBlackHole && (
           <group userData={{ isStar: true }} rotation={[discInclination, 0, 0]}>
-            {/* Rotating accretion disk */}
+            {/* Glow disk — hot plasma background */}
             <primitive ref={diskGroupRef} object={bhDisk} />
 
-            {/* Photon ring — billboards to camera to simulate gravitational lensing */}
+            {/* Low-poly debris chunks orbiting at Keplerian speeds */}
+            <primitive ref={chunkGroupRef} object={bhChunks.group} />
+
+            {/* Photon ring — billboards to camera */}
             <group ref={photonGroupRef}>
-              {/* Core: thin, very bright warm-white ring */}
               <mesh>
                 <torusGeometry args={[photonR, photonR * 0.048, 16, 128]} />
                 <meshBasicMaterial
@@ -184,7 +282,6 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
                   depthTest={false}
                 />
               </mesh>
-              {/* Inner glow halo */}
               <mesh>
                 <torusGeometry args={[photonR, photonR * 0.13, 16, 128]} />
                 <meshBasicMaterial
@@ -197,7 +294,6 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
                   depthTest={false}
                 />
               </mesh>
-              {/* Outer bloom */}
               <mesh>
                 <torusGeometry args={[photonR, photonR * 0.30, 16, 128]} />
                 <meshBasicMaterial
@@ -212,7 +308,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
               </mesh>
             </group>
 
-            {/* Event horizon — solid black, occludes disk behind it */}
+            {/* Event horizon */}
             <mesh renderOrder={1}>
               <icosahedronGeometry args={[obj.size * 0.85, 4]} />
               <meshBasicMaterial color="#000000" toneMapped={false} />

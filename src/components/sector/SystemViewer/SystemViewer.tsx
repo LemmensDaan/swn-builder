@@ -162,7 +162,7 @@ export default function SystemViewer() {
 
   const furthestOrbit = Math.max(
     0,
-    ...system.objects.filter(o => !o.parentId).map(o => o.orbitRadius)
+    ...system.objects.filter(o => !o.parentId && !o.isDeepSpace).map(o => o.orbitRadius)
   );
   const camDistance = Math.max(60, furthestOrbit * 2.5 + 30);
 

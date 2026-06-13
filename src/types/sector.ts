@@ -38,6 +38,11 @@ export interface SystemObject {
   seed?: number;
   // Whether this object is in the deep-space zone (beyond the system's main bodies)
   isDeepSpace?: boolean;
+  // Black hole accretion disc tilt (degrees). Undefined = randomized from seed.
+  bhDiscInclination?: number;
+  // Neutron star jet axis tilt (degrees). Undefined = randomized from seed.
+  nsJetTiltX?: number;
+  nsJetTiltZ?: number;
   // Nebula visual shape
   nebulaShape?: NebulaShape;
   // GM notes

@@ -234,6 +234,55 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
             </div>
           )}
 
+          {/* Neutron star jet axis */}
+          {obj.type === 'NeutronStar' && (
+            <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+              <label className="flex flex-col gap-0.5">
+                <span className="text-gray-500">Jet Tilt X °</span>
+                <input
+                  type="number" step="1" min="-90" max="90"
+                  className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                  value={obj.nsJetTiltX ?? ''}
+                  placeholder="auto"
+                  onChange={e => {
+                    const v = parseFloat(e.target.value);
+                    onChange({ nsJetTiltX: isNaN(v) ? undefined : v });
+                  }}
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className="text-gray-500">Jet Tilt Z °</span>
+                <input
+                  type="number" step="1" min="-90" max="90"
+                  className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                  value={obj.nsJetTiltZ ?? ''}
+                  placeholder="auto"
+                  onChange={e => {
+                    const v = parseFloat(e.target.value);
+                    onChange({ nsJetTiltZ: isNaN(v) ? undefined : v });
+                  }}
+                />
+              </label>
+            </div>
+          )}
+
+          {/* Black hole disc inclination */}
+          {obj.type === 'BlackHole' && (
+            <label className="flex flex-col gap-0.5">
+              <span className="text-gray-500">Disc Inclination °</span>
+              <input
+                type="number" step="1" min="-90" max="90"
+                className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                value={obj.bhDiscInclination ?? ''}
+                placeholder="auto"
+                onChange={e => {
+                  const v = parseFloat(e.target.value);
+                  onChange({ bhDiscInclination: isNaN(v) ? undefined : v });
+                }}
+              />
+            </label>
+          )}
+
           {/* Orbital Properties Section — hidden for Nebula */}
           {obj.type !== 'Nebula' && <div className="rounded bg-gray-900/30 border border-gray-700/30">
             <button

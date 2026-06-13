@@ -173,8 +173,8 @@ function makeProminenceGroup(baseHex: string, size: number, rng: () => number): 
       .normalize().multiplyScalar(size * 0.98);
 
     const arcHeight = isLarge
-      ? size * (1.1 + rng() * 1.2)
-      : size * (0.35 + rng() * 0.55);
+      ? size * (0.55 + rng() * 0.75)
+      : size * (0.2 + rng() * 0.35);
     // Arc apex — directly above midpoint, along axis
     const p1base = axis.clone().multiplyScalar(size + arcHeight);
 
@@ -196,17 +196,18 @@ function makeProminenceGroup(baseHex: string, size: number, rng: () => number): 
         ? new THREE.TetrahedronGeometry(pSize)
         : new THREE.IcosahedronGeometry(pSize, 0);
 
-      const mat = new THREE.MeshLambertMaterial({
-        color: pColor, emissive: pColor,
-        emissiveIntensity: 0.5,
-        flatShading: true, toneMapped: false,
-        transparent: true, opacity: 0,
+      const mat = new THREE.MeshBasicMaterial({
+        color: pColor, transparent: true, opacity: 0,
+        toneMapped: false, blending: THREE.AdditiveBlending, depthWrite: false,
       });
 
       const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow   = false;
+      mesh.receiveShadow = false;
       mesh.userData.isStar           = true;
       mesh.userData.isSolarParticle  = true;
-      mesh.userData.progress         = i / particlesPerArc; // stagger along arc
+      mesh.userData.maxOpacity       = isLarge ? 0.7 + rng() * 0.2 : 0.4 + rng() * 0.2;
+      mesh.userData.progress         = i / particlesPerArc;
       mesh.userData.speed            = flowSpeed * (0.88 + rng() * 0.24);
       mesh.userData.p0               = p0;
       mesh.userData.p1base           = p1base.clone();
@@ -321,6 +322,20 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   // Neutron star effects
   const nsJets = useMemo(() => isNeutron ? makeNeutronJets(color, obj.size) : null, [color, obj.size, isNeutron]);
 
+  // Neutron star jet tilt — from stored values or seeded random
+  const nsJetTilt = useMemo(() => {
+    if (!isNeutron) return null;
+    if (obj.nsJetTiltX !== undefined || obj.nsJetTiltZ !== undefined) {
+      return {
+        x: THREE.MathUtils.degToRad(obj.nsJetTiltX ?? 0),
+        z: THREE.MathUtils.degToRad(obj.nsJetTiltZ ?? 0),
+      };
+    }
+    const rng = mulberry32((obj.seed ?? obj.id.charCodeAt(0) * 79) >>> 0);
+    return { x: (rng() - 0.5) * Math.PI * 0.5, z: (rng() - 0.5) * Math.PI * 0.5 };
+  }, [isNeutron, obj.nsJetTiltX, obj.nsJetTiltZ, obj.seed, obj.id]);
+
+
   const camera = useThree(state => state.camera);
 
   // Track BH chunk angles
@@ -333,11 +348,12 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
     });
   }
 
-  // Disk inclination
+  // Disk inclination — editable field takes priority over seed-based random
   const discInclination = useMemo(() => {
+    if (obj.bhDiscInclination !== undefined) return THREE.MathUtils.degToRad(obj.bhDiscInclination);
     const rng = mulberry32(obj.seed ?? obj.id.charCodeAt(0) * 137);
     return (rng() - 0.5) * Math.PI * 0.35;
-  }, [obj.seed, obj.id]);
+  }, [obj.bhDiscInclination, obj.seed, obj.id]);
 
   // Binary orbit
   let initialAngle = mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2;
@@ -410,8 +426,8 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
         // Fade: quick ramp in near launch, then fade out and dissipate before arc end
         const fadeIn  = Math.min(1, t * 9);
         const fadeOut = Math.max(0, 1 - t * 1.45);
-        const mat = (child as THREE.Mesh).material as THREE.MeshLambertMaterial;
-        mat.opacity = fadeIn * fadeOut;
+        const mat = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        mat.opacity = fadeIn * fadeOut * (child.userData.maxOpacity as number);
 
         // Slow tumble as particles fly
         child.rotation.x += delta * (child.userData.rotSpeedX as number);
@@ -487,7 +503,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
                 blending={THREE.AdditiveBlending} toneMapped={false} />
             </sprite>
             {/* Bipolar jets */}
-            {nsJets && <primitive ref={nsJetsRef} object={nsJets} />}
+            {nsJets && <primitive ref={nsJetsRef} object={nsJets} rotation-x={nsJetTilt?.x ?? 0} rotation-z={nsJetTilt?.z ?? 0} />}
           </>
         )}
 
@@ -538,7 +554,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
         >
           <icosahedronGeometry args={[obj.size, 4]} />
           <meshLambertMaterial
-            color={isBlackHole ? '#050008' : color}
+            color={isBlackHole ? '#050008' : '#000000'}
             emissive={isBlackHole ? '#000000' : color}
             emissiveIntensity={isBlackHole ? 0 : isNeutron ? 1.5 : 0.9}
             flatShading

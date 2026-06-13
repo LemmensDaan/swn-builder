@@ -25,7 +25,7 @@ function makeStarGlowTexture(): THREE.Texture {
 
 // ─── Black hole accretion disk ────────────────────────────────────────────────
 
-function makeBlackHoleAccretionDisk(baseHex: string, size: number): THREE.Group {
+function makeBlackHoleAccretionDisk(baseHex: string, size: number, hq: boolean): THREE.Group {
   const group = new THREE.Group();
   const base = new THREE.Color(baseHex);
   const hsl = { h: 0, s: 0, l: 0 };
@@ -49,7 +49,7 @@ function makeBlackHoleAccretionDisk(baseHex: string, size: number): THREE.Group 
 
   const innerR = size * 1.12;
   const outerR = size * 5.8;
-  const ringGeo = new THREE.RingGeometry(innerR, outerR, 128, 8);
+  const ringGeo = new THREE.RingGeometry(innerR, outerR, hq ? 128 : 64, hq ? 8 : 4);
   const posAttr = ringGeo.attributes.position as THREE.BufferAttribute;
   const uvAttr  = ringGeo.attributes.uv  as THREE.BufferAttribute;
   for (let i = 0; i < posAttr.count; i++) {
@@ -83,7 +83,7 @@ function makeBlackHoleAccretionDisk(baseHex: string, size: number): THREE.Group 
 interface ChunkOrbit { radius: number; speed: number; }
 
 function makeBlackHoleChunks(
-  baseHex: string, size: number, rng: () => number,
+  baseHex: string, size: number, rng: () => number, hq: boolean,
 ): { group: THREE.Group; orbits: ChunkOrbit[] } {
   const group = new THREE.Group();
   const base = new THREE.Color(baseHex);
@@ -92,7 +92,7 @@ function makeBlackHoleChunks(
 
   const innerR = size * 1.35;
   const outerR = size * 5.2;
-  const count  = 80;
+  const count  = hq ? 80 : 36;
   const orbits: ChunkOrbit[] = [];
 
   for (let i = 0; i < count; i++) {
@@ -138,7 +138,7 @@ function makeBlackHoleChunks(
 
 // ─── Normal star solar prominence particles ────────────────────────────────────
 
-function makeProminenceGroup(baseHex: string, size: number, rng: () => number): THREE.Group {
+function makeProminenceGroup(baseHex: string, size: number, rng: () => number, hq: boolean): THREE.Group {
   const group = new THREE.Group();
   group.userData.isStar = true;
 
@@ -146,82 +146,68 @@ function makeProminenceGroup(baseHex: string, size: number, rng: () => number): 
   const hsl  = { h: 0, s: 0, l: 0 };
   base.getHSL(hsl);
 
-  const prominenceCount    = 5;   // separate arc paths
-  const particlesPerArc    = 8;   // particles flowing along each arc
+  const arcCount = hq ? 6 : 4; // 2 large loops, rest smaller
 
-  for (let p = 0; p < prominenceCount; p++) {
+  for (let p = 0; p < arcCount; p++) {
     const isLarge = p < 2;
 
-    // --- Arc geometry: quadratic bezier p0 → p1 → p2 ---
-    // Axis = outward direction this prominence shoots from
     const axis = new THREE.Vector3(rng()-0.5, rng()-0.5, rng()-0.5).normalize();
-
-    // Perpendicular vector (determines how wide the arc base is)
     const perp = new THREE.Vector3(rng()-0.5, rng()-0.5, rng()-0.5);
     perp.crossVectors(axis, perp).normalize();
 
-    const spread = 0.28 + rng() * 0.38; // angular half-width of arc base
+    const spread = 0.22 + rng() * 0.32;
 
     const p0 = axis.clone()
       .multiplyScalar(Math.cos(spread))
       .addScaledVector(perp,  Math.sin(spread))
-      .normalize().multiplyScalar(size * 0.98);
+      .normalize().multiplyScalar(size * 0.97);
 
     const p2 = axis.clone()
       .multiplyScalar(Math.cos(spread))
       .addScaledVector(perp, -Math.sin(spread))
-      .normalize().multiplyScalar(size * 0.98);
+      .normalize().multiplyScalar(size * 0.97);
 
     const arcHeight = isLarge
-      ? size * (0.55 + rng() * 0.75)
-      : size * (0.2 + rng() * 0.35);
-    // Arc apex — directly above midpoint, along axis
-    const p1base = axis.clone().multiplyScalar(size + arcHeight);
+      ? size * (1.1 + rng() * 1.0)   // clearly visible beyond the glow halo
+      : size * (0.4 + rng() * 0.5);
+    const p1 = axis.clone().multiplyScalar(size + arcHeight);
 
-    const arcPhase  = rng() * Math.PI * 2;
-    const arcWobble = arcHeight * 0.12; // apex breathes slightly
-    const flowSpeed = isLarge ? 0.07 + rng() * 0.05 : 0.14 + rng() * 0.14;
+    const arcPhase   = rng() * Math.PI * 2;
+    const pulseSpeed = 0.28 + rng() * 0.45; // each arc breathes at its own rate
 
-    // --- Particles spread evenly along the arc ---
-    for (let i = 0; i < particlesPerArc; i++) {
-      const pSize = size * (isLarge ? 0.055 + rng() * 0.055 : 0.025 + rng() * 0.03);
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(p0.x, p0.y, p0.z),
+      new THREE.Vector3(p1.x, p1.y, p1.z),
+      new THREE.Vector3(p2.x, p2.y, p2.z),
+    );
 
-      const pColor = new THREE.Color().setHSL(
-        hsl.h,
-        Math.min(1, hsl.s * (0.75 + rng() * 0.5)),
-        Math.min(1, hsl.l + 0.08 + (rng() - 0.5) * 0.12),
-      );
+    const tubeR    = size * (isLarge ? 0.013 : 0.008);
+    const segments = isLarge ? (hq ? 36 : 18) : (hq ? 22 : 12);
+    const tubeGeo  = new THREE.TubeGeometry(curve, segments, tubeR, 4, false);
 
-      const geo = rng() > 0.45
-        ? new THREE.TetrahedronGeometry(pSize)
-        : new THREE.IcosahedronGeometry(pSize, 0);
+    const pColor = new THREE.Color().setHSL(
+      hsl.h + (rng() - 0.5) * 0.06,
+      Math.min(1, hsl.s),
+      Math.min(1, hsl.l * (0.82 + rng() * 0.18)),
+    );
 
-      const mat = new THREE.MeshBasicMaterial({
-        color: pColor, transparent: true, opacity: 0,
-        toneMapped: false, blending: THREE.AdditiveBlending, depthWrite: false,
-      });
+    const baseOp = isLarge ? 0.40 + rng() * 0.30 : 0.22 + rng() * 0.20;
 
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.castShadow   = false;
-      mesh.receiveShadow = false;
-      mesh.userData.isStar           = true;
-      mesh.userData.isSolarParticle  = true;
-      mesh.userData.maxOpacity       = isLarge ? 0.7 + rng() * 0.2 : 0.4 + rng() * 0.2;
-      mesh.userData.progress         = i / particlesPerArc;
-      mesh.userData.speed            = flowSpeed * (0.88 + rng() * 0.24);
-      mesh.userData.p0               = p0;
-      mesh.userData.p1base           = p1base.clone();
-      mesh.userData.p1               = p1base.clone(); // mutable working copy
-      mesh.userData.p2               = p2;
-      mesh.userData.axis             = axis.clone();
-      mesh.userData.arcPhase         = arcPhase;
-      mesh.userData.arcWobble        = arcWobble;
-      mesh.userData.rotSpeedX        = (rng() - 0.5) * 1.2;
-      mesh.userData.rotSpeedZ        = (rng() - 0.5) * 1.2;
-      mesh.rotation.set(rng()*Math.PI*2, rng()*Math.PI*2, rng()*Math.PI*2);
+    const mat = new THREE.MeshBasicMaterial({
+      color: pColor, transparent: true, opacity: baseOp,
+      toneMapped: false, blending: THREE.AdditiveBlending, depthWrite: false,
+    });
 
-      group.add(mesh);
-    }
+    const tube = new THREE.Mesh(tubeGeo, mat);
+    tube.castShadow    = false;
+    tube.receiveShadow = false;
+    tube.userData.isStar      = true;
+    tube.userData.isTube      = true;
+    tube.userData.baseOp      = baseOp;
+    tube.userData.arcPhase    = arcPhase;
+    tube.userData.pulseSpeed  = pulseSpeed;
+
+    group.add(tube);
   }
 
   return group;
@@ -287,9 +273,10 @@ interface Props {
   onClick?: (id: string) => void;
   previewMode?: boolean;
   showOrbits?: boolean;
+  highQuality?: boolean;
 }
 
-export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true }: Props) {
+export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true, highQuality = true }: Props) {
   const groupRef        = useRef<THREE.Group>(null);
   const meshRef         = useRef<THREE.Mesh>(null);
   const diskGroupRef    = useRef<THREE.Group>(null);
@@ -306,18 +293,18 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   const glowTex    = useMemo(() => makeStarGlowTexture(), []);
 
   // Black hole geometry
-  const bhDisk   = useMemo(() => makeBlackHoleAccretionDisk(color, obj.size), [color, obj.size]);
+  const bhDisk   = useMemo(() => makeBlackHoleAccretionDisk(color, obj.size, highQuality), [color, obj.size, highQuality]);
   const bhChunks = useMemo(() => {
     const rng = mulberry32((obj.seed ?? obj.id.charCodeAt(0) * 73) >>> 0);
-    return makeBlackHoleChunks(color, obj.size, rng);
-  }, [color, obj.size, obj.seed, obj.id]);
+    return makeBlackHoleChunks(color, obj.size, rng, highQuality);
+  }, [color, obj.size, obj.seed, obj.id, highQuality]);
 
   // Normal star corona
   const coronaGroup = useMemo(() => {
     if (isBlackHole || isNeutron) return null;
     const rng = mulberry32((obj.seed ?? obj.id.charCodeAt(0) * 191) >>> 0);
-    return makeProminenceGroup(color, obj.size, rng);
-  }, [color, obj.size, obj.seed, obj.id, isBlackHole, isNeutron]);
+    return makeProminenceGroup(color, obj.size, rng, highQuality);
+  }, [color, obj.size, obj.seed, obj.id, isBlackHole, isNeutron, highQuality]);
 
   // Neutron star effects
   const nsJets = useMemo(() => isNeutron ? makeNeutronJets(color, obj.size) : null, [color, obj.size, isNeutron]);
@@ -396,42 +383,15 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
       }
     }
 
-    // Solar prominence particle arcs
+    // Solar prominence arcs — each tube breathes at its own rate
     if (coronaRef.current) {
       for (const child of coronaRef.current.children) {
-        if (!child.userData.isSolarParticle) continue;
-
-        // Advance along arc, loop back to start
-        child.userData.progress += delta * child.userData.speed;
-        if (child.userData.progress >= 1) child.userData.progress -= 1;
-        const t = child.userData.progress as number;
-
-        // Slowly breathe the arc apex
-        const wobble = Math.sin(time * 0.38 + (child.userData.arcPhase as number))
-          * (child.userData.arcWobble as number);
-        const p1 = child.userData.p1 as THREE.Vector3;
-        p1.copy(child.userData.p1base as THREE.Vector3)
-          .addScaledVector(child.userData.axis as THREE.Vector3, wobble);
-
-        // Quadratic bezier position
-        const p0 = child.userData.p0 as THREE.Vector3;
-        const p2 = child.userData.p2 as THREE.Vector3;
-        const mt = 1 - t;
-        child.position.set(
-          mt*mt*p0.x + 2*mt*t*p1.x + t*t*p2.x,
-          mt*mt*p0.y + 2*mt*t*p1.y + t*t*p2.y,
-          mt*mt*p0.z + 2*mt*t*p1.z + t*t*p2.z,
-        );
-
-        // Fade: quick ramp in near launch, then fade out and dissipate before arc end
-        const fadeIn  = Math.min(1, t * 9);
-        const fadeOut = Math.max(0, 1 - t * 1.45);
+        if (!child.userData.isTube) continue;
         const mat = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
-        mat.opacity = fadeIn * fadeOut * (child.userData.maxOpacity as number);
-
-        // Slow tumble as particles fly
-        child.rotation.x += delta * (child.userData.rotSpeedX as number);
-        child.rotation.z += delta * (child.userData.rotSpeedZ as number);
+        const pulse = 0.5 + 0.5 * Math.sin(
+          time * (child.userData.pulseSpeed as number) + (child.userData.arcPhase as number)
+        );
+        mat.opacity = (child.userData.baseOp as number) * (0.45 + 0.55 * pulse);
       }
     }
 
@@ -460,8 +420,8 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
             distance={isBlackHole ? 180 : 220}
             decay={1}
             castShadow
-            shadow-mapSize-width={2048}
-            shadow-mapSize-height={2048}
+            shadow-mapSize-width={highQuality ? 2048 : 512}
+            shadow-mapSize-height={highQuality ? 2048 : 512}
           />
         )}
 
@@ -516,19 +476,19 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
             {/* Photon ring — billboards to camera */}
             <group ref={photonGroupRef}>
               <mesh>
-                <torusGeometry args={[photonR, photonR * 0.048, 16, 128]} />
+                <torusGeometry args={[photonR, photonR * 0.048, 16, highQuality ? 128 : 64]} />
                 <meshBasicMaterial color={new THREE.Color(1, 0.97, 0.92)} toneMapped={false}
                   transparent opacity={0.95} blending={THREE.AdditiveBlending}
                   depthWrite={false} depthTest={false} />
               </mesh>
               <mesh>
-                <torusGeometry args={[photonR, photonR * 0.13, 16, 128]} />
+                <torusGeometry args={[photonR, photonR * 0.13, 16, highQuality ? 128 : 64]} />
                 <meshBasicMaterial color={new THREE.Color(1, 0.82, 0.55)} toneMapped={false}
                   transparent opacity={0.52} blending={THREE.AdditiveBlending}
                   depthWrite={false} depthTest={false} />
               </mesh>
               <mesh>
-                <torusGeometry args={[photonR, photonR * 0.30, 16, 128]} />
+                <torusGeometry args={[photonR, photonR * 0.30, 16, highQuality ? 128 : 64]} />
                 <meshBasicMaterial color={new THREE.Color(0.9, 0.55, 0.25)} toneMapped={false}
                   transparent opacity={0.22} blending={THREE.AdditiveBlending}
                   depthWrite={false} depthTest={false} />
@@ -536,7 +496,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
             </group>
 
             <mesh renderOrder={1}>
-              <icosahedronGeometry args={[obj.size * 0.85, 4]} />
+              <icosahedronGeometry args={[obj.size * 0.85, highQuality ? 4 : 2]} />
               <meshBasicMaterial color="#000000" toneMapped={false} />
             </mesh>
           </group>
@@ -552,7 +512,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
           castShadow={false}
           receiveShadow={false}
         >
-          <icosahedronGeometry args={[obj.size, 4]} />
+          <icosahedronGeometry args={[obj.size, highQuality ? 4 : 2]} />
           <meshLambertMaterial
             color={isBlackHole ? '#050008' : '#000000'}
             emissive={isBlackHole ? '#000000' : color}

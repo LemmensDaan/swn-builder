@@ -74,6 +74,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
         onPositionUpdate={positionUpdate}
         onClick={onObjectClick}
         showOrbits={prefs?.showOrbits}
+        highQuality={prefs?.highQuality ?? true}
       >
         {children.map(c => renderObject(c))}
       </StarObject>

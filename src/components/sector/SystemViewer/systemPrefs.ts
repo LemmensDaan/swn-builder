@@ -1,8 +1,9 @@
 export interface SystemPrefs {
   showOrbits: boolean;
+  highQuality: boolean;
 }
 
-export const DEFAULT_PREFS: SystemPrefs = { showOrbits: true };
+export const DEFAULT_PREFS: SystemPrefs = { showOrbits: true, highQuality: true };
 
 const LS_KEY = 'swn-system-prefs';
 

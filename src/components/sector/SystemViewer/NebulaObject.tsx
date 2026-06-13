@@ -236,125 +236,6 @@ function emissionLayers(rng: () => number, vr: number, R: number, G: number, B: 
   ];
 }
 
-// Wide cloud-filled annular ring for planetary nebula — dense blob lattice within an
-// annular zone, bright inner rim, large scattered knot clusters. No clean radial
-// gradient backbone; the ring reads as a lumpy cloud mass, not a geometric torus.
-function helixRingTex(size: number, r: number, g: number, b: number, innerFrac: number, outerFrac: number, alpha: number, seed: number): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = size; canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  const h = size / 2;
-  let s = (seed | 1) >>> 0;
-  const rnd = (): number => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-
-  const innerR = h * innerFrac;
-  const outerR = h * outerFrac;
-  const ringW  = outerR - innerR;
-
-  // Thin bright inner rim anchors the ring's inner edge
-  const rimGrd = ctx.createRadialGradient(h, h, innerR * 0.72, h, h, innerR * 1.25);
-  rimGrd.addColorStop(0,    `rgba(${r},${g},${b},0)`);
-  rimGrd.addColorStop(0.52, `rgba(${r},${g},${b},${(alpha * 0.60).toFixed(3)})`);
-  rimGrd.addColorStop(1,    `rgba(${r},${g},${b},0)`);
-  ctx.fillStyle = rimGrd;
-  ctx.fillRect(0, 0, size, size);
-
-  // Dense cloud blobs filling the annular zone, biased toward inner half
-  for (let i = 0; i < 90; i++) {
-    const angle  = rnd() * Math.PI * 2;
-    const u      = rnd();
-    const dist   = innerR * 0.88 + Math.pow(u, 0.55) * (ringW * 1.28);
-    const bx     = h + Math.cos(angle) * dist;
-    const by     = h + Math.sin(angle) * dist;
-    const tRing  = Math.max(0, Math.min(1, (dist - innerR) / ringW));
-    const br     = Math.max(2, ringW * (0.12 + rnd() * 0.35) * (0.55 + (1 - tRing) * 0.45));
-    const ba     = alpha * (0.22 + rnd() * 0.58) * (0.30 + (1 - tRing) * 0.70);
-    const g2     = ctx.createRadialGradient(bx, by, 0, bx, by, br);
-    g2.addColorStop(0,    `rgba(${r},${g},${b},${ba.toFixed(3)})`);
-    g2.addColorStop(0.60, `rgba(${r},${g},${b},${(ba * 0.28).toFixed(3)})`);
-    g2.addColorStop(1,    `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = g2;
-    ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
-  }
-
-  // Large bright knot clusters — 8–14 at irregular angular positions
-  const nKnots = 8 + Math.floor(rnd() * 7);
-  for (let i = 0; i < nKnots; i++) {
-    const baseA = (i / nKnots) * Math.PI * 2;
-    const angle = baseA + (rnd() - 0.5) * (Math.PI * 2 / nKnots) * 1.6;
-    const t     = 0.08 + rnd() * 0.65;
-    const dist  = innerR + t * ringW;
-    const kx    = h + Math.cos(angle) * dist;
-    const ky    = h + Math.sin(angle) * dist;
-    const kr    = Math.max(2, ringW * (0.18 + rnd() * 0.38));
-    const ka    = alpha * (0.58 + rnd() * 0.42);
-    const kg    = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
-    kg.addColorStop(0,    `rgba(${r},${g},${b},${ka.toFixed(3)})`);
-    kg.addColorStop(0.52, `rgba(${r},${g},${b},${(ka * 0.30).toFixed(3)})`);
-    kg.addColorStop(1,    `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = kg;
-    ctx.beginPath(); ctx.arc(kx, ky, kr, 0, Math.PI * 2); ctx.fill();
-  }
-
-  // Clip: fade to transparent beyond outer ring radius + soft margin
-  ctx.globalCompositeOperation = 'destination-out';
-  const outerMask = ctx.createRadialGradient(h, h, Math.min(outerR * 1.10, h * 0.90), h, h, h * 0.97);
-  outerMask.addColorStop(0, 'rgba(0,0,0,0)');
-  outerMask.addColorStop(1, 'rgba(0,0,0,1)');
-  ctx.fillStyle = outerMask;
-  ctx.fillRect(0, 0, size, size);
-  ctx.globalCompositeOperation = 'source-over';
-
-  return new THREE.CanvasTexture(canvas);
-}
-
-// ── Planetary Nebula (Helix / Ring style) ─────────────────────────────────────
-// Wide cloud-filled orange-amber torus (NII/Ha dominant), irregular bright knot
-// clusters, large outer brownish-red diffuse halo, bright cyan OIII interior fill.
-function planetaryLayers(rng: () => number, vr: number, R: number, G: number, B: number): Layer[] {
-  const ellipse  = 0.76 + rng() * 0.18;  // 0.76–0.94: mildly elliptical like Helix
-  const rot2     = rng() * Math.PI;
-  const texSeedO = Math.round(rng() * 999983);
-  const texSeedM = texSeedO + 13;
-  const texSeedC = texSeedO + 31;
-  const texSeedH = texSeedO + 47;
-
-  // Main ring body: warm orange-amber (NII / H-alpha dominant)
-  const Rr   = blend(228, R); const Gr   = blend(108, G); const Br   = blend(18, B);
-  // Hot inner knots / bright patches: more orange-yellow
-  const Rhot = blend(255, R); const Ghot = blend(158, G); const Bhot = blend(35, B);
-  // Outer diffuse halo: faint brownish-red
-  const Rh   = blend(140, R); const Gh   = blend( 42, G); const Bh   = blend(10, B);
-  // OIII interior fill: vivid cyan-blue
-  const Rc   = blend( 55, R); const Gc   = blend(162, G); const Bc   = blend(238, B);
-  // Brighter inner core: lighter blue
-  const Rcc  = blend( 85, R); const Gcc  = blend(190, G); const Bcc  = blend(255, B);
-
-  // Two smooth halo layers — cloudTex only, no lumpyCloudTex (which creates large visible blobs at this scale)
-  const tHalo1     = cloudTex(256,     Rh,   Gh,   Bh,   0.42, 0.18);
-  const tHalo2     = cloudTex(256,     Rh,   Gh,   Bh,   0.36, 0.38);
-  // fillOuter uses falloff=0.82 so it stays bright across most of its radius, reaching 0 at ~0.90vr —
-  // this fills the ring interior all the way to the ring inner edge (~0.78vr)
-  const tFillOuter = cloudTex(256,     Rc,   Gc,   Bc,   0.55, 0.82);
-  const tFillLumpy = lumpyCloudTex(256, Rc,   Gc,   Bc,   0.90, texSeedC);
-  const tFillInner = cloudTex(256,     Rcc,  Gcc,  Bcc,  0.72, 0.50);
-  const tRingMain  = helixRingTex(512,  Rr,   Gr,   Br,   0.52, 0.84, 0.90, texSeedO);
-  const tRingHot   = helixRingTex(512,  Rhot, Ghot, Bhot, 0.54, 0.78, 0.75, texSeedM);
-
-  return [
-    // Outer diffuse halo — smooth gradients, no blobs
-    { key: 'halo1',      x: 0, y: 0, rotZ: rot2 * 0.6, w: vr * 3.60, h: vr * 3.60 * ellipse, tex: tHalo1,     op: 0.30, blend: ADD, order: -11 },
-    { key: 'halo2',      x: 0, y: 0, rotZ: 0,           w: vr * 3.00, h: vr * 3.00 * ellipse, tex: tHalo2,     op: 0.22, blend: ADD, order: -10 },
-    // Blue OIII interior — outer layer fills to ring boundary, lumpy mid adds cloud structure,
-    // bright inner gives the vivid cyan core visible in the Helix
-    { key: 'fillOuter',  x: 0, y: 0, rotZ: 0,           w: vr * 2.20, h: vr * 2.20 * ellipse, tex: tFillOuter, op: 0.72, blend: ADD, order: -9  },
-    { key: 'fillLumpy',  x: 0, y: 0, rotZ: rot2 * 0.4,  w: vr * 1.75, h: vr * 1.75 * ellipse, tex: tFillLumpy, op: 0.55, blend: ADD, order: -8  },
-    { key: 'fillInner',  x: 0, y: 0, rotZ: 0,           w: vr * 1.20, h: vr * 1.20 * ellipse, tex: tFillInner, op: 0.65, blend: ADD, order: -7  },
-    // Orange blasted shell — far out from center
-    { key: 'ring',       x: 0, y: 0, rotZ: rot2,         w: vr * 3.00, h: vr * 3.00 * ellipse, tex: tRingMain,  op: 0.90, blend: ADD, order: -6  },
-    { key: 'rim',        x: 0, y: 0, rotZ: 0,            w: vr * 2.80, h: vr * 2.80 * ellipse, tex: tRingHot,   op: 0.62, blend: ADD, order: -5  },
-  ];
-}
 
 // ── Reflection Nebula (Pleiades / Witch Head style) ───────────────────────────
 // Blue-white only. Fan of wisps spreading from an off-centre illuminating star.
@@ -646,7 +527,6 @@ export default function NebulaObject({ obj, onPositionUpdate }: Props) {
     const rng = mulberry32(seed + 7);
     const shape = obj.nebulaShape ?? 'emission';
     switch (shape) {
-      case 'planetary':   return planetaryLayers(rng, vr, R, G, B);
       case 'reflection':  return reflectionLayers(rng, vr, R, G, B);
       case 'bipolar0':    return bipolarLayers0(rng, vr, R, G, B);
       case 'bipolar1':    return bipolarLayers1(rng, vr, R, G, B);

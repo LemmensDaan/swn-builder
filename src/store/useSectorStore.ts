@@ -176,7 +176,7 @@ export const useSectorStore = create<SectorStore>()(
         }
 
         const BASE_ORBIT = 8;
-        const ORBIT_SPACING = 10;
+        const ORBIT_SPACING = 20;
         const isStarType = ['Star', 'BlackHole', 'NeutronStar'].includes(partial.type);
         const rng = Math.random;
 
@@ -230,11 +230,13 @@ export const useSectorStore = create<SectorStore>()(
             ? Math.max(...existingDeep.map(o => o.orbitRadius)) + 15
             : 80;
         } else {
-          autoOrbitRadius = BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 6;
+          autoOrbitRadius = BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 12;
         }
 
         const autoRotationSpeed = (rng() * 0.2) + 0.05;
         const autoInclination = (rng() - 0.5) * 2 * (partial.type === 'Moon' ? 3 : 8);
+        const autoOrbitSpeed = autoOrbitRadius > 0 ? (rng() * 0.05) + 0.01 : 0;
+        const autoAxisInclination = (rng() - 0.5) * 2 * 25;
 
         // For binary (root-level) stars: share seed so they always oppose 180°
         // Hierarchical stellar objects get their own seed
@@ -261,6 +263,8 @@ export const useSectorStore = create<SectorStore>()(
           orbitRadius: partial.orbitRadius ?? autoOrbitRadius,
           inclination: partial.inclination ?? autoInclination,
           selfRotationSpeed: partial.selfRotationSpeed ?? autoRotationSpeed,
+          orbitSpeed: partial.orbitSpeed ?? autoOrbitSpeed,
+          axisInclination: partial.axisInclination ?? autoAxisInclination,
           parentId,
           sortOrder: nextOrder,
           notes: partial.notes ?? '',
@@ -370,7 +374,10 @@ export const useSectorStore = create<SectorStore>()(
       },
 
       addFaction(sectorId, name, color) {
-        const faction: Faction = { id: crypto.randomUUID(), name, color, notes: '' };
+        const faction: Faction = {
+          id: crypto.randomUUID(), name, color, notes: '',
+          force: 1, cunning: 1, wealth: 1, hp: 6, xp: 0, tags: [], assets: [], goals: [],
+        };
         set(s => ({
           sectors: s.sectors.map(sec =>
             sec.id === sectorId ? { ...sec, factions: [...sec.factions, faction] } : sec
@@ -413,7 +420,7 @@ export const useSectorStore = create<SectorStore>()(
     }),
     {
       name: 'swn-sector-data',
-      version: 1,
+      version: 2,
       migrate(persistedState, version) {
         const state = persistedState as { sectors: Sector[]; systems: Record<string, StarSystem> };
         if (version < 1) {
@@ -428,6 +435,15 @@ export const useSectorStore = create<SectorStore>()(
             usedIndices.add(idx);
             return { ...s, triangleIndex: idx };
           });
+        }
+        if (version < 2) {
+          state.sectors = state.sectors.map(s => ({
+            ...s,
+            factions: (s.factions ?? []).map((f: Faction) => {
+              const defaults = { force: 1, cunning: 1, wealth: 1, hp: 6, xp: 0, tags: [] as string[], assets: [] as Faction['assets'], goals: [] as Faction['goals'] };
+              return { ...defaults, ...f } as Faction;
+            }),
+          }));
         }
         return state;
       },

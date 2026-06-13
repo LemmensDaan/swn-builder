@@ -1,4 +1,4 @@
-import type { SystemObject, SystemType, PlanetType, ObjectType } from '../../../types/sector';
+import type { SystemObject, SystemType, PlanetType, ObjectType, NebulaShape } from '../../../types/sector';
 import { OBJECT_TYPE_DEFAULTS } from '../../../types/sector';
 import { PLANET_PRESETS, mulberry32 } from './planetRenderer';
 
@@ -116,6 +116,8 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
     orbitRadius: orbitRad,
     inclination,
     selfRotationSpeed: type === 'BlackHole' ? 0 : randBetween(0.05, 0.25, rng),
+    orbitSpeed: orbitRad > 0 ? randBetween(0.01, 0.08, rng) : 0,
+    axisInclination: (rng() - 0.5) * 2 * 30,
     notes: '', tags: [], factionId: null,
     seed: sharedSeed,
   };
@@ -187,6 +189,8 @@ function makePlanet(
     orbitRadius: radius,
     inclination,
     selfRotationSpeed: randBetween(0.05, 0.25, rng),
+    orbitSpeed: radius > 0 ? randBetween(0.01, 0.06, rng) : 0,
+    axisInclination: (rng() - 0.5) * 2 * 20,
     planetType,
     primaryColor: preset.primaryColor,
     secondaryColor: preset.secondaryColor,
@@ -199,6 +203,7 @@ function makePlanet(
 }
 
 function makeBelt(order: number, rng: () => number): Omit<SystemObject, 'id'> {
+  const radius = orbitRadius(order, (rng() - 0.5) * 1.5);
   return {
     type: 'AsteroidBelt',
     name: 'Asteroid Belt',
@@ -206,14 +211,17 @@ function makeBelt(order: number, rng: () => number): Omit<SystemObject, 'id'> {
     sortOrder: order,
     size: 0.1,
     colors: [pick(['#8C7B6B', '#9a8878', '#7a6a5a'], rng)] as [string],
-    orbitRadius: orbitRadius(order, (rng() - 0.5) * 1.5),
+    orbitRadius: radius,
     inclination: randBetween(-5, 5, rng),
     selfRotationSpeed: 0,
+    orbitSpeed: radius > 0 ? randBetween(0.01, 0.06, rng) : 0,
+    axisInclination: (rng() - 0.5) * 2 * 15,
     notes: '', tags: [], factionId: null,
   };
 }
 
 function makeStation(order: number, rng: () => number): Omit<SystemObject, 'id'> {
+  const radius = orbitRadius(order, (rng() - 0.5));
   return {
     type: 'SpaceStation',
     name: 'Orbital Station',
@@ -221,9 +229,11 @@ function makeStation(order: number, rng: () => number): Omit<SystemObject, 'id'>
     sortOrder: order,
     size: randBetween(0.25, 0.45, rng),
     colors: [pick(['#B0C4DE', '#99AABB', '#AABBCC'], rng)] as [string],
-    orbitRadius: orbitRadius(order, (rng() - 0.5)),
+    orbitRadius: radius,
     inclination: 0,
     selfRotationSpeed: randBetween(0.02, 0.08, rng),
+    orbitSpeed: radius > 0 ? randBetween(0.01, 0.06, rng) : 0,
+    axisInclination: (rng() - 0.5) * 2 * 10,
     notes: '', tags: [], factionId: null,
   };
 }
@@ -297,6 +307,29 @@ export function randomizeSystem(systemType: SystemType): SystemObject[] {
   // Station
   if (rng() < cfg.hasStation) {
     objects.push({ id: makeId(), ...makeStation(order++, rng) });
+  }
+
+  // Nebula (25% chance)
+  if (rng() < 0.25) {
+    const nebulaShapes: NebulaShape[] = ['emission', 'diffuse', 'wall', 'reflection', 'bipolar0', 'bipolar1', 'bipolar2'];
+    objects.push({
+      id: makeId(),
+      type: 'Nebula',
+      name: 'Nebula',
+      parentId: null,
+      sortOrder: order++,
+      size: 0.1,
+      colors: ['#9b0d7c'] as [string],
+      orbitRadius: 0,
+      inclination: 0,
+      selfRotationSpeed: 0,
+      orbitSpeed: 0,
+      axisInclination: 0,
+      isDeepSpace: true,
+      nebulaShape: pick(nebulaShapes, rng),
+      seed: Math.floor(rng() * 999983),
+      notes: '', tags: [], factionId: null,
+    });
   }
 
   return objects;

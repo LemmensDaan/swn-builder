@@ -136,15 +136,15 @@ function makeBlackHoleChunks(
   return { group, orbits };
 }
 
-// ─── Solar prominence lifecycle (mesh streak-based) ────────────────────────────
-// PlaneGeometry meshes oriented in 3D (face-camera + Y along arc tangent).
-// Avoids screen-space sprite rotation which spins visibly as camera orbits.
+// ─── Solar prominence lifecycle ────────────────────────────────────────────────
+// Arch flares: form quickly → whole arch grows outward → dissipate in place or eject as CME
+// Linear jets: form → travel outward as expanding blob while fading
 
 const PROM_N        = 36;
-const STREAK_ASPECT = 4.8;
+const STREAK_ASPECT = 1.1;
 
-let _pStreakTex: THREE.Texture          | null = null;
-let _pPlaneGeo: THREE.PlaneGeometry     | null = null;
+let _pStreakTex: THREE.Texture            | null = null;
+let _pPlaneGeo: THREE.PlaneGeometry       | null = null;
 let _pIco:      THREE.IcosahedronGeometry | null = null;
 let _pTet:      THREE.TetrahedronGeometry | null = null;
 
@@ -156,6 +156,8 @@ const _sN  = new THREE.Vector3();
 const _sUp = new THREE.Vector3();
 const _sR  = new THREE.Vector3();
 const _sM4 = new THREE.Matrix4();
+const _sWP = new THREE.Vector3();  // world position temp
+const _gp  = new THREE.Vector3();  // grown position temp
 
 function getPromStreakTex(): THREE.Texture {
   if (_pStreakTex) return _pStreakTex;
@@ -181,46 +183,63 @@ function getPromPlaneGeo(): THREE.PlaneGeometry {
   return _pPlaneGeo;
 }
 
-// Orient mesh to face camera with its Y-axis (length) aligned to the arc tangent.
+// Sine-weighted position: base particles (tParam≈0/1) stay at star surface,
+// apex particle (tParam≈0.5) lifts by growScale. Used for growing/ejecting/dissipating.
+function getGrownPos(p: PromParticle, growScale: number, out: THREE.Vector3): THREE.Vector3 {
+  const sineW = Math.sin(p.tParam * Math.PI);
+  return out.copy(p.basePos).multiplyScalar(1 + (growScale - 1) * sineW);
+}
+
+// Orient mesh to face camera with Y-axis (length) along arc tangent.
+// Uses world position so it stays correct when slotGroup is scaled/translated.
 function orientStreak(mesh: THREE.Mesh, tangent: THREE.Vector3, camPos: THREE.Vector3): void {
-  _sN.subVectors(camPos, mesh.position).normalize();
+  mesh.getWorldPosition(_sWP);
+  _sN.subVectors(camPos, _sWP).normalize();
   const tDotN = tangent.dot(_sN);
   _sUp.copy(tangent).addScaledVector(_sN, -tDotN);
-  if (_sUp.lengthSq() < 1e-6) return;  // tangent parallel to view ray — skip
+  if (_sUp.lengthSq() < 1e-6) return;
   _sUp.normalize();
-  _sR.crossVectors(_sUp, _sN);          // right = up × normal (right-hand rule)
+  _sR.crossVectors(_sUp, _sN);
   _sM4.makeBasis(_sR, _sUp, _sN);
   mesh.quaternion.setFromRotationMatrix(_sM4);
 }
 
 interface PromParticle {
-  mesh:       THREE.Mesh;
-  poly:       THREE.Mesh;    // low-poly crystal fragment
-  polyRx:     number;
-  polyRy:     number;
-  polyRz:     number;
-  tangent:    THREE.Vector3;
-  basePos:    THREE.Vector3;
-  scatterVel: THREE.Vector3;
-  baseOp:     number;
-  baseLen:    number;
-  baseWid:    number;
+  mesh:    THREE.Mesh;
+  poly:    THREE.Mesh;
+  polyRx:  number;
+  polyRy:  number;
+  polyRz:  number;
+  tangent: THREE.Vector3;
+  basePos: THREE.Vector3;
+  tParam:  number;   // curve parameter 0-1: 0 & 1 = base (star surface), 0.5 = apex
+  baseOp:  number;
+  baseLen: number;
+  baseWid: number;
 }
 
 interface PromSlot {
-  slotGroup:   THREE.Group;
-  rng:         () => number;
-  particles:   PromParticle[];
-  hsl:         { h: number; s: number; l: number };
-  phase:       'erupting' | 'retracting' | 'dissipating' | 'dead';
-  progress:    number;
-  maxProgress: number;   // <1 = partial arc that diffuses before completing
-  isOpen:      boolean;  // open jet: doesn't return to star surface
-  eruptSpd:    number;
-  finishSpd:   number;
-  willRetract: boolean;
-  deadTime:    number;
-  deadDur:     number;
+  slotGroup:       THREE.Group;
+  rng:             () => number;
+  particles:       PromParticle[];
+  hsl:             { h: number; s: number; l: number };
+  // arch:  forming → growing → ejecting | dissipating → dead
+  // open:  forming → traveling → dead
+  phase:           'forming' | 'growing' | 'ejecting' | 'traveling' | 'dissipating' | 'dead';
+  isOpen:          boolean;
+  formProgress:    number;
+  growProgress:    number;
+  travelProgress:  number;
+  disperseProgress:number;
+  maxGrowScale:    number;
+  willEject:       boolean;
+  ejectDir:        THREE.Vector3;
+  formSpd:         number;
+  growSpd:         number;
+  travelSpd:       number;
+  disperseSpd:     number;
+  deadTime:        number;
+  deadDur:         number;
 }
 
 function buildPromParticles(
@@ -229,7 +248,7 @@ function buildPromParticles(
   size:      number,
   rng:       () => number,
   isOpen:    boolean,
-): PromParticle[] {
+): { particles: PromParticle[]; ejectDir: THREE.Vector3 } {
   const hsl = { h: 0, s: 0, l: 0 };
   new THREE.Color(baseHex).getHSL(hsl);
 
@@ -240,20 +259,22 @@ function buildPromParticles(
   const perp = new THREE.Vector3().crossVectors(axis, tmp).normalize();
   const side = new THREE.Vector3().crossVectors(axis, perp).normalize();
 
-  const spread = 0.14 + rng() * 0.32;
+  const spread = 0.18 + rng() * 0.22;
   const p0 = axis.clone()
     .multiplyScalar(Math.cos(spread)).addScaledVector(perp, Math.sin(spread))
     .normalize().multiplyScalar(size * 1.05);
-  const h  = size * (0.45 + rng() * 1.3);
+  // Very low apex — arch is flat/wide rather than tall
+  const h  = size * (0.04 + rng() * 0.05);
   const p1 = axis.clone()
     .multiplyScalar(size + h)
-    .addScaledVector(side, h * (rng() - 0.5) * 0.7);
+    .addScaledVector(side, h * (rng() - 0.5) * 0.4);
   const p2 = isOpen
     ? axis.clone().multiplyScalar(size + h * 1.7).addScaledVector(side, h * (rng() - 0.5) * 0.3)
     : axis.clone()
         .multiplyScalar(Math.cos(spread)).addScaledVector(perp, -Math.sin(spread))
         .normalize().multiplyScalar(size * 1.05);
 
+  const ejectDir = p1.clone().normalize();
   const curve = new THREE.QuadraticBezierCurve3(p0.clone(), p1.clone(), p2.clone());
   const particles: PromParticle[] = [];
   const tex = getPromStreakTex();
@@ -262,11 +283,9 @@ function buildPromParticles(
     const t        = i / (PROM_N - 1);
     const curvePos = curve.getPoint(t);
     const tangent  = curve.getTangent(t).normalize();
-    const outward  = curvePos.clone().normalize();
 
     const sineT  = Math.sin(t * Math.PI);
-    // Thinner streaks — scale kept small relative to star size
-    const baseLen = size * (0.12 + sineT * 0.16) * (0.65 + rng() * 0.60);
+    const baseLen = size * (0.038 + sineT * 0.052) * (0.6 + rng() * 0.5);
     const baseWid = baseLen / STREAK_ASPECT;
 
     const jitterDir = new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize();
@@ -293,7 +312,7 @@ function buildPromParticles(
     slotGroup.add(mesh);
 
     // ── low-poly crystal fragment ──
-    const polySize = size * (0.012 + sineT * 0.018) * (0.5 + rng() * 1.0);
+    const polySize = size * (0.003 + sineT * 0.005) * (0.5 + rng() * 0.8);
     const polyMat  = new THREE.MeshBasicMaterial({
       color: col, transparent: true, opacity: 0,
       blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
@@ -306,13 +325,8 @@ function buildPromParticles(
     poly.visible = false;
     slotGroup.add(poly);
 
-    const scatterVel = outward.clone()
-      .addScaledVector(new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize(), 0.5)
-      .normalize()
-      .multiplyScalar(size * (0.25 + rng() * 0.45));
-
     particles.push({
-      mesh, poly, tangent, basePos, scatterVel,
+      mesh, poly, tangent, basePos, tParam: t,
       baseOp:  0.28 + sineT * 0.22 + rng() * 0.10,
       baseLen, baseWid,
       polyRx: (rng() - 0.5) * 2.0,
@@ -321,7 +335,7 @@ function buildPromParticles(
     });
   }
 
-  return particles;
+  return { particles, ejectDir };
 }
 
 function respawnPromSlot(slot: PromSlot, baseHex: string, size: number): void {
@@ -332,21 +346,31 @@ function respawnPromSlot(slot: PromSlot, baseHex: string, size: number): void {
     slot.slotGroup.remove(p.poly);
   }
 
+  // Reset group transform for reuse
+  slot.slotGroup.scale.setScalar(1);
+  slot.slotGroup.position.set(0, 0, 0);
+
   new THREE.Color(baseHex).getHSL(slot.hsl);
 
-  // 30% open jets, 40% partial arcs, rest full loops
-  slot.isOpen       = slot.rng() < 0.30;
-  slot.maxProgress  = (!slot.isOpen && slot.rng() < 0.40)
-    ? 0.35 + slot.rng() * 0.50   // partial: stop at 35–85%
-    : 1.0;
+  slot.isOpen = slot.rng() < 0.25; // 25% linear jets, 75% arches
 
-  slot.particles  = buildPromParticles(slot.slotGroup, baseHex, size, slot.rng, slot.isOpen);
-  slot.phase      = 'erupting';
-  slot.progress   = 0;
-  slot.eruptSpd   = 0.18 + slot.rng() * 0.18;
-  slot.finishSpd  = 0.14 + slot.rng() * 0.16;
-  // Open arcs and partial arcs always dissipate — no retraction
-  slot.willRetract = !slot.isOpen && slot.maxProgress >= 1.0 && slot.rng() > 0.40;
+  const built = buildPromParticles(slot.slotGroup, baseHex, size, slot.rng, slot.isOpen);
+  slot.particles = built.particles;
+  slot.ejectDir  = built.ejectDir;
+
+  slot.phase           = 'forming';
+  slot.formProgress    = 0;
+  slot.growProgress    = 0;
+  slot.travelProgress  = 0;
+  slot.disperseProgress = 0;
+
+  slot.maxGrowScale = 1.3 + slot.rng() * 0.5;  // arch apex grows 1.3×–1.8× in height
+  slot.willEject    = slot.rng() < 0.40;        // 40% chance of CME ejection
+
+  slot.formSpd     = 0.5 + slot.rng() * 0.4;   // arc appears in ~1–2 s
+  slot.growSpd     = 0.07 + slot.rng() * 0.08; // arch grows over 6–14 s
+  slot.travelSpd   = 0.22 + slot.rng() * 0.20; // travel/eject over 2–4.5 s
+  slot.disperseSpd = 0.18 + slot.rng() * 0.15; // dissipate over 3–5.5 s
 }
 
 function makeProminenceRoot(
@@ -354,7 +378,7 @@ function makeProminenceRoot(
 ): { root: THREE.Group; slots: PromSlot[] } {
   const root = new THREE.Group();
   root.userData.isStar = true;
-  const N     = hq ? 7 : 4;
+  const N     = hq ? 3 : 2;
   const slots: PromSlot[] = [];
 
   for (let i = 0; i < N; i++) {
@@ -368,10 +392,13 @@ function makeProminenceRoot(
       particles: [],
       hsl: { h: 0, s: 0, l: 0 },
       phase: 'dead',
-      progress: 0, maxProgress: 1, isOpen: false,
-      eruptSpd: 0, finishSpd: 0, willRetract: false,
+      isOpen: false,
+      formProgress: 0, growProgress: 0, travelProgress: 0, disperseProgress: 0,
+      maxGrowScale: 2.0, willEject: false,
+      ejectDir: new THREE.Vector3(0, 1, 0),
+      formSpd: 4.0, growSpd: 0.15, travelSpd: 0.25, disperseSpd: 0.25,
       deadTime: 0,
-      deadDur: (i / N) * 4.0,
+      deadDur: 4.0 + (i / N) * 12.0,
     });
   }
 
@@ -391,70 +418,13 @@ function advancePromSlot(
   const N = slot.particles.length;
   if (N === 0) return;
 
-  if (slot.phase === 'erupting') {
-    slot.progress = Math.min(slot.maxProgress, slot.progress + dt * slot.eruptSpd);
-    const wavefront = slot.progress * N;
+  // ── forming: fast wavefront fade-in ─────────────────────────────────────────
+  if (slot.phase === 'forming') {
+    slot.formProgress = Math.min(1, slot.formProgress + dt * slot.formSpd);
+    const wavefront = slot.formProgress * N;
     for (let i = 0; i < N; i++) {
       const alpha = Math.max(0, Math.min(1, wavefront - i));
-      const p     = slot.particles[i];
-      const on    = alpha > 0.005;
-      (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha;
-      (p.poly.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha * 0.75;
-      p.mesh.visible = on; p.poly.visible = on;
-      if (on) {
-        orientStreak(p.mesh, p.tangent, camera.position);
-        p.poly.rotation.x += dt * p.polyRx;
-        p.poly.rotation.y += dt * p.polyRy;
-        p.poly.rotation.z += dt * p.polyRz;
-      }
-    }
-    if (slot.progress >= slot.maxProgress) {
-      slot.phase = slot.willRetract ? 'retracting' : 'dissipating';
-      slot.progress = 1;
-    }
-    return;
-  }
-
-  if (slot.phase === 'retracting') {
-    slot.progress = Math.max(0, slot.progress - dt * slot.finishSpd);
-    const FW = 0.14;
-    for (let i = 0; i < N; i++) {
-      const fadeStart = FW + (1 - FW) * (1 - i / (N - 1));
-      const alpha = Math.max(0, Math.min(1, (slot.progress - (fadeStart - FW)) / FW));
-      const p     = slot.particles[i];
-      const on    = alpha > 0.005;
-      (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha;
-      (p.poly.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha * 0.75;
-      p.mesh.visible = on; p.poly.visible = on;
-      if (on) {
-        orientStreak(p.mesh, p.tangent, camera.position);
-        p.poly.rotation.x += dt * p.polyRx;
-        p.poly.rotation.y += dt * p.polyRy;
-        p.poly.rotation.z += dt * p.polyRz;
-      }
-    }
-    if (slot.progress <= 0) {
-      for (const p of slot.particles) { p.mesh.visible = false; p.poly.visible = false; }
-      slot.phase = 'dead'; slot.deadTime = 0; slot.deadDur = 1.5 + slot.rng() * 3.0;
-    }
-    return;
-  }
-
-  if (slot.phase === 'dissipating') {
-    slot.progress = Math.max(0, slot.progress - dt * slot.finishSpd * 1.8);
-    const FW = 0.14;
-    for (let i = 0; i < N; i++) {
       const p = slot.particles[i];
-      if (!p.mesh.visible) continue;
-      const fadeStart = FW + (1 - FW) * (1 - i / (N - 1));
-      const alpha  = Math.max(0, Math.min(1, (slot.progress - (fadeStart - FW)) / FW));
-      const puffT  = Math.pow(1 - alpha, 1.5);
-      // Gently push element outward from star center (up to ~10% beyond basePos)
-      p.mesh.position.copy(p.basePos).multiplyScalar(1 + puffT * 0.10);
-      p.poly.position.copy(p.mesh.position);
-      // Both dimensions expand uniformly as the element puffs and fades
-      const grow = 1 + puffT * 0.7;
-      p.mesh.scale.set(p.baseWid * grow, p.baseLen * grow, 1);
       const on = alpha > 0.005;
       (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha;
       (p.poly.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha * 0.75;
@@ -466,9 +436,69 @@ function advancePromSlot(
         p.poly.rotation.z += dt * p.polyRz;
       }
     }
-    if (slot.progress <= 0) {
+    if (slot.formProgress >= 1) {
+      slot.phase = 'growing';
+    }
+    return;
+  }
+
+  // ── growing: apex lifts while base stays glued to star surface ─────────────
+  if (slot.phase === 'growing') {
+    slot.growProgress = Math.min(1, slot.growProgress + dt * slot.growSpd);
+    const currentScale = 1 + slot.growProgress * (slot.maxGrowScale - 1);
+    // slotGroup stays at identity — particles are positioned individually
+    slot.slotGroup.scale.setScalar(1);
+
+    for (let i = 0; i < N; i++) {
+      const p = slot.particles[i];
+      getGrownPos(p, currentScale, _gp);
+      p.mesh.position.copy(_gp);
+      p.poly.position.copy(_gp);
+      p.mesh.visible = true; p.poly.visible = true;
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp;
+      (p.poly.material as THREE.MeshBasicMaterial).opacity = p.baseOp * 0.75;
+      orientStreak(p.mesh, p.tangent, camera.position);
+      p.poly.rotation.x += dt * p.polyRx;
+      p.poly.rotation.y += dt * p.polyRy;
+      p.poly.rotation.z += dt * p.polyRz;
+    }
+
+    if (slot.growProgress >= 1) {
+      slot.phase = 'dissipating';
+    }
+    return;
+  }
+
+  // ── dissipating: arch fades in place, expanding slightly ─────────────────────
+  if (slot.phase === 'dissipating') {
+    slot.disperseProgress = Math.min(1, slot.disperseProgress + dt * slot.disperseSpd);
+    const t = slot.disperseProgress;
+
+    const expandScale = slot.maxGrowScale * (1 + t * 0.3);
+    const diffuse = 1 + t * 0.7;
+    const opacity = Math.pow(1 - t, 1.2);
+
+    for (let i = 0; i < N; i++) {
+      const p = slot.particles[i];
+      getGrownPos(p, expandScale, _gp);
+      p.mesh.position.copy(_gp);
+      p.poly.position.copy(_gp);
+      p.mesh.scale.set(p.baseWid * diffuse, p.baseLen * diffuse, 1);
+      const on = opacity > 0.01;
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * opacity;
+      (p.poly.material as THREE.MeshBasicMaterial).opacity = p.baseOp * opacity * 0.75;
+      p.mesh.visible = on; p.poly.visible = on;
+      if (on) {
+        orientStreak(p.mesh, p.tangent, camera.position);
+        p.poly.rotation.x += dt * p.polyRx;
+        p.poly.rotation.y += dt * p.polyRy;
+        p.poly.rotation.z += dt * p.polyRz;
+      }
+    }
+
+    if (slot.disperseProgress >= 1) {
       for (const p of slot.particles) { p.mesh.visible = false; p.poly.visible = false; }
-      slot.phase = 'dead'; slot.deadTime = 0; slot.deadDur = 1.0 + slot.rng() * 2.5;
+      slot.phase = 'dead'; slot.deadTime = 0; slot.deadDur = 6.0 + slot.rng() * 8.0;
     }
     return;
   }
@@ -608,7 +638,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   // Binary orbit
   let initialAngle = mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2;
   if (obj.sortOrder === 1) initialAngle += Math.PI;
-  const orbitSpeed = obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0;
+  const orbitSpeed = obj.orbitSpeed > 0 ? obj.orbitSpeed : (obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0);
   const angleRef   = useRef(initialAngle);
 
   useFrame(({ camera }, delta) => {

@@ -98,7 +98,7 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
     [obj.seed, obj.sortOrder]
   );
   const angleRef = useRef(initialAngle);
-  const orbitSpeed = isInBelt ? (obj.orbitRadius > 0 ? 0.2 / Math.sqrt(obj.orbitRadius) : 0.05) : 0.05;
+  const orbitSpeed = obj.orbitSpeed > 0 ? obj.orbitSpeed : (isInBelt ? (obj.orbitRadius > 0 ? 0.2 / Math.sqrt(obj.orbitRadius) : 0.05) : 0.05);
 
   const posHistoryRef = useRef<THREE.Vector3[]>([]);
   const historyIndexRef = useRef(0);
@@ -291,33 +291,7 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
       p.pos[0] += p.vel[0] * delta;
       p.pos[1] += p.vel[1] * delta;
       p.pos[2] += p.vel[2] * delta;
-    });
-
-    const dummy = new THREE.Object3D();
-    for (let i = 0; i < TRAIL_COUNT; i++) {
-      if (i < particlesRef.current.length) {
-        const p = particlesRef.current[i];
-        const life = 1 - p.age / p.maxAge;
-
-        dummy.position.set(p.pos[0], p.pos[1], p.pos[2]);
-        dummy.scale.set(1, 1, 1);
-        dummy.updateMatrix();
-        particleTrailRef.current.setMatrixAt(i, dummy.matrix);
-
-        const color = new THREE.Color(cometColor).multiplyScalar(life * 0.8);
-        particleTrailRef.current.setColorAt(i, color);
-      } else {
-        dummy.scale.set(0, 0, 0);
-        dummy.updateMatrix();
-        particleTrailRef.current.setMatrixAt(i, dummy.matrix);
-      }
-    }
-
-    particleTrailRef.current.instanceMatrix.needsUpdate = true;
-    if (particleTrailRef.current.instanceColor) {
-      particleTrailRef.current.instanceColor.needsUpdate = true;
-    }
-  });
+    });                                                                                                                                                                                                                                                           });
 
   return (
     <>

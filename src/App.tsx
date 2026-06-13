@@ -14,11 +14,11 @@ import { CURRENT_VERSION } from './types/appData';
 import SectorViewer from './components/sector/SectorViewer';
 
 type View =
-  | { type: 'home'; activeTab?: 'characters' | 'ships' | 'sector' }
+  | { type: 'home'; activeTab?: 'characters' | 'ships' | 'factions' | 'sector' }
   | { type: 'wizard'; editId?: string }
   | { type: 'sheet'; id: string }
   | { type: 'ship-wizard'; editId?: string }
-  | { type: 'ship-sheet'; id: string; activeTab?: 'characters' | 'ships' | 'sector' }
+  | { type: 'ship-sheet'; id: string; activeTab?: 'characters' | 'ships' | 'factions' | 'sector' }
   | { type: 'sector' };
 
 export default function App() {
@@ -137,7 +137,7 @@ export default function App() {
           initialActiveTab={view.activeTab}
           onTabChange={tab => {
             if (tab === 'sector') { setView({ type: 'sector' }); return; }
-            setView({ ...view, activeTab: tab as 'characters' | 'ships' });
+            setView({ ...view, type: 'home', activeTab: tab as 'characters' | 'ships' | 'factions' });
           }}
         />
       )}

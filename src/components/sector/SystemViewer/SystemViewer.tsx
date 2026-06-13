@@ -172,7 +172,7 @@ export default function SystemViewer() {
       <div className="flex-1 min-w-0 relative">
         <Canvas
           camera={{ position: [0, camDistance * 0.4 * 0.4 * 12, camDistance * 0.4 * 12], fov: 60 }}
-          shadows="soft"
+          shadows
           gl={{ antialias: true, alpha: true }}
         >
           {!introComplete && (

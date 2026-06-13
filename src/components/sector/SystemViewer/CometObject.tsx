@@ -6,12 +6,28 @@ import type { SystemObject } from '../../../types/sector';
 import { mulberry32 } from './planetRenderer';
 import OrbitRing from './OrbitRing';
 
+function makeComaGlowTexture(): THREE.Texture {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(255,255,255,0.6)');
+  g.addColorStop(0.4, 'rgba(200,220,255,0.3)');
+  g.addColorStop(1, 'rgba(150,200,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(canvas);
+}
+
 interface Props {
   obj: SystemObject;
   onPositionUpdate?: (pos: [number, number, number]) => void;
   onClick?: (id: string) => void;
   showOrbits?: boolean;
   isInBelt?: boolean;
+  highQuality?: boolean;
 }
 
 function getEllipticalOrbitPosition(
@@ -63,10 +79,12 @@ const fragmentShader = `
 
 const TAIL_COLOR = new THREE.Color('#110022');
 
-export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits = true, isInBelt = false }: Props) {
+export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits = true, isInBelt = false, highQuality = true }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const particleTrailRef = useRef<THREE.InstancedMesh>(null);
   const [hovered, setHovered] = useState(false);
+
+  const comaGlowTex = useMemo(() => (highQuality ? makeComaGlowTexture() : null), [highQuality]);
 
   // Belt comets: fit within the belt ring (0.88r–1.12r), max eccentricity is 0.12
   const eccentricity = useMemo(() => {
@@ -83,13 +101,16 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
   const orbitSpeed = isInBelt ? (obj.orbitRadius > 0 ? 0.2 / Math.sqrt(obj.orbitRadius) : 0.05) : 0.05;
 
   const posHistoryRef = useRef<THREE.Vector3[]>([]);
+  const historyIndexRef = useRef(0);
   const prevPosRef = useRef<[number, number, number]>([0, 0, 0]);
   const particlesRef = useRef<TrailParticle[]>([]);
   const spawnCounterRef = useRef(0);
+  const cometColor = useMemo(() => new THREE.Color(obj.colors[0] ?? '#E8F4F8'), [obj.colors[0]]);
 
   useEffect(() => {
     const [x, y, z] = getEllipticalOrbitPosition(initialAngle, semiMajor, eccentricity, obj.inclination);
     posHistoryRef.current = Array.from({ length: TRAIL_LENGTH }, () => new THREE.Vector3(x, y, z));
+    historyIndexRef.current = 0;
   }, []);
 
   useEffect(() => {
@@ -104,7 +125,6 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
     particleTrailRef.current.instanceMatrix.needsUpdate = true;
   }, []);
 
-  const cometColor = useMemo(() => new THREE.Color(obj.colors[0] ?? '#E8F4F8'), [obj.colors[0]]);
 
   const ribbonGeo = useMemo(() => {
     const geo = new THREE.BufferGeometry();
@@ -154,7 +174,7 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
   const forwardAxis = useMemo(() => new THREE.Vector3(0, 0, 1), []);
 
   useFrame((state, delta) => {
-    if (!groupRef.current || !particleTrailRef.current) return;
+    if (!groupRef.current) return;
 
     const [x, y, z] = getEllipticalOrbitPosition(angleRef.current, semiMajor, eccentricity, obj.inclination);
 
@@ -181,34 +201,37 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
     }
     groupRef.current.quaternion.setFromUnitVectors(forwardAxis, velDirRef.current);
 
-    // Push new world position to front of history (index 0 = head)
+    // Update circular buffer history — reuse vectors for stability
     const history = posHistoryRef.current;
-    history.unshift(new THREE.Vector3(x, y, z));
-    if (history.length > TRAIL_LENGTH) history.pop();
+    historyIndexRef.current = (historyIndexRef.current + 1) % TRAIL_LENGTH;
+    history[historyIndexRef.current].set(x, y, z);
 
-    // --- Ribbon ---
+    // Update ribbon trail
     if (history.length >= 2) {
       const posAttr = ribbonGeo.attributes.position as THREE.BufferAttribute;
       const colorAttr = ribbonGeo.attributes.trailColor as THREE.BufferAttribute;
       const alphaAttr = ribbonGeo.attributes.trailAlpha as THREE.BufferAttribute;
 
-      for (let i = 0; i < history.length; i++) {
+      for (let i = 0; i < TRAIL_LENGTH; i++) {
+        const histIdx = (historyIndexRef.current - i + TRAIL_LENGTH) % TRAIL_LENGTH;
         const t = i / (TRAIL_LENGTH - 1);
 
-        if (i < history.length - 1) {
-          tmpSegDir.subVectors(history[i], history[i + 1]).normalize();
+        if (i < TRAIL_LENGTH - 1) {
+          const nextIdx = (historyIndexRef.current - i - 1 + TRAIL_LENGTH) % TRAIL_LENGTH;
+          tmpSegDir.subVectors(history[histIdx], history[nextIdx]).normalize();
         } else {
-          tmpSegDir.subVectors(history[i - 1], history[i]).normalize();
+          const prevIdx = (historyIndexRef.current - i + 1 + TRAIL_LENGTH) % TRAIL_LENGTH;
+          tmpSegDir.subVectors(history[prevIdx], history[histIdx]).normalize();
         }
 
-        // Bill­board the ribbon toward the camera so it's visible from any angle
-        tmpToCamera.subVectors(state.camera.position, history[i]).normalize();
+        // Billboard the ribbon toward the camera so it's visible from any angle
+        tmpToCamera.subVectors(state.camera.position, history[histIdx]).normalize();
         tmpRight.crossVectors(tmpSegDir, tmpToCamera).normalize();
 
         const halfW = RIBBON_HALF_WIDTH * (1 - t * 0.6);
-        const px = history[i].x;
-        const py = history[i].y;
-        const pz = history[i].z;
+        const px = history[histIdx].x;
+        const py = history[histIdx].y;
+        const pz = history[histIdx].z;
 
         posAttr.setXYZ(i * 2,     px + tmpRight.x * halfW, py + tmpRight.y * halfW, pz + tmpRight.z * halfW);
         posAttr.setXYZ(i * 2 + 1, px - tmpRight.x * halfW, py - tmpRight.y * halfW, pz - tmpRight.z * halfW);
@@ -228,7 +251,7 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
       alphaAttr.needsUpdate = true;
     }
 
-    // --- Particle trail ---
+    // Particle trail
     spawnCounterRef.current += delta * 60;
     const spawnRate = 20;
 
@@ -301,6 +324,20 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
       {showOrbits && <OrbitRing radius={semiMajor} inclination={obj.inclination} eccentricity={eccentricity} />}
 
       <group ref={groupRef}>
+        {/* Coma glow (high quality only) */}
+        {comaGlowTex && (
+          <sprite scale={[obj.size * 2, obj.size * 2, 1]} renderOrder={-1}>
+            <spriteMaterial
+              map={comaGlowTex}
+              color={cometColor}
+              transparent
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              toneMapped={false}
+            />
+          </sprite>
+        )}
+
         <mesh
           scale={[0.9, 0.85, 1.1]}
           onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
@@ -309,8 +346,8 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
           castShadow
           receiveShadow
         >
-          <icosahedronGeometry args={[obj.size * 0.7, 1]} />
-          <meshLambertMaterial color={cometColor} flatShading emissive={cometColor} emissiveIntensity={0.5} />
+          <icosahedronGeometry args={[obj.size * 0.7, highQuality ? 2 : 1]} />
+          <meshLambertMaterial color={cometColor} flatShading emissive={cometColor} emissiveIntensity={0.6} />
         </mesh>
 
         {hovered && (
@@ -322,10 +359,10 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
         )}
       </group>
 
-      {/* Ribbon trail in world space — frustumCulled off because positions update every frame */}
+      {/* Ribbon trail */}
       <mesh geometry={ribbonGeo} material={ribbonMat} frustumCulled={false} />
 
-      {/* Particle trail - ice particles that fade away */}
+      {/* Particle trail */}
       <instancedMesh ref={particleTrailRef} args={[trailGeo, trailMat, TRAIL_COUNT]} frustumCulled={false} castShadow receiveShadow />
     </>
   );

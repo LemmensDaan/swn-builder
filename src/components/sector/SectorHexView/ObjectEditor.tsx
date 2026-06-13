@@ -165,12 +165,14 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                 onChange={e => onChange({ nebulaShape: e.target.value as NebulaShape })}
               >
                 <option value="emission">Emission</option>
+                <option value="diffuse">Diffuse (Orion-style)</option>
+                <option value="wall">Wall</option>
                 <option value="planetary">Planetary</option>
                 <option value="supernova">Supernova Remnant</option>
                 <option value="reflection">Reflection</option>
-                <option value="bipolar0">Bipolar 0 (Lumpy Lobes)</option>
-                <option value="bipolar1">Bipolar 1 (Shell Rim)</option>
-                <option value="bipolar2">Bipolar 2 (Cone)</option>
+                <option value="bipolar0">Bipolar 0</option>
+                <option value="bipolar1">Bipolar 1</option>
+                <option value="bipolar2">Bipolar 2</option>
               </select>
             </label>
           )}

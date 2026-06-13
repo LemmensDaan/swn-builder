@@ -136,20 +136,75 @@ function makeBlackHoleChunks(
   return { group, orbits };
 }
 
-// ─── Solar prominence lifecycle (particle-based) ───────────────────────────────
+// ─── Solar prominence lifecycle (mesh streak-based) ────────────────────────────
+// PlaneGeometry meshes oriented in 3D (face-camera + Y along arc tangent).
+// Avoids screen-space sprite rotation which spins visibly as camera orbits.
 
-const PROM_N = 32;  // particles per arc
+const PROM_N        = 36;
+const STREAK_ASPECT = 4.8;
 
-// Shared low-poly geometries — created once, scaled per particle
-let _pIco: THREE.IcosahedronGeometry | null = null;
-let _pTet: THREE.TetrahedronGeometry | null = null;
+let _pStreakTex: THREE.Texture          | null = null;
+let _pPlaneGeo: THREE.PlaneGeometry     | null = null;
+let _pIco:      THREE.IcosahedronGeometry | null = null;
+let _pTet:      THREE.TetrahedronGeometry | null = null;
+
+function getIco() { if (!_pIco) _pIco = new THREE.IcosahedronGeometry(1, 0); return _pIco; }
+function getTet() { if (!_pTet) _pTet = new THREE.TetrahedronGeometry(1);    return _pTet; }
+
+// Reusable vectors for orientStreak — avoids per-frame allocation
+const _sN  = new THREE.Vector3();
+const _sUp = new THREE.Vector3();
+const _sR  = new THREE.Vector3();
+const _sM4 = new THREE.Matrix4();
+
+function getPromStreakTex(): THREE.Texture {
+  if (_pStreakTex) return _pStreakTex;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  // Simple circular radial glow — plane scale (baseLen × baseWid) creates the elongation
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0,    'rgba(255,255,255,1)');
+  g.addColorStop(0.18, 'rgba(255,255,255,0.95)');
+  g.addColorStop(0.45, 'rgba(255,255,255,0.50)');
+  g.addColorStop(0.75, 'rgba(255,255,255,0.12)');
+  g.addColorStop(1,    'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  _pStreakTex = new THREE.CanvasTexture(canvas);
+  return _pStreakTex;
+}
+
+function getPromPlaneGeo(): THREE.PlaneGeometry {
+  if (!_pPlaneGeo) _pPlaneGeo = new THREE.PlaneGeometry(1, 1);
+  return _pPlaneGeo;
+}
+
+// Orient mesh to face camera with its Y-axis (length) aligned to the arc tangent.
+function orientStreak(mesh: THREE.Mesh, tangent: THREE.Vector3, camPos: THREE.Vector3): void {
+  _sN.subVectors(camPos, mesh.position).normalize();
+  const tDotN = tangent.dot(_sN);
+  _sUp.copy(tangent).addScaledVector(_sN, -tDotN);
+  if (_sUp.lengthSq() < 1e-6) return;  // tangent parallel to view ray — skip
+  _sUp.normalize();
+  _sR.crossVectors(_sUp, _sN);          // right = up × normal (right-hand rule)
+  _sM4.makeBasis(_sR, _sUp, _sN);
+  mesh.quaternion.setFromRotationMatrix(_sM4);
+}
 
 interface PromParticle {
   mesh:       THREE.Mesh;
+  poly:       THREE.Mesh;    // low-poly crystal fragment
+  polyRx:     number;
+  polyRy:     number;
+  polyRz:     number;
+  tangent:    THREE.Vector3;
   basePos:    THREE.Vector3;
   scatterVel: THREE.Vector3;
   baseOp:     number;
-  rotSpeed:   number;
+  baseLen:    number;
+  baseWid:    number;
 }
 
 interface PromSlot {
@@ -175,9 +230,6 @@ function buildPromParticles(
   rng:       () => number,
   isOpen:    boolean,
 ): PromParticle[] {
-  if (!_pIco) _pIco = new THREE.IcosahedronGeometry(1, 0);
-  if (!_pTet) _pTet = new THREE.TetrahedronGeometry(1);
-
   const hsl = { h: 0, s: 0, l: 0 };
   new THREE.Color(baseHex).getHSL(hsl);
 
@@ -191,62 +243,81 @@ function buildPromParticles(
   const spread = 0.14 + rng() * 0.32;
   const p0 = axis.clone()
     .multiplyScalar(Math.cos(spread)).addScaledVector(perp, Math.sin(spread))
-    .normalize().multiplyScalar(size * 0.98);
+    .normalize().multiplyScalar(size * 1.05);
   const h  = size * (0.45 + rng() * 1.3);
   const p1 = axis.clone()
     .multiplyScalar(size + h)
     .addScaledVector(side, h * (rng() - 0.5) * 0.7);
-
-  // Open arcs continue outward; loop arcs return to the surface
   const p2 = isOpen
     ? axis.clone().multiplyScalar(size + h * 1.7).addScaledVector(side, h * (rng() - 0.5) * 0.3)
     : axis.clone()
         .multiplyScalar(Math.cos(spread)).addScaledVector(perp, -Math.sin(spread))
-        .normalize().multiplyScalar(size * 0.98);
+        .normalize().multiplyScalar(size * 1.05);
 
   const curve = new THREE.QuadraticBezierCurve3(p0.clone(), p1.clone(), p2.clone());
   const particles: PromParticle[] = [];
+  const tex = getPromStreakTex();
 
   for (let i = 0; i < PROM_N; i++) {
     const t        = i / (PROM_N - 1);
     const curvePos = curve.getPoint(t);
+    const tangent  = curve.getTangent(t).normalize();
     const outward  = curvePos.clone().normalize();
 
-    const sineT = Math.sin(t * Math.PI);
-    const r     = size * (0.012 + sineT * 0.018) * (0.65 + rng() * 0.65);
+    const sineT  = Math.sin(t * Math.PI);
+    // Thinner streaks — scale kept small relative to star size
+    const baseLen = size * (0.12 + sineT * 0.16) * (0.65 + rng() * 0.60);
+    const baseWid = baseLen / STREAK_ASPECT;
 
-    // Tight jitter — particles hug the curve
     const jitterDir = new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize();
-    const basePos   = curvePos.clone().addScaledVector(jitterDir, r * (0.2 + rng() * 0.7));
+    const basePos   = curvePos.clone().addScaledVector(jitterDir, size * (0.008 + rng() * 0.018));
 
     const col = new THREE.Color().setHSL(
-      Math.max(0, hsl.h - sineT * 0.10),
-      Math.min(1, hsl.s + 0.15 + sineT * 0.10),
-      Math.min(1, hsl.l * (0.85 + sineT * 0.35)),
+      Math.max(0, hsl.h - sineT * 0.08),
+      Math.min(1, hsl.s + 0.15 + sineT * 0.20),
+      Math.min(1, hsl.l * (0.90 + sineT * 0.28)),
     );
 
-    const geo = rng() > 0.45 ? _pIco : _pTet;
+    // ── streak plane ──
     const mat = new THREE.MeshBasicMaterial({
-      color: col, transparent: true, opacity: 0,
-      toneMapped: false, blending: THREE.AdditiveBlending, depthWrite: false,
+      map: tex, color: col,
+      transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+      side: THREE.DoubleSide,
     });
-    const mesh = new THREE.Mesh(geo, mat);
+    const mesh = new THREE.Mesh(getPromPlaneGeo(), mat);
     mesh.userData.isStar = true;
-    mesh.scale.setScalar(r);
+    mesh.scale.set(baseWid, baseLen, 1);
     mesh.position.copy(basePos);
-    mesh.rotation.set(rng() * Math.PI * 2, rng() * Math.PI * 2, rng() * Math.PI * 2);
     mesh.visible = false;
     slotGroup.add(mesh);
 
+    // ── low-poly crystal fragment ──
+    const polySize = size * (0.012 + sineT * 0.018) * (0.5 + rng() * 1.0);
+    const polyMat  = new THREE.MeshBasicMaterial({
+      color: col, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+    });
+    const poly = new THREE.Mesh(rng() > 0.45 ? getIco() : getTet(), polyMat);
+    poly.userData.isStar = true;
+    poly.scale.setScalar(polySize);
+    poly.position.copy(basePos);
+    poly.rotation.set(rng() * Math.PI * 2, rng() * Math.PI * 2, rng() * Math.PI * 2);
+    poly.visible = false;
+    slotGroup.add(poly);
+
     const scatterVel = outward.clone()
-      .addScaledVector(new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize(), 0.55)
+      .addScaledVector(new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize(), 0.5)
       .normalize()
       .multiplyScalar(size * (0.25 + rng() * 0.45));
 
     particles.push({
-      mesh, basePos, scatterVel,
-      baseOp:   0.45 + sineT * 0.40 + rng() * 0.12,
-      rotSpeed: (rng() - 0.5) * 1.8,
+      mesh, poly, tangent, basePos, scatterVel,
+      baseOp:  0.28 + sineT * 0.22 + rng() * 0.10,
+      baseLen, baseWid,
+      polyRx: (rng() - 0.5) * 2.0,
+      polyRy: (rng() - 0.5) * 2.0,
+      polyRz: (rng() - 0.5) * 2.0,
     });
   }
 
@@ -256,7 +327,9 @@ function buildPromParticles(
 function respawnPromSlot(slot: PromSlot, baseHex: string, size: number): void {
   for (const p of slot.particles) {
     (p.mesh.material as THREE.MeshBasicMaterial).dispose();
+    (p.poly.material as THREE.MeshBasicMaterial).dispose();
     slot.slotGroup.remove(p.mesh);
+    slot.slotGroup.remove(p.poly);
   }
 
   new THREE.Color(baseHex).getHSL(slot.hsl);
@@ -270,8 +343,8 @@ function respawnPromSlot(slot: PromSlot, baseHex: string, size: number): void {
   slot.particles  = buildPromParticles(slot.slotGroup, baseHex, size, slot.rng, slot.isOpen);
   slot.phase      = 'erupting';
   slot.progress   = 0;
-  slot.eruptSpd   = 0.35 + slot.rng() * 0.35;
-  slot.finishSpd  = 0.25 + slot.rng() * 0.30;
+  slot.eruptSpd   = 0.18 + slot.rng() * 0.18;
+  slot.finishSpd  = 0.14 + slot.rng() * 0.16;
   // Open arcs and partial arcs always dissipate — no retraction
   slot.willRetract = !slot.isOpen && slot.maxProgress >= 1.0 && slot.rng() > 0.40;
 }
@@ -306,7 +379,8 @@ function makeProminenceRoot(
 }
 
 function advancePromSlot(
-  slot: PromSlot, dt: number, time: number, baseHex: string, size: number,
+  slot: PromSlot, dt: number, _time: number, baseHex: string, size: number,
+  camera: THREE.Camera,
 ): void {
   if (slot.phase === 'dead') {
     slot.deadTime += dt;
@@ -322,12 +396,19 @@ function advancePromSlot(
     const wavefront = slot.progress * N;
     for (let i = 0; i < N; i++) {
       const alpha = Math.max(0, Math.min(1, wavefront - i));
-      const p = slot.particles[i];
+      const p     = slot.particles[i];
+      const on    = alpha > 0.005;
       (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha;
-      p.mesh.visible = alpha > 0.005;
+      (p.poly.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha * 0.75;
+      p.mesh.visible = on; p.poly.visible = on;
+      if (on) {
+        orientStreak(p.mesh, p.tangent, camera.position);
+        p.poly.rotation.x += dt * p.polyRx;
+        p.poly.rotation.y += dt * p.polyRy;
+        p.poly.rotation.z += dt * p.polyRz;
+      }
     }
     if (slot.progress >= slot.maxProgress) {
-      // Flow directly into next phase — no static hold
       slot.phase = slot.willRetract ? 'retracting' : 'dissipating';
       slot.progress = 1;
     }
@@ -336,41 +417,57 @@ function advancePromSlot(
 
   if (slot.phase === 'retracting') {
     slot.progress = Math.max(0, slot.progress - dt * slot.finishSpd);
-    const half   = (N - 1) / 2;
-    const FADE_W = 0.18;
+    const FW = 0.14;
     for (let i = 0; i < N; i++) {
-      const distFromEnd = Math.min(i, N - 1 - i) / half;
-      const threshold   = 1 - distFromEnd;
-      const alpha = Math.max(0, Math.min(1,
-        (slot.progress - (threshold - FADE_W)) / FADE_W,
-      ));
-      const p = slot.particles[i];
+      const fadeStart = FW + (1 - FW) * (1 - i / (N - 1));
+      const alpha = Math.max(0, Math.min(1, (slot.progress - (fadeStart - FW)) / FW));
+      const p     = slot.particles[i];
+      const on    = alpha > 0.005;
       (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha;
-      p.mesh.visible = alpha > 0.005;
-      p.mesh.rotation.y += dt * p.rotSpeed;
+      (p.poly.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha * 0.75;
+      p.mesh.visible = on; p.poly.visible = on;
+      if (on) {
+        orientStreak(p.mesh, p.tangent, camera.position);
+        p.poly.rotation.x += dt * p.polyRx;
+        p.poly.rotation.y += dt * p.polyRy;
+        p.poly.rotation.z += dt * p.polyRz;
+      }
     }
     if (slot.progress <= 0) {
-      for (const p of slot.particles) p.mesh.visible = false;
+      for (const p of slot.particles) { p.mesh.visible = false; p.poly.visible = false; }
       slot.phase = 'dead'; slot.deadTime = 0; slot.deadDur = 1.5 + slot.rng() * 3.0;
     }
     return;
   }
 
   if (slot.phase === 'dissipating') {
-    slot.progress = Math.max(0, slot.progress - dt * slot.finishSpd * 0.55);
-    // Eased scatter: slow drift at first, accelerates as particles fade
-    const scatter  = Math.pow(1 - slot.progress, 1.6) * 0.60;
-    // Smooth opacity curve: stays bright longer, then graceful fade
-    const easedOp  = Math.sqrt(slot.progress);
-    for (const p of slot.particles) {
-      if (!p.mesh.visible) continue;  // skip particles never reached by eruption
-      p.mesh.position.copy(p.basePos).addScaledVector(p.scatterVel, scatter);
-      (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * easedOp;
-      p.mesh.visible = p.mesh.visible && easedOp > 0.01;
-      p.mesh.rotation.y += dt * p.rotSpeed;
+    slot.progress = Math.max(0, slot.progress - dt * slot.finishSpd * 1.8);
+    const FW = 0.14;
+    for (let i = 0; i < N; i++) {
+      const p = slot.particles[i];
+      if (!p.mesh.visible) continue;
+      const fadeStart = FW + (1 - FW) * (1 - i / (N - 1));
+      const alpha  = Math.max(0, Math.min(1, (slot.progress - (fadeStart - FW)) / FW));
+      const puffT  = Math.pow(1 - alpha, 1.5);
+      // Gently push element outward from star center (up to ~10% beyond basePos)
+      p.mesh.position.copy(p.basePos).multiplyScalar(1 + puffT * 0.10);
+      p.poly.position.copy(p.mesh.position);
+      // Both dimensions expand uniformly as the element puffs and fades
+      const grow = 1 + puffT * 0.7;
+      p.mesh.scale.set(p.baseWid * grow, p.baseLen * grow, 1);
+      const on = alpha > 0.005;
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha;
+      (p.poly.material as THREE.MeshBasicMaterial).opacity = p.baseOp * alpha * 0.75;
+      p.mesh.visible = on; p.poly.visible = on;
+      if (on) {
+        orientStreak(p.mesh, p.tangent, camera.position);
+        p.poly.rotation.x += dt * p.polyRx;
+        p.poly.rotation.y += dt * p.polyRy;
+        p.poly.rotation.z += dt * p.polyRz;
+      }
     }
     if (slot.progress <= 0) {
-      for (const p of slot.particles) p.mesh.visible = false;
+      for (const p of slot.particles) { p.mesh.visible = false; p.poly.visible = false; }
       slot.phase = 'dead'; slot.deadTime = 0; slot.deadDur = 1.0 + slot.rng() * 2.5;
     }
     return;
@@ -514,7 +611,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   const orbitSpeed = obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0;
   const angleRef   = useRef(initialAngle);
 
-  useFrame((_, delta) => {
+  useFrame(({ camera }, delta) => {
     localTimeRef.current += delta;
     const time = localTimeRef.current;
 
@@ -553,7 +650,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
     const cd = coronaDataRef.current;
     if (cd) {
       for (const slot of cd.slots) {
-        advancePromSlot(slot, delta, time, color, obj.size);
+        advancePromSlot(slot, delta, time, color, obj.size, camera);
       }
     }
 

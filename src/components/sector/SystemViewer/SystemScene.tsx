@@ -85,7 +85,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
         {children.map(c => renderObject(c, obj))}
       </group>
     );
-    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
+    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} highQuality={prefs?.highQuality ?? true} />;
     if (obj.type === 'Nebula') return <NebulaObject key={obj.id} obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />;
     if (obj.type === 'SpaceStation' || obj.type === 'JumpGate') return <SpaceStation key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
     return (
@@ -95,6 +95,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
         onPositionUpdate={positionUpdate}
         onClick={onObjectClick}
         showOrbits={childShowOrbits}
+        highQuality={prefs?.highQuality ?? true}
       >
         {children.map(c => renderObject(c))}
       </PlanetObject>

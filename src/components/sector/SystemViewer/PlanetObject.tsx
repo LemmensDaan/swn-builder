@@ -8,6 +8,21 @@ import PlanetRings from './PlanetRings';
 import { generatePlanetGeometry, PLANET_PRESETS, mulberry32 } from './planetRenderer';
 import { getOrbitPosition } from './orbitUtils';
 
+function makeGasGiantGlowTexture(): THREE.Texture {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(255,255,255,0.4)');
+  g.addColorStop(0.5, 'rgba(255,200,100,0.15)');
+  g.addColorStop(1, 'rgba(255,100,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(canvas);
+}
+
 function buildGeo(obj: SystemObject): THREE.BufferGeometry {
   // Use planet type and colors from the object
   const planetType = obj.planetType ?? 'Barren';
@@ -37,12 +52,14 @@ interface Props {
   onPositionUpdate?: (pos: [number, number, number]) => void;
   onClick?: (id: string) => void;
   showOrbits?: boolean;
+  highQuality?: boolean;
 }
 
-export default function PlanetObject({ obj, children, onPositionUpdate, onClick, showOrbits = true }: Props) {
+export default function PlanetObject({ obj, children, onPositionUpdate, onClick, showOrbits = true, highQuality = true }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef  = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
+  const isGasGiant = obj.planetType === 'GasGiant';
 
   const angleRef = useRef(mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2);
 
@@ -53,6 +70,8 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [obj.seed, obj.size, obj.planetType, obj.primaryColor, obj.secondaryColor, obj.iceCaps, obj.colors[0], obj.colors[1]],
   );
+
+  const glowTex = useMemo(() => (isGasGiant && highQuality ? makeGasGiantGlowTexture() : null), [isGasGiant, highQuality]);
 
   const _worldPos = useMemo(() => new THREE.Vector3(), []);
 
@@ -103,6 +122,19 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
       {/* Orbit ring for planets and moons */}
       {showOrbits && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
+        {/* Gas giant glow effect in high quality */}
+        {glowTex && (
+          <sprite scale={[obj.size * 3.2, obj.size * 3.2, 1]} renderOrder={-1}>
+            <spriteMaterial
+              map={glowTex}
+              color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
+              transparent
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              toneMapped={false}
+            />
+          </sprite>
+        )}
         <mesh
           ref={meshRef}
           geometry={geo}

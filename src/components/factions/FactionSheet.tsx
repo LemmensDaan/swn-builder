@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ArrowLeft, Copy, Skull, Trash2, HeartPulse,
+  ArrowLeft, Skull,
   Plus, X, Check, Heart, Target, Swords, Shield, Eye, DollarSign,
 } from 'lucide-react';
 import { useSectorStore } from '../../store/useSectorStore';
@@ -316,14 +316,11 @@ interface Props {
   sectorId: string;
   sectorName: string;
   onBack: () => void;
-  onCopy: () => void;
-  onDelete: () => void;
 }
 
-export default function FactionSheet({ faction, sectorId, sectorName, onBack, onCopy, onDelete }: Props) {
+export default function FactionSheet({ faction, sectorId, sectorName, onBack }: Props) {
   const { updateFaction } = useSectorStore();
   const [local, setLocal] = useState<Faction>({ ...faction });
-  const [confirmAction, setConfirmAction] = useState<'delete' | 'retire' | null>(null);
   const [showAssetPicker, setShowAssetPicker] = useState(false);
   const [showGoalPicker, setShowGoalPicker] = useState(false);
   const [newTagInput, setNewTagInput] = useState('');
@@ -402,23 +399,6 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack, on
     patch({ goals: local.goals.filter(g => g.id !== id) });
   }
 
-  function handleRetire() {
-    patch({ retired: true });
-    setConfirmAction(null);
-  }
-
-  function handleUnretire() {
-    patch({ retired: false });
-  }
-
-  function handleDelete() {
-    onDelete();
-  }
-
-  function handleCopy() {
-    onCopy();
-  }
-
   const ForceIcon  = STAT_ICON.Force;
   const CunningIcon = STAT_ICON.Cunning;
   const WealthIcon = STAT_ICON.Wealth;
@@ -448,39 +428,6 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack, on
             <span className="text-gray-500 text-sm flex-shrink-0">{sectorName}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {retired ? (
-              <button
-                onClick={handleUnretire}
-                title="Unretire faction"
-                className="px-2.5 py-1.5 rounded bg-gray-700 hover:bg-emerald-900/50 text-gray-400 hover:text-emerald-300 transition-colors flex items-center"
-              >
-                <HeartPulse size={14} />
-              </button>
-            ) : (
-              <button
-                onClick={() => setConfirmAction('retire')}
-                title="Retire faction"
-                className="px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-amber-300 transition-colors flex items-center"
-              >
-                <Skull size={14} />
-              </button>
-            )}
-            <button
-              onClick={handleCopy}
-              title="Duplicate faction"
-              className="px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-sky-300 transition-colors flex items-center"
-            >
-              <Copy size={14} />
-            </button>
-            <button
-              onClick={() => setConfirmAction('delete')}
-              title="Delete faction"
-              className="px-2.5 py-1.5 rounded bg-gray-700 hover:bg-red-900/60 text-red-500 hover:text-red-400 transition-colors flex items-center"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
         </div>
 
         {/* ── Retired banner ───────────────────────────────────────────────── */}
@@ -810,68 +757,6 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack, on
           </div>
         </div>
       </div>
-
-      {/* ── Confirm overlay ───────────────────────────────────────────────────── */}
-      {confirmAction && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          onClick={() => setConfirmAction(null)}
-        >
-          <div
-            className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4"
-            onClick={e => e.stopPropagation()}
-          >
-            {confirmAction === 'retire' ? (
-              <>
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <Skull size={28} className="text-amber-400" />
-                  <p className="text-gray-200 font-semibold">
-                    Retire <span className="text-amber-300">{local.name || 'this faction'}</span>?
-                  </p>
-                  <p className="text-gray-500 text-xs">They'll be marked as retired.</p>
-                </div>
-                <div className="flex gap-3 justify-center">
-                  <button
-                    onClick={() => setConfirmAction(null)}
-                    className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium"
-                  >
-                    Keep
-                  </button>
-                  <button
-                    onClick={handleRetire}
-                    className="px-4 py-2 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-semibold flex items-center gap-2"
-                  >
-                    <Skull size={14} /> Retire
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <p className="text-gray-200 font-semibold">
-                    Delete <span className="text-amber-300">{local.name || 'this faction'}</span>?
-                  </p>
-                  <p className="text-gray-500 text-xs">This cannot be undone.</p>
-                </div>
-                <div className="flex gap-3 justify-center">
-                  <button
-                    onClick={() => setConfirmAction(null)}
-                    className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium"
-                  >
-                    Keep
-                  </button>
-                  <button
-                    onClick={handleDelete}
-                    className="px-4 py-2 rounded bg-red-700 hover:bg-red-600 text-white text-sm font-semibold"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {showAssetPicker && (
         <AssetPickerModal

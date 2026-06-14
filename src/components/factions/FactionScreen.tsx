@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Plus, Shield, Eye, DollarSign, Heart, Star, Target, BookOpen, Swords } from 'lucide-react';
+import { Plus, Shield, Eye, DollarSign, Heart, Star, Target, BookOpen, Swords, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSectorStore } from '../../store/useSectorStore';
+import ItemActions from '../ItemActions';
 import type { Faction, FactionAssetType } from '../../types/sector';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -17,9 +18,19 @@ const STAT_ICON: Record<FactionAssetType, typeof Shield> = {
 
 // ─── faction card ─────────────────────────────────────────────────────────────
 
-function FactionCard({ faction, onClick }: { faction: Faction; onClick: () => void }) {
+function FactionCard({
+  faction, onClick, onDelete, onRetire, onUnretire, onCopy,
+}: {
+  faction: Faction;
+  onClick: () => void;
+  onDelete: () => void;
+  onRetire: () => void;
+  onUnretire: () => void;
+  onCopy: () => void;
+}) {
   const maxHp = derivedMaxHp(faction.force, faction.cunning, faction.wealth);
   const completedGoals = faction.goals.filter(g => g.completed).length;
+  const retired = faction.retired ?? false;
 
   const ForceIcon = STAT_ICON.Force;
   const CunningIcon = STAT_ICON.Cunning;
@@ -28,7 +39,7 @@ function FactionCard({ faction, onClick }: { faction: Faction; onClick: () => vo
   return (
     <div
       onClick={onClick}
-      className="glass-card rounded-xl cursor-pointer transition-all duration-200 hover:border-amber-600/60 hover:bg-gray-800/50 hover:shadow-lg hover:shadow-amber-900/20 hover:-translate-y-0.5 p-5 flex flex-col gap-3"
+      className={`glass-card rounded-xl cursor-pointer transition-all duration-200 hover:border-amber-600/60 hover:bg-gray-800/50 hover:shadow-lg hover:shadow-amber-900/20 hover:-translate-y-0.5 p-5 flex flex-col gap-3 relative overflow-hidden ${retired ? 'opacity-60' : ''}`}
     >
       {/* Header */}
       <div className="flex items-center gap-2.5">
@@ -90,7 +101,7 @@ function FactionCard({ faction, onClick }: { faction: Faction; onClick: () => vo
       )}
 
       {/* Footer */}
-      <div className="flex items-center gap-3 text-xs text-gray-500 mt-auto pt-1 border-t border-gray-700/50">
+      <div className="flex items-center gap-3 text-xs text-gray-500 pt-1 border-t border-gray-700/50">
         <div className="flex items-center gap-1">
           <Swords size={11} />
           <span>{faction.assets.length} assets</span>
@@ -102,31 +113,68 @@ function FactionCard({ faction, onClick }: { faction: Faction; onClick: () => vo
           </div>
         )}
       </div>
+
+      <ItemActions
+        itemType="character"
+        itemName={faction.name}
+        retired={retired}
+        onDelete={onDelete}
+        onRetire={onRetire}
+        onUnretire={onUnretire}
+        onCopy={onCopy}
+      />
     </div>
   );
 }
 
 // ─── sector faction group ──────────────────────────────────────────────────────
 
+type CardActions = {
+  onDelete: (factionId: string) => void;
+  onRetire: (factionId: string) => void;
+  onUnretire: (factionId: string) => void;
+  onCopy: (factionId: string) => void;
+};
+
 function SectorFactionGroup({
   sector,
   showHeader,
   onEdit,
   onAdd,
+  actions,
 }: {
   sector: { id: string; name: string; factions: Faction[] };
   showHeader: boolean;
   onEdit: (factionId: string, sectorId: string) => void;
   onAdd: (sectorId: string) => void;
+  actions: CardActions;
 }) {
+  const [retiredOpen, setRetiredOpen] = useState(false);
+  const active  = sector.factions.filter(f => !(f.retired ?? false));
+  const retired = sector.factions.filter(f => f.retired ?? false);
+
+  function card(faction: Faction) {
+    return (
+      <FactionCard
+        key={faction.id}
+        faction={faction}
+        onClick={() => onEdit(faction.id, sector.id)}
+        onDelete={() => actions.onDelete(faction.id)}
+        onRetire={() => actions.onRetire(faction.id)}
+        onUnretire={() => actions.onUnretire(faction.id)}
+        onCopy={() => actions.onCopy(faction.id)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-3">
       {showHeader && (
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-300">
             {sector.name}
-            {sector.factions.length > 0 && (
-              <span className="ml-2 text-sm text-gray-500 font-normal">({sector.factions.length})</span>
+            {active.length > 0 && (
+              <span className="ml-2 text-sm text-gray-500 font-normal">({active.length})</span>
             )}
           </h2>
           <button
@@ -139,7 +187,7 @@ function SectorFactionGroup({
         </div>
       )}
 
-      {sector.factions.length === 0 ? (
+      {active.length === 0 && retired.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed border-gray-800 rounded-xl">
           <Star size={28} className="text-gray-700 mb-2" />
           <p className="text-sm text-gray-600 mb-3">No factions in {sector.name}</p>
@@ -154,24 +202,38 @@ function SectorFactionGroup({
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sector.factions.map(faction => (
-            <FactionCard
-              key={faction.id}
-              faction={faction}
-              onClick={() => onEdit(faction.id, sector.id)}
-            />
-          ))}
-          {!showHeader && (
-            <button
-              onClick={() => onAdd(sector.id)}
-              className="border-2 border-dashed border-gray-700 rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:border-amber-700 hover:bg-amber-900/10 transition-colors text-gray-600 hover:text-amber-400"
-            >
-              <span className="text-3xl">+</span>
-              <span className="text-sm font-medium">New Faction</span>
-            </button>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {active.map(card)}
+            {!showHeader && (
+              <button
+                onClick={() => onAdd(sector.id)}
+                className="border-2 border-dashed border-gray-700 rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:border-amber-700 hover:bg-amber-900/10 transition-colors text-gray-600 hover:text-amber-400"
+              >
+                <span className="text-3xl">+</span>
+                <span className="text-sm font-medium">New Faction</span>
+              </button>
+            )}
+          </div>
+
+          {retired.length > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={() => setRetiredOpen(v => !v)}
+                className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors mb-3 group"
+              >
+                {retiredOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <span className="text-sm font-medium">Retired</span>
+                <span className="text-xs text-gray-700 bg-gray-800 px-1.5 py-0.5 rounded-full">{retired.length}</span>
+              </button>
+              {retiredOpen && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {retired.map(card)}
+                </div>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );
@@ -180,7 +242,7 @@ function SectorFactionGroup({
 // ─── main screen ──────────────────────────────────────────────────────────────
 
 export default function FactionScreen({ onOpen }: { onOpen: (factionId: string, sectorId: string) => void }) {
-  const { sectors, addFaction } = useSectorStore();
+  const { sectors, addFaction, updateFaction, removeFaction } = useSectorStore();
   const [filterSectorId, setFilterSectorId] = useState<string | null>(null);
   const [newFactionColor, setNewFactionColor] = useState('#e11d48');
 
@@ -194,6 +256,28 @@ export default function FactionScreen({ onOpen }: { onOpen: (factionId: string, 
     const currentIdx = colors.indexOf(newFactionColor);
     setNewFactionColor(colors[(currentIdx + 1) % colors.length]);
     onOpen(faction.id, sectorId);
+  }
+
+  function makeActions(sectorId: string): CardActions {
+    return {
+      onDelete:   (id) => removeFaction(sectorId, id),
+      onRetire:   (id) => updateFaction(sectorId, id, { retired: true }),
+      onUnretire: (id) => updateFaction(sectorId, id, { retired: false }),
+      onCopy:     (id) => {
+        const sector = sectors.find(s => s.id === sectorId);
+        const src = sector?.factions.find(f => f.id === id);
+        if (!src) return;
+        const copy = addFaction(sectorId, src.name ? `${src.name}-copy` : 'copy', src.color);
+        updateFaction(sectorId, copy.id, {
+          force: src.force, cunning: src.cunning, wealth: src.wealth,
+          hp: src.hp, xp: src.xp,
+          tags: [...src.tags],
+          assets: src.assets.map(a => ({ ...a, id: crypto.randomUUID() })),
+          goals: src.goals.map(g => ({ ...g, id: crypto.randomUUID() })),
+          notes: src.notes,
+        });
+      },
+    };
   }
 
   if (sectors.length === 0) {
@@ -238,6 +322,7 @@ export default function FactionScreen({ onOpen }: { onOpen: (factionId: string, 
             showHeader={multiSector}
             onEdit={onOpen}
             onAdd={handleAdd}
+            actions={makeActions(sector.id)}
           />
         ))}
       </div>

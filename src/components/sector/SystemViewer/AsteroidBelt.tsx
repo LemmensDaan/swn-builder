@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
 
-const COUNT = 1200;
+const COUNT = 2200;
 const dummy = new THREE.Object3D();
 
 interface Props {
@@ -28,7 +28,7 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) 
 
   // Individual asteroids scale with the orbit radius so a small belt gets small rocks
   // and a wide belt gets larger ones — obj.size stays a manual multiplier on top.
-  const asteroidSize = Math.max(0.02, obj.size * obj.orbitRadius * 0.007);
+  const asteroidSize = Math.max(0.01, obj.size * obj.orbitRadius * 0.0035);
   const geo = useMemo(() => new THREE.IcosahedronGeometry(asteroidSize, 0), [asteroidSize]);
   const beltColor = useMemo(() => new THREE.Color(obj.colors[0] ?? '#8C7B6B'), [obj.colors[0]]);
   const mat = useMemo(

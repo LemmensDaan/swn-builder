@@ -109,7 +109,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
   return (
     <>
       {/* Lights and starfield stay outside the fade group — always fully visible */}
-      {!previewMode && <ambientLight intensity={0.1} />}
+      {!previewMode && <ambientLight intensity={0.2} />}
       {!previewMode && <Starfield count={900} opacity={starfieldOpacity} />}
       {!previewMode && neutronStar && (
         <SupernovaBackdrop

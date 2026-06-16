@@ -112,11 +112,11 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
         Math.sin(a) * r,
       );
       dummy.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
-      // Gaps (low density) hide grains; brightness scales with density.
+      // Gaps (low density) hide grains; brightness scales with density with higher contrast.
       dummy.scale.setScalar(d < 0.12 ? 0 : (0.3 + rng() * 0.5));
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
-      tmpColor.copy(baseColor).multiplyScalar(0.35 + d);
+      tmpColor.copy(baseColor).multiplyScalar(0.25 + d * 1.2);
       meshRef.current.setColorAt(i, tmpColor);
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
@@ -135,7 +135,7 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
           <meshLambertMaterial
             color={baseColor}
             transparent
-            opacity={opacity * 0.5}
+            opacity={opacity * 0.7}
             side={THREE.DoubleSide}
             depthWrite={false}
             flatShading

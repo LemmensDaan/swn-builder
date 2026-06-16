@@ -283,7 +283,6 @@ export const useSectorStore = create<SectorStore>()(
             ? (['emission', 'planetary', 'supernova', 'reflection', 'bipolar'] as NebulaShape[])[Math.floor(Math.random() * 5)]
             : defaults.nebulaShape),
           nsJets: partial.nsJets ?? defaults.nsJets,
-          nsMagnetar: partial.nsMagnetar ?? defaults.nsMagnetar,
           bhDiscInclination: partial.bhDiscInclination ?? defaults.bhDiscInclination,
         };
         set(s => {

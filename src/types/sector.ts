@@ -64,8 +64,6 @@ export interface SystemObject {
   bhDiscInclination?: number;
   // Neutron star bipolar jets (a neutron star with jets is a pulsar). Undefined = on.
   nsJets?: boolean;
-  // Neutron star with extreme magnetic field (magnetar). Undefined = off.
-  nsMagnetar?: boolean;
   // Neutron star jet axis tilt (degrees). Undefined = randomized from seed.
   nsJetTiltX?: number;
   nsJetTiltZ?: number;

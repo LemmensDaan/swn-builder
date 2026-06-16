@@ -349,7 +349,7 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
             );
           })()}
 
-          {/* Neutron star variants — pulsar (jets) and/or magnetar (intense glow) */}
+          {/* Neutron star variant — a neutron star with jets is a pulsar */}
           {obj.type === 'NeutronStar' && (
             <div className="space-y-2">
               <div className="flex gap-4">
@@ -360,16 +360,7 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                     onChange={e => onChange({ nsJets: e.target.checked })}
                     className="w-4 h-4 cursor-pointer"
                   />
-                  <span className="text-gray-500 text-sm">Jets (Pulsar)</span>
-                </label>
-                <label className="flex items-center gap-2 py-1">
-                  <input
-                    type="checkbox"
-                    checked={obj.nsMagnetar ?? false}
-                    onChange={e => onChange({ nsMagnetar: e.target.checked })}
-                    className="w-4 h-4 cursor-pointer"
-                  />
-                  <span className="text-gray-500 text-sm">Magnetar</span>
+                  <span className="text-gray-500 text-sm">Pulsar</span>
                 </label>
               </div>
               {(obj.nsJets ?? true) && (

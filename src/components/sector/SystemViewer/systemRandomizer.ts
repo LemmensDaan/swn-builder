@@ -119,8 +119,7 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
     orbitSpeed: orbitRad > 0 ? (binaryOrbitSpeed ?? randBetween(0.01, 0.08, rng)) : 0,
     axisInclination: (rng() - 0.5) * 2 * 30,
     ...(type === 'NeutronStar' ? {
-      nsJets:    false,         // Pulsar disabled by default
-      nsMagnetar: rng() < 0.2, // 20% magnetars
+      nsJets: false,            // Pulsar disabled by default
     } : {}),
     notes: '', tags: [], factionId: null,
     seed: sharedSeed,

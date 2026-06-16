@@ -558,17 +558,21 @@ function makeNeutronJets(baseHex: string, size: number): THREE.Group {
 
   const base  = new THREE.Color(baseHex);
   const white = new THREE.Color(1, 1, 1);
-  const H     = size * 100; // immense — pulsar jets extend far beyond the system scale
+  const H     = size * 240; // immense — pulsar beams extend far beyond the system scale
 
-  // Unit cone: base at y=0, tip at y=1 (after translate) — narrow, beam-like
+  // Unit cone: narrow tip at y=0 (the star) widening to its base at y=1 (far end),
+  // so the beam GROWS with distance like a searchlight cone (tip pinned to the star).
   const unitGeo = new THREE.ConeGeometry(1, 1, 4);
-  unitGeo.translate(0, 0.5, 0);
+  unitGeo.rotateX(Math.PI);     // flip the apex to the bottom
+  unitGeo.translate(0, 0.5, 0); // tip at y=0, wide base at y=1
 
-  // Three additive layers per jet: bright core → soft halo → wide outer glow
+  // Far-end radius of each additive layer: bright core → soft halo → wide outer haze.
+  const farR = size * 16;
   const layers = [
-    { wMult: 0.3,  col: white.clone(),                  op: 0.92 },
-    { wMult: 1.0,  col: white.clone().lerp(base, 0.35), op: 0.38 },
-    { wMult: 2.5,  col: base.clone(),                   op: 0.14 },
+    { rMult: 0.22, col: white.clone(),                  op: 0.82 },
+    { rMult: 0.6,  col: white.clone().lerp(base, 0.35), op: 0.30 },
+    { rMult: 1.1,  col: base.clone(),                   op: 0.15 },
+    { rMult: 1.9,  col: base.clone(),                   op: 0.07 }, // extra-wide diffuse haze
   ];
 
   for (const dir of [1, -1]) {
@@ -584,8 +588,8 @@ function makeNeutronJets(baseHex: string, size: number): THREE.Group {
       mesh.userData.isJet  = true;
       mesh.userData.baseOp = layer.op;
 
-      const w = size * layer.wMult;
-      mesh.scale.set(w, H, w);
+      const r = farR * layer.rMult;
+      mesh.scale.set(r, H, r);
 
       if (dir === 1) {
         mesh.position.set(0, size * 0.9, 0);
@@ -647,7 +651,6 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
 
   // Neutron star effects — jets are optional (a neutron star with jets is a pulsar)
   const showJets  = isNeutron && (obj.nsJets ?? true);
-  const isMagnetar = isNeutron && (obj.nsMagnetar ?? false);
   const nsJets = useMemo(() => showJets ? makeNeutronJets(color, obj.size) : null, [color, obj.size, showJets]);
 
   // Neutron star geometry — checkerboard painted into vertex colours
@@ -797,26 +800,13 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
         {/* ── Neutron star ─────────────────────────────────────────────────── */}
         {isNeutron && (
           <>
-            {/* Magnetar: immense extended magnetic halo, far brighter than a standard neutron star */}
-            {isMagnetar && (
-              <>
-                <sprite userData={{ isStar: true }} scale={[obj.size * 200, obj.size * 200, 1]}>
-                  <spriteMaterial map={glowTex} color={color} transparent depthWrite={false} opacity={0.07}
-                    blending={THREE.AdditiveBlending} toneMapped={false} />
-                </sprite>
-                <sprite userData={{ isStar: true }} scale={[obj.size * 130, obj.size * 130, 1]}>
-                  <spriteMaterial map={glowTex} color={color} transparent depthWrite={false} opacity={0.14}
-                    blending={THREE.AdditiveBlending} toneMapped={false} />
-                </sprite>
-              </>
-            )}
             {/* Immense diffuse glow — huge radius even though the body is tiny */}
             <sprite userData={{ isStar: true }} scale={[obj.size * 80, obj.size * 80, 1]}>
-              <spriteMaterial map={glowTex} color={color} transparent depthWrite={false} opacity={isMagnetar ? 0.28 : 0.18}
+              <spriteMaterial map={glowTex} color={color} transparent depthWrite={false} opacity={0.18}
                 blending={THREE.AdditiveBlending} toneMapped={false} />
             </sprite>
             <sprite userData={{ isStar: true }} scale={[obj.size * 35, obj.size * 35, 1]}>
-              <spriteMaterial map={glowTex} color={color} transparent depthWrite={false} opacity={isMagnetar ? 0.75 : 0.60}
+              <spriteMaterial map={glowTex} color={color} transparent depthWrite={false} opacity={0.60}
                 blending={THREE.AdditiveBlending} toneMapped={false} />
             </sprite>
             <sprite userData={{ isStar: true }} scale={[obj.size * 14, obj.size * 14, 1]}>
@@ -826,6 +816,13 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
             {/* Bipolar jets — tilted by the editable jet-axis angles, rotating with the star */}
             {nsJets && (
               <primitive ref={nsJetsRef} object={nsJets} rotation-x={nsJetTilt?.x ?? 0} rotation-z={nsJetTilt?.z ?? 0} />
+            )}
+            {/* The beams emit light — two coloured point lights out along the (tilted) jet axis */}
+            {nsJets && !previewMode && (
+              <group rotation-x={nsJetTilt?.x ?? 0} rotation-z={nsJetTilt?.z ?? 0}>
+                <pointLight color={color} intensity={60} distance={120} decay={1.4} position={[0, obj.size * 30, 0]} />
+                <pointLight color={color} intensity={60} distance={120} decay={1.4} position={[0, -obj.size * 30, 0]} />
+              </group>
             )}
           </>
         )}

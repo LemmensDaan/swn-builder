@@ -10,7 +10,7 @@ import PlanetObject from './PlanetObject';
 import AsteroidBelt from './AsteroidBelt';
 import SpaceStation from './SpaceStation';
 import CometObject from './CometObject';
-import NebulaObject from './NebulaObject';
+import NebulaObject, { SupernovaBackdrop } from './NebulaObject';
 
 interface Props {
   system: StarSystem;
@@ -31,6 +31,10 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
   const rootStars = sorted.filter(o => STELLAR.includes(o.type) && (!o.parentId || !stellarIds.has(o.parentId)));
   const topLevel  = sorted.filter(o => !o.parentId && !STELLAR.includes(o.type));
   const hasStar = rootStars.length > 0;
+
+  // A neutron star is a supernova remnant — fill the system background with a
+  // remnant nebula tinted to its colour. Automatic; uses the first neutron star.
+  const neutronStar = sorted.find(o => o.type === 'NeutronStar');
 
   // Fade group: traverse every frame while intro is running, skip objects tagged isStar
   const fadeGroupRef = useRef<THREE.Group>(null);
@@ -107,6 +111,12 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
       {/* Lights and starfield stay outside the fade group — always fully visible */}
       {!previewMode && <ambientLight intensity={0.2} />}
       {!previewMode && <Starfield count={900} opacity={starfieldOpacity} />}
+      {!previewMode && neutronStar && (
+        <SupernovaBackdrop
+          color={neutronStar.colors[0] ?? '#A0CFFF'}
+          seed={neutronStar.seed ?? neutronStar.id.charCodeAt(0) * 191}
+        />
+      )}
 
       {/* Everything that participates in the intro fade */}
       <group ref={fadeGroupRef}>

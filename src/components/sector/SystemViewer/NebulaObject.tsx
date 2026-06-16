@@ -674,6 +674,63 @@ function diffuseLayers(rng: () => number, vr: number, R: number, G: number, B: n
   ];
 }
 
+// ── Supernova Remnant (Crab / Veil / Cassiopeia A style) ─────────────────────
+// Billowing, lumpy cloud body lit from within by a diffuse synchrotron glow, with
+// faint filament structure threaded through it and bright shrapnel knots. Unlike the
+// other shapes (which lean 75% on a characteristic colour), this is strongly tinted
+// to the supplied colour so the whole nebula reads in that hue — it represents the
+// explosion that birthed the system's neutron star.
+function supernovaLayers(rng: () => number, vr: number, R: number, G: number, B: number): Layer[] {
+  // Derive tints directly from the user/neutron-star colour so the hue dominates.
+  const wt = (t: number, ch: number) => Math.round(ch + (255 - ch) * t); // toward white
+  const dk = (t: number, ch: number) => Math.round(ch * t);              // toward black
+  const Rb = wt(0.40, R); const Gb = wt(0.40, G); const Bb = wt(0.40, B); // bright filament
+  const Rm = wt(0.12, R); const Gm = wt(0.12, G); const Bm = wt(0.12, B); // mid body (the hue)
+  const Rc = wt(0.80, R); const Gc = wt(0.80, G); const Bc = wt(0.80, B); // synchrotron core
+  const Rd = dk(0.70, R); const Gd = dk(0.70, G); const Bd = dk(0.70, B); // deep haze
+
+  const texSeed = Math.round(rng() * 999983);
+
+  const blobs = Array.from({ length: 6 }, () => ({
+    x:  (rng() - 0.5) * vr * 1.5,
+    y:  (rng() - 0.5) * vr * 1.2,
+    sx:  0.70 + rng() * 0.80,
+    sy:  0.60 + rng() * 0.70,
+    rot: rng() * Math.PI,
+    op:  0.20 + rng() * 0.22,
+  }));
+  const knots = Array.from({ length: 6 }, () => ({
+    x:  (rng() - 0.5) * vr * 1.4,
+    y:  (rng() - 0.5) * vr * 1.4,
+    sz:  0.05 + rng() * 0.10,
+    op:  0.40 + rng() * 0.40,
+  }));
+
+  const tHaze = cloudTex(128,       Rd, Gd, Bd, 0.50, 0.40);
+  const tMain = lumpyCloudTex(256,  Rm, Gm, Bm, 1.00, texSeed);
+  const tBlob = lumpyCloudTex(256,  Rb, Gb, Bb, 0.85, texSeed + 11);
+  const tWeb  = webFilamentTex(256, Rb, Gb, Bb, 0.50, texSeed + 31);
+  const tCore = cloudTex(256,       Rc, Gc, Bc, 0.70, 0.28);
+  const tKnot = cloudTex(64,        Rc, Gc, Bc, 1.00, 0.10);
+
+  return [
+    { key: 'haze', x: 0, y: 0, rotZ: 0,               w: vr * 3.6, h: vr * 3.4, tex: tHaze, op: 0.30, blend: ADD, order: -10 },
+    { key: 'main', x: 0, y: 0, rotZ: rng() * Math.PI, w: vr * 2.4, h: vr * 2.0, tex: tMain, op: 0.55, blend: ADD, order: -9 },
+    ...blobs.map((b, i) => ({
+      key: `blob${i}`, x: b.x, y: b.y, rotZ: b.rot,
+      w: vr * b.sx * 1.4, h: vr * b.sy * 1.4,
+      tex: tBlob, op: b.op, blend: ADD, order: -8,
+    })),
+    { key: 'web',  x: 0, y: 0, rotZ: rng() * Math.PI, w: vr * 2.8, h: vr * 2.8, tex: tWeb,  op: 0.28, blend: ADD, order: -7 },
+    { key: 'core', x: 0, y: 0, rotZ: 0,               w: vr * 1.1, h: vr * 1.0, tex: tCore, op: 0.45, blend: ADD, order: -6 },
+    ...knots.map((k, i) => ({
+      key: `knot${i}`, x: k.x, y: k.y, rotZ: 0,
+      w: vr * k.sz, h: vr * k.sz,
+      tex: tKnot, op: k.op, blend: ADD, order: -5,
+    })),
+  ];
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function NebulaObject({ obj, onPositionUpdate }: Props) {
@@ -708,6 +765,7 @@ export default function NebulaObject({ obj, onPositionUpdate }: Props) {
       case 'bipolar0':    return bipolarLayers0(rng, vr, R, G, B);
       case 'bipolar1':    return bipolarLayers1(rng, vr, R, G, B);
       case 'bipolar2':    return bipolarLayers2(rng, vr, R, G, B);
+      case 'supernova':   return supernovaLayers(rng, vr, R, G, B);
       default:            return emissionLayers(rng, vr, R, G, B);
     }
   }, [obj.colors, obj.nebulaShape, seed, vr]);
@@ -749,6 +807,94 @@ export default function NebulaObject({ obj, onPositionUpdate }: Props) {
             opacity={l.op}
           />
         </mesh>
+      ))}
+    </group>
+  );
+}
+
+// ── Supernova-remnant backdrop ───────────────────────────────────────────────
+// Rendered automatically by SystemScene whenever a system contains a neutron star
+// (a neutron star is the remnant of a supernova). Unlike a placed NebulaObject this
+// is a VOLUMETRIC shell of camera-facing cloud puffs distributed on an oval around
+// the system origin — so it surrounds the system and gives real parallax as the
+// camera orbits, rather than being a flat billboard glued to the lens. Tinted to the
+// neutron star's colour. Draws behind every scene object (negative renderOrder +
+// depthTest off) but in front of the starfield.
+interface Puff { pos: [number, number, number]; tex: THREE.Texture; size: number; op: number; }
+
+export function SupernovaBackdrop({ color, seed }: { color: string; seed: number }) {
+  const groupRef = useRef<THREE.Group>(null);
+
+  const { puffs, glow, haze } = useMemo(() => {
+    const [R, G, B] = hexToRgb(color);
+    const rng = mulberry32((seed + 7) >>> 0);
+    const wt = (t: number, ch: number) => Math.round(ch + (255 - ch) * t);
+    const dk = (t: number, ch: number) => Math.round(ch * t);
+
+    // Three filament tints (bright → hue → deep) plus knots, core glow, outer haze.
+    const filaTex = [
+      lumpyCloudTex(256, wt(0.42, R), wt(0.42, G), wt(0.42, B), 1.00, Math.round(rng() * 1e6)),
+      lumpyCloudTex(256, wt(0.10, R), wt(0.10, G), wt(0.10, B), 0.95, Math.round(rng() * 1e6)),
+      lumpyCloudTex(256, dk(0.78, R), dk(0.78, G), dk(0.78, B), 0.90, Math.round(rng() * 1e6)),
+    ];
+    const knotTex = cloudTex(64,  wt(0.70, R), wt(0.70, G), wt(0.70, B), 1.00, 0.12);
+    // Hollow (ring) glow + haze: peaks toward the edges with a clear centre, so the
+    // region right around the star stays readable while the surround still glows.
+    const glow    = ringTex(256, wt(0.82, R), wt(0.82, G), wt(0.82, B), 0.52, 0.80);
+    const haze    = ringTex(256, dk(0.85, R), dk(0.85, G), dk(0.85, B), 0.42, 0.65);
+
+    const baseR = 230; // shell radius — inside the starfield (~400), around the system
+    // Random point on an oval shell (Y squashed) at a fraction of the base radius.
+    const onShell = (rMul: number): [number, number, number] => {
+      const u  = rng() * 2 - 1;
+      const th = rng() * Math.PI * 2;
+      const s  = Math.sqrt(1 - u * u);
+      const r  = baseR * (0.72 + rng() * 0.40) * rMul;
+      return [s * Math.cos(th) * r, u * r * 0.70, s * Math.sin(th) * r];
+    };
+
+    const puffs: Puff[] = [];
+    for (let i = 0; i < 64; i++) {
+      puffs.push({
+        pos:  onShell(1),
+        tex:  filaTex[Math.floor(rng() * filaTex.length)],
+        size: baseR * (0.30 + rng() * 0.40),
+        op:   0.09 + rng() * 0.15,
+      });
+    }
+    for (let i = 0; i < 9; i++) {
+      puffs.push({
+        pos:  onShell(0.95),
+        tex:  knotTex,
+        size: baseR * (0.045 + rng() * 0.06),
+        op:   0.45 + rng() * 0.40,
+      });
+    }
+    return { puffs, glow, haze };
+  }, [color, seed]);
+
+  // Centred on the origin (where the supernova happened) → orbiting gives parallax.
+  // A very slow drift keeps it from feeling dead-static.
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.006;
+  });
+
+  return (
+    <group ref={groupRef}>
+      {/* Overall outer haze + diffuse interior synchrotron glow */}
+      <sprite scale={[520, 380, 1]} renderOrder={-12}>
+        <spriteMaterial map={haze} transparent depthWrite={false} depthTest={false}
+          blending={THREE.AdditiveBlending} opacity={0.34} toneMapped={false} />
+      </sprite>
+      <sprite scale={[320, 250, 1]} renderOrder={-11}>
+        <spriteMaterial map={glow} transparent depthWrite={false} depthTest={false}
+          blending={THREE.AdditiveBlending} opacity={0.32} toneMapped={false} />
+      </sprite>
+      {puffs.map((p, i) => (
+        <sprite key={i} position={p.pos} scale={[p.size, p.size, 1]} renderOrder={-10}>
+          <spriteMaterial map={p.tex} transparent depthWrite={false} depthTest={false}
+            blending={THREE.AdditiveBlending} opacity={p.op} toneMapped={false} />
+        </sprite>
       ))}
     </group>
   );

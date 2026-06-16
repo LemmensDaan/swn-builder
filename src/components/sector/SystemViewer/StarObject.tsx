@@ -638,6 +638,13 @@ function makeNeutronJets(baseHex: string, size: number): THREE.Group {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+// Pulsar beam motion: the beam is offset from the spin axis (so it sweeps a cone as
+// the star turns — the lighthouse), and that cone slowly precesses (the wobble).
+const JET_OFFSET = THREE.MathUtils.degToRad(14); // magnetic-axis offset from spin axis
+const JET_CONE   = THREE.MathUtils.degToRad(7);  // precession cone half-angle
+const JET_SWEEP_SPEED   = 1.5; // rad/s — lighthouse sweep (decoupled from the crust spin)
+const JET_PRECESS_SPEED = 0.4; // rad/s — slow precession wobble
+
 interface Props {
   obj: SystemObject;
   children?: React.ReactNode;
@@ -657,6 +664,8 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   const chunkGroupRef   = useRef<THREE.Group>(null);
   const coronaRootRef   = useRef<THREE.Group>(null);
   const nsJetsRef       = useRef<THREE.Group>(null);
+  const jetSpinRef      = useRef<THREE.Group>(null);
+  const jetPrecessRef   = useRef<THREE.Group>(null);
   const localTimeRef    = useRef(0);
 
   const [hovered, setHovered] = useState(false);
@@ -742,10 +751,10 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
     if (meshRef.current && !isBlackHole) {
       meshRef.current.rotation.y += delta * spinSpeed;
     }
-    // Neutron star jets also rotate with the star
-    if (nsJetsRef.current && isNeutron) {
-      nsJetsRef.current.rotation.y += delta * spinSpeed;
-    }
+    // Pulsar beams: sweep the offset beam around the spin axis (lighthouse) and let the
+    // whole cone slowly precess (wobble) — two distinct rotations on top of the crust spin.
+    if (jetSpinRef.current)    jetSpinRef.current.rotation.y    += delta * JET_SWEEP_SPEED;
+    if (jetPrecessRef.current) jetPrecessRef.current.rotation.y += delta * JET_PRECESS_SPEED;
 
     // Black hole disk + chunks
     if (diskGroupRef.current)  diskGroupRef.current.rotation.y += delta * 0.5;

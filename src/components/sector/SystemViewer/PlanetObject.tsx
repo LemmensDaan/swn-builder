@@ -132,37 +132,37 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
         {glowTex && (
           <>
             {/* Outermost diffuse haze — large and faint */}
-            <sprite scale={[obj.size * 8.5, obj.size * 8.5, 1]} renderOrder={-3}>
+            <sprite scale={[obj.size * 12, obj.size * 12, 1]} renderOrder={-3}>
               <spriteMaterial
                 map={glowTex}
                 color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
                 transparent
                 depthWrite={false}
-                opacity={0.08}
+                opacity={0.12}
                 blending={THREE.AdditiveBlending}
                 toneMapped={false}
               />
             </sprite>
             {/* Mid-range haze — medium scale and opacity */}
-            <sprite scale={[obj.size * 5.5, obj.size * 5.5, 1]} renderOrder={-2}>
+            <sprite scale={[obj.size * 7.5, obj.size * 7.5, 1]} renderOrder={-2}>
               <spriteMaterial
                 map={glowTex}
                 color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
                 transparent
                 depthWrite={false}
-                opacity={0.25}
+                opacity={0.35}
                 blending={THREE.AdditiveBlending}
                 toneMapped={false}
               />
             </sprite>
             {/* Inner bright haze — tighter to the planet */}
-            <sprite scale={[obj.size * 3.2, obj.size * 3.2, 1]} renderOrder={-1}>
+            <sprite scale={[obj.size * 4, obj.size * 4, 1]} renderOrder={-1}>
               <spriteMaterial
                 map={glowTex}
                 color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
                 transparent
                 depthWrite={false}
-                opacity={0.65}
+                opacity={0.75}
                 blending={THREE.AdditiveBlending}
                 toneMapped={false}
               />
@@ -173,9 +173,9 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
         {isGasGiant && (
           <pointLight
             color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
-            intensity={Math.max(20, obj.size * 45)}
-            distance={Math.max(80, obj.size * 120)}
-            decay={1.5}
+            intensity={Math.max(30, obj.size * 80)}
+            distance={Math.max(100, obj.size * 200)}
+            decay={1}
           />
         )}
         <group ref={axisGroupRef}>

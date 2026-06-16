@@ -72,6 +72,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
   const [addingType, setAddingType] = useState(false);
   const [systemType, setSystemType] = useState<SystemType>('Standard');
   const [view, setView] = useState<PanelView>({ kind: 'objects' });
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function handleRandomize() {
     const newObjects = randomizeSystem(systemType);
@@ -601,13 +602,33 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
 
       {/* Delete system */}
       <div className="px-3 pt-2 border-t border-gray-700/60">
-        <button
-          onClick={onDeleteSystem}
-          className="flex items-center gap-1.5 text-red-500 hover:text-red-400 text-xs transition-colors"
-        >
-          <Trash2 size={12} />
-          Delete System
-        </button>
+        {!confirmingDelete ? (
+          <button
+            onClick={() => setConfirmingDelete(true)}
+            className="flex items-center gap-1.5 text-red-500 hover:text-red-400 text-xs transition-colors"
+          >
+            <Trash2 size={12} />
+            Delete System
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setConfirmingDelete(false)}
+              className="flex-1 px-2 py-1.5 rounded text-xs font-medium text-gray-300 hover:text-gray-100 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                setConfirmingDelete(false);
+                onDeleteSystem();
+              }}
+              className="flex-1 px-2 py-1.5 rounded text-xs font-medium text-red-300 hover:text-red-100 bg-red-950/40 hover:bg-red-950/60 border border-red-800/50 transition-colors"
+            >
+              Confirm Delete
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Faction + Tags + Notes */}

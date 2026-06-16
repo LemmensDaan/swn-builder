@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { ChevronLeft, ChevronRight, Sliders, X, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sliders, X, Clock, Tag, FileText } from 'lucide-react';
 import TimelineEditor from '../shared/TimelineEditor';
 import { sortSystemObjects, getPrimaryObjectTypes } from '../../../types/sector';
 import { useSectorStore } from '../../../store/useSectorStore';
@@ -138,6 +138,9 @@ export default function SystemViewer() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [infoPanelObjectId, setInfoPanelObjectId] = useState<string | null>(null);
+  const [infoPanelTab, setInfoPanelTab] = useState<'overview' | 'notes' | 'tags' | 'history'>('overview');
+  const [systemInfoOpen, setSystemInfoOpen] = useState(false);
+  const [systemInfoTab, setSystemInfoTab] = useState<'overview' | 'notes' | 'tags' | 'history'>('overview');
   const [introComplete, setIntroComplete] = useState(false);
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
   const [starfieldOpacity, setStarfieldOpacity] = useState(0);
@@ -161,8 +164,9 @@ export default function SystemViewer() {
       setInfoPanelObjectId(prev => (prev === id ? null : id));
     } else {
       setSelectedObjectId(id);
-      setInfoPanelObjectId(null);
+      setInfoPanelObjectId(id);
     }
+    setInfoPanelTab('overview');
   }
 
   const selectedObjectSize = selectedObjectId
@@ -232,12 +236,44 @@ export default function SystemViewer() {
           </button>
         </div>
 
-        {/* System name */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none">
-          <h2 className="text-amber-300 text-base font-bold tracking-widest drop-shadow-lg uppercase">
-            {system.name}
-          </h2>
+        {/* System name with info indicators */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <h2 className="text-amber-300 text-base font-bold tracking-widest drop-shadow-lg uppercase">
+              {system.name}
+            </h2>
+            {/* Info indicators */}
+            {(system.notes.trim().length > 0 || system.tags.length > 0 || system.factionId || (system.timeline ?? []).length > 0) && (
+              <button
+                onClick={() => setSystemInfoOpen(!systemInfoOpen)}
+                title="Click to view system information"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-950/40 hover:bg-amber-950/60 border border-amber-800/50 transition-colors"
+              >
+                {system.factionId && (
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: sector?.factions.find(f => f.id === system.factionId)?.color ?? '#888' }} title="Faction assigned" />
+                )}
+                {system.notes.trim().length > 0 && (
+                  <FileText size={11} className="text-amber-700" title="Has notes" />
+                )}
+                {system.tags.length > 0 && (
+                  <span className="text-[10px] text-amber-700 font-medium">{system.tags.length}T</span>
+                )}
+                {(system.timeline ?? []).length > 0 && (
+                  <span className="text-[10px] text-amber-700 font-medium">{(system.timeline ?? []).length}H</span>
+                )}
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* System info button */}
+        <button
+          onClick={() => setSystemInfoOpen(!systemInfoOpen)}
+          title="System information (notes, tags, faction, history)"
+          className="absolute bottom-4 right-16 p-2 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-400 hover:text-gray-200 transition-colors"
+        >
+          <FileText size={16} />
+        </button>
 
         {/* Settings button */}
         <button
@@ -265,12 +301,20 @@ export default function SystemViewer() {
           const hasTags = obj.tags.length > 0;
           const hasNotes = obj.notes.trim().length > 0;
           const hasTimeline = (obj.timeline ?? []).length > 0;
-          const isEmpty = !faction && !hasTags && !hasNotes && !hasTimeline;
+
+          const tabs: Array<{ id: 'overview' | 'notes' | 'tags' | 'history'; label: string; icon: React.ReactNode; count?: number; visible: boolean }> = [
+            { id: 'overview', label: 'Overview', icon: '◆', visible: true },
+            { id: 'notes', label: 'Notes', icon: <FileText size={12} />, count: hasNotes ? 1 : 0, visible: true },
+            { id: 'tags', label: 'Tags', icon: <Tag size={12} />, count: obj.tags.length, visible: true },
+            { id: 'history', label: 'History', icon: <Clock size={12} />, count: (obj.timeline ?? []).length, visible: hasTimeline },
+          ];
+
           return (
-            <div className="absolute bottom-16 left-4 w-72 max-h-[60vh] overflow-y-auto bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur p-3 space-y-2.5">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-gray-100 text-sm font-semibold leading-tight">{obj.name}</p>
+            <div className="absolute bottom-16 left-4 w-80 max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 flex-shrink-0">
+                <div className="min-w-0">
+                  <p className="text-gray-100 text-sm font-semibold leading-tight truncate">{obj.name}</p>
                   <p className="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">{obj.type}</p>
                 </div>
                 <button
@@ -280,39 +324,187 @@ export default function SystemViewer() {
                   <X size={13} />
                 </button>
               </div>
-              {faction && (
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: faction.color }} />
-                  <span className="text-xs text-gray-300">{faction.name}</span>
-                </div>
-              )}
-              {hasTags && (
-                <div className="flex flex-wrap gap-1">
-                  {obj.tags.map(tag => (
-                    <span
-                      key={tag}
-                      className="text-[10px] bg-amber-950/60 text-amber-300 border border-amber-800/50 px-2 py-0.5 rounded-full"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {hasNotes && (
-                <p className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap">{obj.notes}</p>
-              )}
-              {hasTimeline && (
-                <div className="border-t border-gray-700/50 pt-2.5">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Clock size={10} className="text-amber-700" />
-                    <span className="text-[9px] text-gray-600 uppercase tracking-wider font-medium">History</span>
-                  </div>
+
+              {/* Tabs */}
+              <div className="flex gap-1 px-3 pt-2 pb-0 border-b border-gray-700/40 flex-shrink-0 overflow-x-auto">
+                {tabs.filter(t => t.visible).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setInfoPanelTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
+                      infoPanelTab === tab.id
+                        ? 'border-blue-500 text-blue-300'
+                        : 'border-transparent text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    {typeof tab.icon === 'string' ? tab.icon : tab.icon}
+                    {tab.label}
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span className="text-[9px] bg-gray-700/60 px-1.5 rounded-full">{tab.count}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-3">
+                {infoPanelTab === 'overview' && (
+                  <>
+                    {faction && (
+                      <div>
+                        <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium mb-1">Faction</p>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600" style={{ background: faction.color }} />
+                          <span className="text-xs text-gray-300">{faction.name}</span>
+                        </div>
+                      </div>
+                    )}
+                    {!faction && (
+                      <p className="text-xs text-gray-600 italic">No faction assigned</p>
+                    )}
+                  </>
+                )}
+
+                {infoPanelTab === 'notes' && (
+                  <>
+                    {hasNotes ? (
+                      <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{obj.notes}</p>
+                    ) : (
+                      <p className="text-xs text-gray-600 italic">No notes recorded</p>
+                    )}
+                  </>
+                )}
+
+                {infoPanelTab === 'tags' && (
+                  <>
+                    {hasTags ? (
+                      <div className="flex flex-wrap gap-2">
+                        {obj.tags.map(tag => (
+                          <span
+                            key={tag}
+                            className="text-[10px] bg-amber-950/60 text-amber-300 border border-amber-800/50 px-2.5 py-1 rounded-full"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-600 italic">No tags assigned</p>
+                    )}
+                  </>
+                )}
+
+                {infoPanelTab === 'history' && hasTimeline && (
                   <TimelineEditor events={obj.timeline ?? []} onChange={() => {}} compact />
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* System info panel — shown when system info button is clicked */}
+        {systemInfoOpen && (() => {
+          const hasTags = system.tags.length > 0;
+          const hasNotes = system.notes.trim().length > 0;
+          const hasTimeline = (system.timeline ?? []).length > 0;
+          const faction = system.factionId ? sector?.factions.find(f => f.id === system.factionId) : null;
+
+          const tabs: Array<{ id: 'overview' | 'notes' | 'tags' | 'history'; label: string; icon: React.ReactNode; count?: number; visible: boolean }> = [
+            { id: 'overview', label: 'Overview', icon: '◆', visible: true },
+            { id: 'notes', label: 'Notes', icon: <FileText size={12} />, count: hasNotes ? 1 : 0, visible: true },
+            { id: 'tags', label: 'Tags', icon: <Tag size={12} />, count: system.tags.length, visible: true },
+            { id: 'history', label: 'History', icon: <Clock size={12} />, count: (system.timeline ?? []).length, visible: hasTimeline },
+          ];
+
+          return (
+            <div className="absolute bottom-16 right-4 w-80 max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 flex-shrink-0">
+                <div className="min-w-0">
+                  <p className="text-gray-100 text-sm font-semibold leading-tight truncate">{system.name}</p>
+                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">System</p>
                 </div>
-              )}
-              {isEmpty && (
-                <p className="text-xs text-gray-600 italic">No data recorded</p>
-              )}
+                <button
+                  onClick={() => setSystemInfoOpen(false)}
+                  className="text-gray-600 hover:text-gray-300 transition-colors flex-shrink-0 mt-0.5"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex gap-1 px-3 pt-2 pb-0 border-b border-gray-700/40 flex-shrink-0 overflow-x-auto">
+                {tabs.filter(t => t.visible).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setSystemInfoTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
+                      systemInfoTab === tab.id
+                        ? 'border-blue-500 text-blue-300'
+                        : 'border-transparent text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    {typeof tab.icon === 'string' ? tab.icon : tab.icon}
+                    {tab.label}
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span className="text-[9px] bg-gray-700/60 px-1.5 rounded-full">{tab.count}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-3">
+                {systemInfoTab === 'overview' && (
+                  <>
+                    {faction && (
+                      <div>
+                        <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium mb-1">Faction</p>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600" style={{ background: faction.color }} />
+                          <span className="text-xs text-gray-300">{faction.name}</span>
+                        </div>
+                      </div>
+                    )}
+                    {!faction && (
+                      <p className="text-xs text-gray-600 italic">No faction assigned</p>
+                    )}
+                  </>
+                )}
+
+                {systemInfoTab === 'notes' && (
+                  <>
+                    {hasNotes ? (
+                      <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{system.notes}</p>
+                    ) : (
+                      <p className="text-xs text-gray-600 italic">No notes recorded</p>
+                    )}
+                  </>
+                )}
+
+                {systemInfoTab === 'tags' && (
+                  <>
+                    {hasTags ? (
+                      <div className="flex flex-wrap gap-2">
+                        {system.tags.map(tag => (
+                          <span
+                            key={tag}
+                            className="text-[10px] bg-amber-950/60 text-amber-300 border border-amber-800/50 px-2.5 py-1 rounded-full"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-600 italic">No tags assigned</p>
+                    )}
+                  </>
+                )}
+
+                {systemInfoTab === 'history' && hasTimeline && (
+                  <TimelineEditor events={system.timeline ?? []} onChange={() => {}} compact />
+                )}
+              </div>
             </div>
           );
         })()}

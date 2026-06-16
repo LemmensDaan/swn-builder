@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
+import { useOnClickOutside } from '../../../hooks/useOnClickOutside';
 import { ChevronLeft, ChevronRight, Sliders, X, Clock, Tag, FileText } from 'lucide-react';
 import TimelineEditor from '../shared/TimelineEditor';
 import { sortSystemObjects, getPrimaryObjectTypes } from '../../../types/sector';
@@ -148,6 +149,8 @@ export default function SystemViewer() {
   const introOpacityRef = useRef(0);
   const orbitControlsRef = useRef<any>(null);
   const objectPositionsRef = useRef<Record<string, [number, number, number]>>({});
+  const infoPanelRef = useOnClickOutside(() => setInfoPanelObjectId(null));
+  const systemInfoPanelRef = useOnClickOutside(() => setSystemInfoOpen(false));
 
   const system = activeSystemId ? systems[activeSystemId] : null;
   const sector = sectors.find(s => s.id === activeSectorId);
@@ -164,7 +167,7 @@ export default function SystemViewer() {
       setInfoPanelObjectId(prev => (prev === id ? null : id));
     } else {
       setSelectedObjectId(id);
-      setInfoPanelObjectId(id);
+      setInfoPanelObjectId(null);
     }
     setInfoPanelTab('overview');
   }
@@ -310,7 +313,7 @@ export default function SystemViewer() {
           ];
 
           return (
-            <div className="absolute bottom-16 left-4 w-[420px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
+            <div ref={infoPanelRef} className="absolute bottom-16 left-4 w-[420px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
               {/* Header */}
               <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 flex-shrink-0">
                 <div className="min-w-0">
@@ -417,7 +420,7 @@ export default function SystemViewer() {
           ];
 
           return (
-            <div className="absolute bottom-16 right-4 w-[420px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
+            <div ref={systemInfoPanelRef} className="absolute bottom-16 right-4 w-[420px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
               {/* Header */}
               <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 flex-shrink-0">
                 <div className="min-w-0">

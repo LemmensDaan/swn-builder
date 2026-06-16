@@ -98,7 +98,7 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
   const color = type === 'BlackHole' || type === 'NeutronStar'
     ? (OBJECT_TYPE_DEFAULTS[type].colors as [string])[0]
     : pick(STAR_COLORS[systemType], rng);
-  const size = type === 'BlackHole' ? 1.4 : type === 'NeutronStar' ? randBetween(0.12, 0.18, rng) : randBetween(1.5, 2.5, rng);
+  const size = type === 'BlackHole' ? 4.5 : type === 'NeutronStar' ? randBetween(0.4, 0.6, rng) : randBetween(4.5, 7.5, rng);
 
   // Binary stars: both orbit shared barycenter at equal distance, exactly opposite
   // Use SAME seed for both so they have identical angles, then +π offset ensures 180° separation
@@ -119,7 +119,7 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
     orbitSpeed: orbitRad > 0 ? (binaryOrbitSpeed ?? randBetween(0.01, 0.08, rng)) : 0,
     axisInclination: (rng() - 0.5) * 2 * 30,
     ...(type === 'NeutronStar' ? {
-      nsJets: false,            // Pulsar disabled by default
+      nsJets: rng() < 0.3,      // 30% chance of being a pulsar
     } : {}),
     notes: '', tags: [], factionId: null,
     seed: sharedSeed,

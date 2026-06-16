@@ -169,14 +169,14 @@ function makePlanet(
     iceCaps = rng() < 0.15; // hot/toxic: 15% chance
   }
 
-  // Randomize rings: gas giants commonly have them, others rarely
+  // Randomize rings: gas giants commonly have them, rocky planets less frequently
   let rings: boolean;
   if (isMoon) {
     rings = false; // moons never have rings
   } else if (isGas) {
     rings = rng() < 0.7; // gas giants: 70% chance
   } else {
-    rings = rng() < 0.05; // rocky planets: 5% chance (rare)
+    rings = rng() < 0.2; // rocky planets: 20% chance
   }
 
   // Ring inclination: independent tilt, widely varied (±65°). Shared by all bands by default.

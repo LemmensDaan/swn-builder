@@ -135,7 +135,7 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
           <meshLambertMaterial
             color={baseColor}
             transparent
-            opacity={opacity * 0.7}
+            opacity={opacity * 0.5}
             side={THREE.DoubleSide}
             depthWrite={false}
             flatShading

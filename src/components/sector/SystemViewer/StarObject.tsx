@@ -504,59 +504,50 @@ function advancePromSlot(
   }
 }
 
-// ─── Neutron star texture ──────────────────────────────────────────────────────
+// ─── Neutron star geometry (vertex-painted checkerboard) ────────────────────────
+// The icosahedron is non-indexed (each triangle owns its 3 vertices), so painting
+// all 3 vertices of a face the same colour gives flat, crisp two-tone cells.
+// A checkerboard is derived from each face's spherical coords: white vs a light tint.
 
-function makeNeutronStarTexture(color: string): THREE.Texture {
-  const texSize = 512;
-  const canvas = document.createElement('canvas');
-  canvas.width = texSize;
-  canvas.height = texSize;
-  const ctx = canvas.getContext('2d')!;
+function makeNeutronStarGeometry(color: string, size: number, detail: number): THREE.BufferGeometry {
+  const geo = new THREE.IcosahedronGeometry(size, detail);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const count = pos.count; // multiple of 3 — one triple per triangle
 
-  const col = new THREE.Color(color);
-  const img = ctx.getImageData(0, 0, texSize, texSize);
-  const data = img.data;
+  const W = new THREE.Color(1, 1, 1);
+  // Two tints of the selected colour — the lighter cell is 80% toward white,
+  // the darker cell 60%, so the whole star keeps a hint of its colour.
+  const light = new THREE.Color(color).lerp(W, 0.8);
+  const tint  = new THREE.Color(color).lerp(W, 0.6);
 
-  // Noise function for small speckled pattern
-  const noise = (x: number, y: number) => {
-    return Math.sin(x * 0.08) * Math.cos(y * 0.08) +
-           Math.sin(x * 0.15) * Math.cos(y * 0.12) +
-           Math.sin(x * 0.03) * Math.cos(y * 0.04);
+  const colors = new Float32Array(count * 3);
+
+  // IcosahedronGeometry subdivides each of the 20 base faces into a triangular grid.
+  // We replicate three.js's exact triangle-emission order so we can two-colour by the
+  // triangle's orientation within its row (j even / odd) — every triangle alternates
+  // with its edge-neighbours, producing a regular triangular checkerboard.
+  const cols = detail + 1;
+  let tri = 0;
+
+  const paint = (t: number, c: THREE.Color) => {
+    for (let k = 0; k < 3; k++) {
+      const vi = (t * 3 + k) * 3;
+      colors[vi] = c.r; colors[vi + 1] = c.g; colors[vi + 2] = c.b;
+    }
   };
 
-  for (let y = 0; y < texSize; y++) {
-    for (let x = 0; x < texSize; x++) {
-      const idx = (y * texSize + x) * 4;
-
-      // Create speckled pattern with small spots
-      const n = noise(x, y);
-      const pattern = n > 0.3 ? 1 : 0; // Small spots with threshold
-
-      // Get color values
-      const colR = Math.round(col.r * 255);
-      const colG = Math.round(col.g * 255);
-      const colB = Math.round(col.b * 255);
-
-      // Set pixel to either selected color or white
-      if (pattern > 0) {
-        data[idx] = colR;
-        data[idx + 1] = colG;
-        data[idx + 2] = colB;
-      } else {
-        data[idx] = 255;     // White
-        data[idx + 1] = 255;
-        data[idx + 2] = 255;
+  for (let face = 0; face < 20; face++) {
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < 2 * (cols - i) - 1; j++) {
+        if (tri * 3 >= count) break;          // safety against version drift
+        paint(tri, (j % 2 === 0) ? light : tint);
+        tri++;
       }
-      data[idx + 3] = 255;
     }
   }
 
-  ctx.putImageData(img, 0, 0);
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.magFilter = THREE.LinearFilter;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  return tex;
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return geo;
 }
 
 // ─── Neutron star bipolar jets ─────────────────────────────────────────────
@@ -659,8 +650,11 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   const isMagnetar = isNeutron && (obj.nsMagnetar ?? false);
   const nsJets = useMemo(() => showJets ? makeNeutronJets(color, obj.size) : null, [color, obj.size, showJets]);
 
-  // Neutron star texture
-  const nsTex = useMemo(() => isNeutron ? makeNeutronStarTexture(color, obj.size) : null, [color, obj.size, isNeutron]);
+  // Neutron star geometry — checkerboard painted into vertex colours
+  const nsGeo = useMemo(
+    () => isNeutron ? makeNeutronStarGeometry(color, obj.size, highQuality ? 4 : 2) : null,
+    [color, obj.size, isNeutron, highQuality],
+  );
 
   // Neutron star jet tilt — from stored values or seeded random
   const nsJetTilt = useMemo(() => {
@@ -881,21 +875,22 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
           castShadow={false}
           receiveShadow={false}
         >
-          <icosahedronGeometry args={[obj.size, highQuality ? 4 : 2]} />
-          {isNeutron && nsTex ? (
-            <meshStandardMaterial
-              map={nsTex}
-              emissive={color}
-              emissiveIntensity={1.2}
-              roughness={0.2}
-              metalness={0.3}
+          {isNeutron && nsGeo
+            ? <primitive object={nsGeo} attach="geometry" />
+            : <icosahedronGeometry args={[obj.size, highQuality ? 4 : 2]} />}
+          {isNeutron && nsGeo ? (
+            // Self-luminous: meshBasicMaterial ignores all scene lights & shadows,
+            // so the neutron star looks identical whether or not a companion star
+            // is nearby. vertexColors render the painted checkerboard directly.
+            <meshBasicMaterial
+              vertexColors
               toneMapped={false}
             />
           ) : (
             <meshLambertMaterial
               color={isBlackHole ? '#050008' : '#000000'}
               emissive={isBlackHole ? '#000000' : color}
-              emissiveIntensity={isBlackHole ? 0 : isNeutron ? 1.5 : 0.9}
+              emissiveIntensity={isBlackHole ? 0 : isNeutron ? 1.5 : 1.4}
               flatShading
               toneMapped={false}
             />

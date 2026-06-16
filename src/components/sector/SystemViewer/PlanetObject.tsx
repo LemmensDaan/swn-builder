@@ -182,7 +182,17 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
             onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
             onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
           >
-            <meshLambertMaterial vertexColors flatShading shadowSide={THREE.BackSide} />
+            {isGasGiant ? (
+              <meshLambertMaterial
+                vertexColors
+                flatShading
+                shadowSide={THREE.BackSide}
+                emissive={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
+                emissiveIntensity={0.2}
+              />
+            ) : (
+              <meshLambertMaterial vertexColors flatShading shadowSide={THREE.BackSide} />
+            )}
           </mesh>
           {obj.rings && <PlanetRings obj={obj} />}
         </group>

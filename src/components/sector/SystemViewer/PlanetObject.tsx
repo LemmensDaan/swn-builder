@@ -131,14 +131,14 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
         {/* Gas giant glow hazes — baseline plus size-scaled layers */}
         {glowTex && (
           <>
-            {/* Baseline inner haze — always visible */}
+            {/* Baseline inner haze — always visible, bright and gassy */}
             <sprite scale={[obj.size * 3.2, obj.size * 3.2, 1]} renderOrder={-1}>
               <spriteMaterial
                 map={glowTex}
                 color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
                 transparent
                 depthWrite={false}
-                opacity={0.65}
+                opacity={0.85}
                 blending={THREE.AdditiveBlending}
                 toneMapped={false}
               />
@@ -151,7 +151,7 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
                   color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
                   transparent
                   depthWrite={false}
-                  opacity={0.25}
+                  opacity={0.35}
                   blending={THREE.AdditiveBlending}
                   toneMapped={false}
                 />
@@ -164,7 +164,7 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
                   color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
                   transparent
                   depthWrite={false}
-                  opacity={0.12}
+                  opacity={0.18}
                   blending={THREE.AdditiveBlending}
                   toneMapped={false}
                 />

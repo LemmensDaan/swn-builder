@@ -691,20 +691,6 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
     [color, obj.size, isNeutron, highQuality],
   );
 
-  // Neutron star jet tilt — from stored values or seeded random
-  const nsJetTilt = useMemo(() => {
-    if (!isNeutron) return null;
-    if (obj.nsJetTiltX !== undefined || obj.nsJetTiltZ !== undefined) {
-      return {
-        x: THREE.MathUtils.degToRad(obj.nsJetTiltX ?? 0),
-        z: THREE.MathUtils.degToRad(obj.nsJetTiltZ ?? 0),
-      };
-    }
-    const rng = mulberry32((obj.seed ?? obj.id.charCodeAt(0) * 79) >>> 0);
-    return { x: (rng() - 0.5) * Math.PI * 0.5, z: (rng() - 0.5) * Math.PI * 0.5 };
-  }, [isNeutron, obj.nsJetTiltX, obj.nsJetTiltZ, obj.seed, obj.id]);
-
-
   const camera = useThree(state => state.camera);
 
   // Track BH chunk angles
@@ -851,17 +837,6 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
               <spriteMaterial map={glowTex} color="white" transparent depthWrite={false} opacity={0.90}
                 blending={THREE.AdditiveBlending} toneMapped={false} />
             </sprite>
-            {/* Bipolar jets — tilted by the editable jet-axis angles, rotating with the star */}
-            {nsJets && (
-              <primitive ref={nsJetsRef} object={nsJets} rotation-x={nsJetTilt?.x ?? 0} rotation-z={nsJetTilt?.z ?? 0} />
-            )}
-            {/* The beams emit light — two coloured point lights out along the (tilted) jet axis */}
-            {nsJets && !previewMode && (
-              <group rotation-x={nsJetTilt?.x ?? 0} rotation-z={nsJetTilt?.z ?? 0}>
-                <pointLight color={color} intensity={60} distance={120} decay={1.4} position={[0, obj.size * 30, 0]} />
-                <pointLight color={color} intensity={60} distance={120} decay={1.4} position={[0, -obj.size * 30, 0]} />
-              </group>
-            )}
           </>
         )}
 
@@ -932,6 +907,19 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
               />
             )}
           </mesh>
+
+          {/* Bipolar jets — emitted along the spin axis, so they inherit this group's
+              axis-inclination tilt and rotate with the star */}
+          {nsJets && (
+            <primitive ref={nsJetsRef} object={nsJets} />
+          )}
+          {/* The beams emit light — point lights out along the (tilted) spin axis */}
+          {nsJets && !previewMode && (
+            <>
+              <pointLight color={color} intensity={60} distance={120} decay={1.4} position={[0, obj.size * 30, 0]} />
+              <pointLight color={color} intensity={60} distance={120} decay={1.4} position={[0, -obj.size * 30, 0]} />
+            </>
+          )}
         </group>
 
         {hovered && (

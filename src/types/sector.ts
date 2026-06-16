@@ -63,10 +63,8 @@ export interface SystemObject {
   // Black hole accretion disc tilt (degrees). Undefined = randomized from seed.
   bhDiscInclination?: number;
   // Neutron star bipolar jets (a neutron star with jets is a pulsar). Undefined = on.
+  // Jets are emitted along the spin axis, so they follow the star's axisInclination.
   nsJets?: boolean;
-  // Neutron star jet axis tilt (degrees). Undefined = randomized from seed.
-  nsJetTiltX?: number;
-  nsJetTiltZ?: number;
   // Nebula visual shape
   nebulaShape?: NebulaShape;
   // GM notes

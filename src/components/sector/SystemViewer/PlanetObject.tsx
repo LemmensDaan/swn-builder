@@ -128,18 +128,55 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
       {/* Orbit ring for planets and moons */}
       {showOrbits && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
-        {/* Gas giant glow effect in high quality */}
+        {/* Gas giant glow hazes — layered and scaled with size */}
         {glowTex && (
-          <sprite scale={[obj.size * 3.2, obj.size * 3.2, 1]} renderOrder={-1}>
-            <spriteMaterial
-              map={glowTex}
-              color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
-              transparent
-              depthWrite={false}
-              blending={THREE.AdditiveBlending}
-              toneMapped={false}
-            />
-          </sprite>
+          <>
+            {/* Outermost diffuse haze — large and faint */}
+            <sprite scale={[obj.size * 8.5, obj.size * 8.5, 1]} renderOrder={-3}>
+              <spriteMaterial
+                map={glowTex}
+                color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
+                transparent
+                depthWrite={false}
+                opacity={0.08}
+                blending={THREE.AdditiveBlending}
+                toneMapped={false}
+              />
+            </sprite>
+            {/* Mid-range haze — medium scale and opacity */}
+            <sprite scale={[obj.size * 5.5, obj.size * 5.5, 1]} renderOrder={-2}>
+              <spriteMaterial
+                map={glowTex}
+                color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
+                transparent
+                depthWrite={false}
+                opacity={0.25}
+                blending={THREE.AdditiveBlending}
+                toneMapped={false}
+              />
+            </sprite>
+            {/* Inner bright haze — tighter to the planet */}
+            <sprite scale={[obj.size * 3.2, obj.size * 3.2, 1]} renderOrder={-1}>
+              <spriteMaterial
+                map={glowTex}
+                color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
+                transparent
+                depthWrite={false}
+                opacity={0.65}
+                blending={THREE.AdditiveBlending}
+                toneMapped={false}
+              />
+            </sprite>
+          </>
+        )}
+        {/* Gas giant point light — scales with size to simulate luminosity */}
+        {isGasGiant && (
+          <pointLight
+            color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
+            intensity={Math.max(20, obj.size * 45)}
+            distance={Math.max(80, obj.size * 120)}
+            decay={1.5}
+          />
         )}
         <group ref={axisGroupRef}>
           <mesh

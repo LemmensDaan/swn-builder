@@ -240,16 +240,18 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
           {/* Ice Caps + Rings (side by side for planets) */}
           {isPlanet && (
             <div className="flex gap-3">
-              <label className="flex items-center gap-2 py-1 flex-1">
-                <input
-                  type="checkbox"
-                  checked={obj.iceCaps ?? false}
-                  onChange={e => onChange({ iceCaps: e.target.checked })}
-                  className="w-4 h-4 cursor-pointer"
-                />
-                <span className="text-gray-500 text-sm">Ice Caps</span>
-              </label>
-              <label className="flex items-center gap-2 py-1 flex-1">
+              {obj.type !== 'GasGiant' && (
+                <label className="flex items-center gap-2 py-1 flex-1">
+                  <input
+                    type="checkbox"
+                    checked={obj.iceCaps ?? false}
+                    onChange={e => onChange({ iceCaps: e.target.checked })}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                  <span className="text-gray-500 text-sm">Ice Caps</span>
+                </label>
+              )}
+              <label className={`flex items-center gap-2 py-1 ${obj.type !== 'GasGiant' ? 'flex-1' : ''}`}>
                 <input
                   type="checkbox"
                   checked={obj.rings ?? false}
@@ -363,36 +365,7 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                   <span className="text-gray-500 text-sm">Pulsar</span>
                 </label>
               </div>
-              {(obj.nsJets ?? true) && (
-                <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-                  <label className="flex flex-col gap-0.5">
-                    <span className="text-gray-500">Jet Tilt X °</span>
-                    <input
-                      type="number" step="1" min="-90" max="90"
-                      className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-                      value={obj.nsJetTiltX ?? ''}
-                      placeholder="auto"
-                      onChange={e => {
-                        const v = parseFloat(e.target.value);
-                        onChange({ nsJetTiltX: isNaN(v) ? undefined : v });
-                      }}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-0.5">
-                    <span className="text-gray-500">Jet Tilt Z °</span>
-                    <input
-                      type="number" step="1" min="-90" max="90"
-                      className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-                      value={obj.nsJetTiltZ ?? ''}
-                      placeholder="auto"
-                      onChange={e => {
-                        const v = parseFloat(e.target.value);
-                        onChange({ nsJetTiltZ: isNaN(v) ? undefined : v });
-                      }}
-                    />
-                  </label>
-                </div>
-              )}
+              <p className="text-gray-600 text-[11px]">Jets follow the star's Axis Inclination (Object Properties).</p>
             </div>
           )}
 

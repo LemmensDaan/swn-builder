@@ -188,7 +188,7 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
                 flatShading
                 shadowSide={THREE.BackSide}
                 emissive={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
-                emissiveIntensity={0.2}
+                emissiveIntensity={0.08}
               />
             ) : (
               <meshLambertMaterial vertexColors flatShading shadowSide={THREE.BackSide} />

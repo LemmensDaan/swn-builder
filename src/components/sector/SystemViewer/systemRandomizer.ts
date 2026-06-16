@@ -2,8 +2,8 @@ import type { SystemObject, SystemType, PlanetType, ObjectType, NebulaShape } fr
 import { OBJECT_TYPE_DEFAULTS } from '../../../types/sector';
 import { PLANET_PRESETS, mulberry32 } from './planetRenderer';
 
-const BASE_ORBIT = 8;
-const ORBIT_SPACING = 10;
+const BASE_ORBIT = 20;
+const ORBIT_SPACING = 25;
 
 function orbitRadius(order: number, jitter: number): number {
   return BASE_ORBIT + order * ORBIT_SPACING + jitter;

@@ -26,12 +26,16 @@ export default function HexGrid({ sector, systems, selectedQ, selectedR, onSelec
       {sector.hexes.map(cell => {
         const system = cell.systemId ? systems[cell.systemId] : undefined;
         const faction = system?.factionId ? factionById[system.factionId] : undefined;
+        const contestedFactions = system?.contestedFactionIds
+          ?.map(id => factionById[id])
+          .filter((f): f is Faction => !!f);
         return (
           <HexCell
             key={`${cell.q}-${cell.r}`}
             cell={cell}
             system={system}
             faction={faction}
+            contestedFactions={contestedFactions}
             hexSize={HEX_SIZE}
             selected={cell.q === selectedQ && cell.r === selectedR}
             onSelect={() => onSelectHex(cell.q, cell.r)}

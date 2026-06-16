@@ -631,12 +631,14 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
             borderColor="#FCD34D"
             factionId={system.factionId}
             factions={factions}
+            contestedFactionIds={system.contestedFactionIds ?? []}
             tags={system.tags ?? []}
             notes={system.notes}
             events={system.timeline ?? []}
             isExpanded={expandedStoryCardId === 'system'}
             onExpandChange={setExpandedStoryCardId}
             onFactionChange={factionId => updateSystem(system.id, { factionId })}
+            onContestedFactionsChange={ids => updateSystem(system.id, { contestedFactionIds: ids })}
             onTagsChange={tags => updateSystem(system.id, { tags })}
             onNotesChange={notes => updateSystem(system.id, { notes })}
             onTimelineChange={timeline => updateSystem(system.id, { timeline })}
@@ -659,12 +661,14 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
                     borderColor={obj.colors[0]}
                     factionId={obj.factionId}
                     factions={factions}
+                    contestedFactionIds={obj.contestedFactionIds ?? []}
                     tags={obj.tags ?? []}
                     notes={obj.notes}
                     events={obj.timeline ?? []}
                     isExpanded={expandedStoryCardId === obj.id}
                     onExpandChange={setExpandedStoryCardId}
                     onFactionChange={factionId => updateObject(system.id, obj.id, { factionId })}
+                    onContestedFactionsChange={ids => updateObject(system.id, obj.id, { contestedFactionIds: ids })}
                     onTagsChange={tags => updateObject(system.id, obj.id, { tags })}
                     onNotesChange={notes => updateObject(system.id, obj.id, { notes })}
                     onTimelineChange={timeline => updateObject(system.id, obj.id, { timeline })}

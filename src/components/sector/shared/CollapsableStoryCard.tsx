@@ -10,12 +10,14 @@ interface Props {
   borderColor: string;
   factionId: string | null;
   factions: Faction[];
+  contestedFactionIds?: string[];
   tags: string[];
   notes: string;
   events: TimelineEvent[];
   isExpanded: boolean;
   onExpandChange: (id: string | null) => void;
   onFactionChange: (factionId: string | null) => void;
+  onContestedFactionsChange?: (ids: string[]) => void;
   onTagsChange: (tags: string[]) => void;
   onNotesChange: (notes: string) => void;
   onTimelineChange: (events: TimelineEvent[]) => void;
@@ -27,12 +29,14 @@ export default function CollapsableStoryCard({
   borderColor,
   factionId,
   factions,
+  contestedFactionIds,
   tags,
   notes,
   events,
   isExpanded,
   onExpandChange,
   onFactionChange,
+  onContestedFactionsChange,
   onTagsChange,
   onNotesChange,
   onTimelineChange,
@@ -49,7 +53,8 @@ export default function CollapsableStoryCard({
   const hasTags = Array.isArray(tags) && tags.length > 0;
   const hasNotes = typeof notes === 'string' && notes.trim().length > 0;
   const hasHistory = Array.isArray(events) && events.length > 0;
-  const hasAnyContent = hasFaction || hasTags || hasNotes || hasHistory;
+  const hasContested = (contestedFactionIds?.length ?? 0) > 0;
+  const hasAnyContent = hasFaction || hasTags || hasNotes || hasHistory || hasContested;
 
   return (
     <div
@@ -66,7 +71,15 @@ export default function CollapsableStoryCard({
           <p className="text-xs font-semibold text-gray-300">{title}</p>
           {!isExpanded && hasAnyContent && (
             <div className="flex gap-2 mt-1 text-[10px] text-gray-600">
-              {hasFaction && factionId && <span>⬤ faction</span>}
+              {hasFaction && factionId && (() => {
+                const f = factions.find(f => f.id === factionId);
+                return (
+                  <span className="inline-flex items-center gap-0.5 max-w-[80px]" style={{ color: f?.color ?? undefined }}>
+                    <span className="flex-shrink-0">⬤</span>
+                    <span className="truncate">{f?.name ?? 'faction'}</span>
+                  </span>
+                );
+              })()}
               {hasTags && <span>● tags</span>}
               {hasNotes && <span>● notes</span>}
               {hasHistory && <span>● history</span>}
@@ -83,28 +96,77 @@ export default function CollapsableStoryCard({
 
       {isExpanded && (
         <div className="border-t border-gray-700/50 px-4 py-3 space-y-3">
-          {/* Faction */}
+          {/* Faction + Contested — side by side when contested handler is provided */}
           {factions.length > 0 && (
-            <div>
-              <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5 font-semibold">Faction</p>
-              <div className="flex items-center gap-2">
-                {factionId && (
-                  <div
-                    className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
-                    style={{ background: factions.find(f => f.id === factionId)?.color ?? '#888' }}
-                  />
-                )}
-                <select
-                  className="flex-1 bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none cursor-pointer hover:border-gray-600 focus:border-gray-500 transition-colors"
-                  value={factionId ?? ''}
-                  onChange={e => onFactionChange(e.target.value || null)}
-                >
-                  <option value="">— None —</option>
-                  {factions.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                </select>
+            <div className={onContestedFactionsChange ? 'flex gap-2' : undefined}>
+              {/* Faction */}
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5 font-semibold">Faction</p>
+                <div className="flex items-center gap-1.5">
+                  {factionId && (
+                    <div
+                      className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
+                      style={{ background: factions.find(f => f.id === factionId)?.color ?? '#888' }}
+                    />
+                  )}
+                  <select
+                    className="flex-1 min-w-0 bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none cursor-pointer hover:border-gray-600 focus:border-gray-500 transition-colors"
+                    value={factionId ?? ''}
+                    onChange={e => onFactionChange(e.target.value || null)}
+                  >
+                    <option value="">— None —</option>
+                    {factions.map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              {/* Contested — only when handler provided */}
+              {onContestedFactionsChange && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5 font-semibold">Contested</p>
+                  {(contestedFactionIds ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-1.5">
+                      {(contestedFactionIds ?? []).map(fid => {
+                        const f = factions.find(f => f.id === fid);
+                        if (!f) return null;
+                        return (
+                          <span
+                            key={fid}
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] text-gray-200 border border-gray-600/50"
+                            style={{ background: f.color + '33' }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: f.color }} />
+                            <span className="truncate max-w-[48px]">{f.name}</span>
+                            <button
+                              onClick={() => onContestedFactionsChange((contestedFactionIds ?? []).filter(id => id !== fid))}
+                              className="text-gray-500 hover:text-gray-200 leading-none ml-0.5 flex-shrink-0"
+                            >×</button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {(contestedFactionIds?.length ?? 0) < 3 && (
+                    <select
+                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none cursor-pointer hover:border-gray-600 focus:border-gray-500 transition-colors"
+                      value=""
+                      onChange={e => {
+                        if (!e.target.value) return;
+                        const newIds = [...(contestedFactionIds ?? []), e.target.value].slice(0, 3);
+                        onContestedFactionsChange(newIds);
+                      }}
+                    >
+                      <option value="">Add contested…</option>
+                      {factions
+                        .filter(f => !(contestedFactionIds ?? []).includes(f.id))
+                        .map(f => <option key={f.id} value={f.id}>{f.name}</option>)
+                      }
+                    </select>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

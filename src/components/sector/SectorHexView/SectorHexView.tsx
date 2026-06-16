@@ -288,6 +288,7 @@ export default function SectorHexView() {
             maxPolarAngle={CAM_POLAR}
             minDistance={5}
             maxDistance={40}
+            mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
           />
         </Canvas>
 

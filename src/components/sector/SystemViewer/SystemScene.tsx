@@ -11,6 +11,7 @@ import AsteroidBelt from './AsteroidBelt';
 import SpaceStation from './SpaceStation';
 import CometObject from './CometObject';
 import NebulaObject, { SupernovaBackdrop } from './NebulaObject';
+import FactionConnectionWeb from './FactionConnectionWeb';
 
 interface Props {
   system: StarSystem;
@@ -117,6 +118,12 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
           seed={neutronStar.seed ?? neutronStar.id.charCodeAt(0) * 191}
         />
       )}
+
+      <FactionConnectionWeb
+        system={system}
+        visible={prefs?.showFactionZones ?? false}
+        objectPositionsRef={objectPositionsRef}
+      />
 
       {/* Everything that participates in the intro fade */}
       <group ref={fadeGroupRef}>

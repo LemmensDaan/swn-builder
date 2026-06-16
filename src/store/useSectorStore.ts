@@ -24,7 +24,7 @@ interface SectorActions {
 
   // Hex / system CRUD
   createSystem: (sectorId: string, q: number, r: number, name: string) => StarSystem;
-  updateSystem: (systemId: string, updates: Partial<Pick<StarSystem, 'name' | 'factionId' | 'notes' | 'tags' | 'timeline'>>) => void;
+  updateSystem: (systemId: string, updates: Partial<Pick<StarSystem, 'name' | 'factionId' | 'contestedFactionIds' | 'notes' | 'tags' | 'timeline'>>) => void;
   clearHex: (sectorId: string, q: number, r: number) => void;
 
   // Object CRUD

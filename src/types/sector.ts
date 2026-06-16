@@ -71,6 +71,7 @@ export interface SystemObject {
   notes: string;
   tags: string[];
   factionId: string | null;
+  contestedFactionIds?: string[];
   timeline: TimelineEvent[];
 }
 
@@ -81,6 +82,7 @@ export interface StarSystem {
   type?: SystemType;
   objects: SystemObject[];
   factionId: string | null;
+  contestedFactionIds?: string[];
   notes: string;
   tags: string[];
   timeline: TimelineEvent[];

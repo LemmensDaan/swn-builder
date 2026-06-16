@@ -157,6 +157,13 @@ export default function SystemPrefsPanel({ prefs, onChange, onClose }: Props) {
         value={prefs.highQuality}
         onToggle={() => onChange({ ...prefs, highQuality: !prefs.highQuality })}
       />
+
+      <ToggleRow
+        label="Faction web"
+        sublabel="Lines between faction-owned objects"
+        value={prefs.showFactionZones}
+        onToggle={() => onChange({ ...prefs, showFactionZones: !prefs.showFactionZones })}
+      />
     </div>
   );
 }

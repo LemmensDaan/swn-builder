@@ -1,9 +1,10 @@
 export interface SystemPrefs {
   showOrbits: boolean;
   highQuality: boolean;
+  showFactionZones: boolean;
 }
 
-export const DEFAULT_PREFS: SystemPrefs = { showOrbits: true, highQuality: true };
+export const DEFAULT_PREFS: SystemPrefs = { showOrbits: true, highQuality: true, showFactionZones: false };
 
 const LS_KEY = 'swn-system-prefs';
 

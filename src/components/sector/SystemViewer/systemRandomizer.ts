@@ -92,7 +92,7 @@ function makeId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng: () => number, binaryOrbitRad?: number): Omit<SystemObject, 'id'> {
+function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng: () => number, binaryOrbitRad?: number, binaryOrbitSpeed?: number): Omit<SystemObject, 'id'> {
   const isDead = systemType === 'Dead';
   const type: ObjectType = isDead ? (rng() > 0.5 ? 'BlackHole' : 'NeutronStar') : 'Star';
   const color = type === 'BlackHole' || type === 'NeutronStar'
@@ -116,7 +116,7 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
     orbitRadius: orbitRad,
     inclination,
     selfRotationSpeed: type === 'BlackHole' ? 0 : type === 'NeutronStar' ? randBetween(6, 12, rng) : randBetween(0.05, 0.25, rng),
-    orbitSpeed: orbitRad > 0 ? randBetween(0.01, 0.08, rng) : 0,
+    orbitSpeed: orbitRad > 0 ? (binaryOrbitSpeed ?? randBetween(0.01, 0.08, rng)) : 0,
     axisInclination: (rng() - 0.5) * 2 * 30,
     ...(type === 'NeutronStar' ? {
       nsJets:    false,         // Pulsar disabled by default
@@ -263,10 +263,12 @@ export function randomizeSystem(systemType: SystemType): SystemObject[] {
   // For binary systems, calculate shared orbit radius for both stars
   const isBinary = cfg.starCount === 2;
   const binaryOrbitRad = isBinary ? randBetween(10, 16, rng) : undefined;
+  // Both binary stars share the same orbit speed so they stay 180° opposed
+  const binaryOrbitSpeed = isBinary ? randBetween(0.01, 0.08, rng) : undefined;
 
   // Stars
   for (let s = 0; s < cfg.starCount; s++) {
-    objects.push({ id: makeId(), ...makeStar(cfg, systemType, order++, rng, binaryOrbitRad) });
+    objects.push({ id: makeId(), ...makeStar(cfg, systemType, order++, rng, binaryOrbitRad, binaryOrbitSpeed) });
   }
 
   // Inner rocky planets

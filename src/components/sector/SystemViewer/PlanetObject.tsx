@@ -128,67 +128,70 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
       {/* Orbit ring for planets and moons */}
       {showOrbits && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
       <group ref={groupRef}>
-        {/* Gas giant glow hazes — layered and scaled with size */}
+        {/* Gas giant glow hazes — baseline plus size-scaled layers */}
         {glowTex && (
           <>
-            {/* Outermost diffuse haze — large and faint */}
-            <sprite scale={[obj.size * 12, obj.size * 12, 1]} renderOrder={-3}>
+            {/* Baseline inner haze — always visible */}
+            <sprite scale={[obj.size * 3.2, obj.size * 3.2, 1]} renderOrder={-1}>
               <spriteMaterial
                 map={glowTex}
                 color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
                 transparent
                 depthWrite={false}
-                opacity={0.12}
+                opacity={0.65}
                 blending={THREE.AdditiveBlending}
                 toneMapped={false}
               />
             </sprite>
-            {/* Mid-range haze — medium scale and opacity */}
-            <sprite scale={[obj.size * 7.5, obj.size * 7.5, 1]} renderOrder={-2}>
-              <spriteMaterial
-                map={glowTex}
-                color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
-                transparent
-                depthWrite={false}
-                opacity={0.35}
-                blending={THREE.AdditiveBlending}
-                toneMapped={false}
-              />
-            </sprite>
-            {/* Inner bright haze — tighter to the planet */}
-            <sprite scale={[obj.size * 4, obj.size * 4, 1]} renderOrder={-1}>
-              <spriteMaterial
-                map={glowTex}
-                color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
-                transparent
-                depthWrite={false}
-                opacity={0.75}
-                blending={THREE.AdditiveBlending}
-                toneMapped={false}
-              />
-            </sprite>
+            {/* Additional hazes for larger gas giants */}
+            {obj.size > 1.5 && (
+              <sprite scale={[obj.size * 5.5, obj.size * 5.5, 1]} renderOrder={-2}>
+                <spriteMaterial
+                  map={glowTex}
+                  color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
+                  transparent
+                  depthWrite={false}
+                  opacity={0.25}
+                  blending={THREE.AdditiveBlending}
+                  toneMapped={false}
+                />
+              </sprite>
+            )}
+            {obj.size > 2.5 && (
+              <sprite scale={[obj.size * 8.5, obj.size * 8.5, 1]} renderOrder={-3}>
+                <spriteMaterial
+                  map={glowTex}
+                  color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
+                  transparent
+                  depthWrite={false}
+                  opacity={0.12}
+                  blending={THREE.AdditiveBlending}
+                  toneMapped={false}
+                />
+              </sprite>
+            )}
           </>
-        )}
-        {/* Gas giant point light — scales with size to simulate luminosity */}
-        {isGasGiant && (
-          <pointLight
-            color={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
-            intensity={Math.max(30, obj.size * 80)}
-            distance={Math.max(100, obj.size * 200)}
-            decay={1}
-          />
         )}
         <group ref={axisGroupRef}>
           <mesh
             ref={meshRef}
             geometry={geo}
-            castShadow
-            receiveShadow
+            castShadow={!isGasGiant}
+            receiveShadow={!isGasGiant}
             onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
             onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
             onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
           >
-            <meshLambertMaterial vertexColors flatShading shadowSide={THREE.BackSide} />
+            {isGasGiant ? (
+              <meshLambertMaterial
+                vertexColors
+                flatShading
+                emissive={obj.colors[0] ?? obj.primaryColor ?? '#d4924a'}
+                emissiveIntensity={0.4}
+              />
+            ) : (
+              <meshLambertMaterial vertexColors flatShading shadowSide={THREE.BackSide} />
+            )}
           </mesh>
           {obj.rings && <PlanetRings obj={obj} />}
         </group>

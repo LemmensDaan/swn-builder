@@ -642,8 +642,7 @@ function makeNeutronJets(baseHex: string, size: number): THREE.Group {
 // the star turns — the lighthouse), and that cone slowly precesses (the wobble).
 const JET_OFFSET = THREE.MathUtils.degToRad(14); // magnetic-axis offset from spin axis
 const JET_CONE   = THREE.MathUtils.degToRad(7);  // precession cone half-angle
-const JET_SWEEP_SPEED   = 1.5; // rad/s — lighthouse sweep (decoupled from the crust spin)
-const JET_PRECESS_SPEED = 0.4; // rad/s — slow precession wobble
+const JET_PRECESS_SPEED = 0.4; // rad/s — slow precession wobble (independent of spin)
 
 interface Props {
   obj: SystemObject;
@@ -751,9 +750,10 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
     if (meshRef.current && !isBlackHole) {
       meshRef.current.rotation.y += delta * spinSpeed;
     }
-    // Pulsar beams: sweep the offset beam around the spin axis (lighthouse) and let the
-    // whole cone slowly precess (wobble) — two distinct rotations on top of the crust spin.
-    if (jetSpinRef.current)    jetSpinRef.current.rotation.y    += delta * JET_SWEEP_SPEED;
+    // Pulsar beams: sweep the offset beam around the spin axis at the star's own spin
+    // rate (lighthouse), and let the whole cone slowly precess (wobble) — two distinct
+    // rotations on top of the crust spin.
+    if (jetSpinRef.current)    jetSpinRef.current.rotation.y    += delta * spinSpeed;
     if (jetPrecessRef.current) jetPrecessRef.current.rotation.y += delta * JET_PRECESS_SPEED;
 
     // Black hole disk + chunks
@@ -917,17 +917,26 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
             )}
           </mesh>
 
-          {/* Bipolar jets — emitted along the spin axis, so they inherit this group's
-              axis-inclination tilt and rotate with the star */}
+          {/* Pulsar beams — emitted along the star's (axis-tilted) spin axis, with two
+              extra rotations layered on:
+                · precession group  → slowly wobbles the whole beam cone
+                · cone tilt          → half-angle of that precession wobble
+                · sweep group        → offset from the spin axis + fast spin = lighthouse
+              The point lights ride inside the sweep so they track the beams. */}
           {nsJets && (
-            <primitive ref={nsJetsRef} object={nsJets} />
-          )}
-          {/* The beams emit light — point lights out along the (tilted) spin axis */}
-          {nsJets && !previewMode && (
-            <>
-              <pointLight color={color} intensity={60} distance={120} decay={1.4} position={[0, obj.size * 30, 0]} />
-              <pointLight color={color} intensity={60} distance={120} decay={1.4} position={[0, -obj.size * 30, 0]} />
-            </>
+            <group ref={jetPrecessRef}>
+              <group rotation-z={JET_CONE}>
+                <group ref={jetSpinRef} rotation-z={JET_OFFSET}>
+                  <primitive ref={nsJetsRef} object={nsJets} />
+                  {!previewMode && (
+                    <>
+                      <pointLight color={color} intensity={60} distance={120} decay={1.4} position={[0, obj.size * 30, 0]} />
+                      <pointLight color={color} intensity={60} distance={120} decay={1.4} position={[0, -obj.size * 30, 0]} />
+                    </>
+                  )}
+                </group>
+              </group>
+            </group>
           )}
         </group>
 

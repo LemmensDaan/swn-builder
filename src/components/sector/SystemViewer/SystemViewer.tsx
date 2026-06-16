@@ -310,7 +310,7 @@ export default function SystemViewer() {
           ];
 
           return (
-            <div className="absolute bottom-16 left-4 w-80 max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
+            <div className="absolute bottom-16 left-4 w-[420px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
               {/* Header */}
               <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 flex-shrink-0">
                 <div className="min-w-0">
@@ -417,7 +417,7 @@ export default function SystemViewer() {
           ];
 
           return (
-            <div className="absolute bottom-16 right-4 w-80 max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
+            <div className="absolute bottom-16 right-4 w-[420px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
               {/* Header */}
               <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 flex-shrink-0">
                 <div className="min-w-0">

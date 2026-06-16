@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { X, Plus, Eye, Trash2, Shuffle, ChevronLeft } from 'lucide-react';
+import { X, Plus, Eye, Trash2, Shuffle } from 'lucide-react';
 import type { StarSystem, SystemObject, ObjectType, SystemType, Faction } from '../../../types/sector';
 import { sortSystemObjects, getPrimaryObjectTypes } from '../../../types/sector';
 import { useSectorStore } from '../../../store/useSectorStore';
 import { randomizeSystem } from '../SystemViewer/systemRandomizer';
 import ObjectEditor from './ObjectEditor';
-import WorldTagPicker from '../shared/WorldTagPicker';
-import TimelineEditor from '../shared/TimelineEditor';
+import CollapsableStoryCard from '../shared/CollapsableStoryCard';
 
 const SYSTEM_TYPES: SystemType[] = ['Standard', 'Binary', 'Hostile', 'Rich', 'Dead', 'Frontier'];
 
@@ -62,22 +61,24 @@ interface Props {
 
 type DragPayload = { kind: 'tl' | 'child'; objId: string };
 type MainTab = 'system' | 'story';
-type StorySubTab = 'details' | 'timeline';
-type SystemHistory = { kind: 'system' } | { kind: 'object'; objId: string };
 
 export default function SystemPanel({ system, sectorId, onClose, onViewSystem, onDeleteSystem }: Props) {
   const { updateSystem, addObject, updateObject, removeObject, reorderObjects, sectors } = useSectorStore();
   const factions: Faction[] = sectors.find(s => s.id === sectorId)?.factions ?? [];
   const [mainTab, setMainTab] = useState<MainTab>('system');
-  const [storyTab, setStoryTab] = useState<StorySubTab>('details');
   const [addingType, setAddingType] = useState(false);
   const [systemType, setSystemType] = useState<SystemType>('Standard');
-  const [historyView, setHistoryView] = useState<SystemHistory | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [expandedObjectId, setExpandedObjectId] = useState<string | null>(null);
+  const [expandedStoryCardId, setExpandedStoryCardId] = useState<string | null>(null);
 
   const handleObjectExpandChange = (objId: string, expanded: boolean) => {
     setExpandedObjectId(expanded ? objId : null);
+  };
+
+  const handleMainTabChange = (tab: MainTab) => {
+    setMainTab(tab);
+    setExpandedStoryCardId(null);
   };
 
   function handleRandomize() {
@@ -366,12 +367,6 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
     );
   }
 
-  // ── History view helpers ────────────────────────────────────────────────
-
-  const historyObject = historyView?.kind === 'object'
-    ? system.objects.find(o => o.id === historyView.objId) ?? null
-    : null;
-
   return (
     <div className="flex flex-col h-full bg-gray-900/95 backdrop-blur border-l border-gray-700/60">
       {/* Header: name + close */}
@@ -391,7 +386,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
       <div className="flex items-center gap-1 px-4 pb-3 border-b border-gray-700/60">
         <div className="flex gap-1">
           <button
-            onClick={() => setMainTab('system')}
+            onClick={() => handleMainTabChange('system')}
             className={`px-3 py-2 text-xs font-medium rounded-t transition-colors ${
               mainTab === 'system'
                 ? 'text-cyan-300 bg-cyan-950/30 border-b-2 border-cyan-600'
@@ -401,10 +396,10 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
             System
           </button>
           <button
-            onClick={() => setMainTab('story')}
+            onClick={() => handleMainTabChange('story')}
             className={`px-3 py-2 text-xs font-medium rounded-t transition-colors ${
               mainTab === 'story'
-                ? 'text-amber-300 bg-amber-950/30 border-b-2 border-amber-600'
+                ? 'text-purple-300 bg-purple-950/30 border-b-2 border-purple-600'
                 : 'text-gray-500 hover:text-gray-300'
             }`}
           >
@@ -430,7 +425,8 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
               <select
                 value={systemType}
                 onChange={e => setSystemType(e.target.value as SystemType)}
-                className="text-[10px] bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-300 outline-none hover:border-gray-600 transition-colors"
+                className="text-[10px] bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-300 outline-none hover:border-gray-600 transition-colors appearance-none cursor-pointer"
+                style={{ backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23888888%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '1em 1em', paddingRight: '1.5rem' }}
                 title="Select system archetype, then click shuffle to randomize"
               >
                 {SYSTEM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -490,6 +486,8 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
                       onChange={updates => updateObject(system.id, obj.id, updates)}
                       onRemove={() => removeObject(system.id, obj.id)}
                       draggable={false}
+                      expanded={expandedObjectId === obj.id}
+                      onExpandChange={handleObjectExpandChange}
                     />
                   </div>
                 );
@@ -508,6 +506,8 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
                         onChange={updates => updateObject(system.id, obj.id, updates)}
                         onRemove={() => removeObject(system.id, obj.id)}
                         draggable={true}
+                        expanded={expandedObjectId === obj.id}
+                        onExpandChange={handleObjectExpandChange}
                       />
                     </div>
                     {renderDescendants(obj.id)}
@@ -623,152 +623,56 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
 
       {/* STORY TAB */}
       {mainTab === 'story' && (
-        <>
-          {/* Story sub-tabs */}
-          <div className="flex gap-1 px-4 py-2 border-b border-gray-700/60 bg-gray-800/20">
-            <button
-              onClick={() => setStoryTab('details')}
-              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                storyTab === 'details'
-                  ? 'text-purple-300 bg-purple-950/30'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              Details
-            </button>
-            <button
-              onClick={() => setStoryTab('timeline')}
-              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                storyTab === 'timeline'
-                  ? 'text-orange-300 bg-orange-950/30'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              Timeline
-              {(system.timeline ?? []).length > 0 && (
-                <span className="ml-1.5 text-[10px] font-semibold">({(system.timeline ?? []).length})</span>
-              )}
-            </button>
-          </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0 space-y-3">
+          {/* System card */}
+          <CollapsableStoryCard
+            id="system"
+            title={system.name}
+            borderColor="#FCD34D"
+            factionId={system.factionId}
+            factions={factions}
+            tags={system.tags ?? []}
+            notes={system.notes}
+            events={system.timeline ?? []}
+            isExpanded={expandedStoryCardId === 'system'}
+            onExpandChange={setExpandedStoryCardId}
+            onFactionChange={factionId => updateSystem(system.id, { factionId })}
+            onTagsChange={tags => updateSystem(system.id, { tags })}
+            onNotesChange={notes => updateSystem(system.id, { notes })}
+            onTimelineChange={timeline => updateSystem(system.id, { timeline })}
+          />
 
-          {/* Story sub-tab content */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0 space-y-4">
-            {storyTab === 'details' && (
-              <>
-                {/* Faction */}
-                {factions.length > 0 && (
-                  <div>
-                    <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2 font-semibold">Faction</p>
-                    <div className="flex items-center gap-2">
-                      {system.factionId && (
-                        <div
-                          className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
-                          style={{ background: factions.find(f => f.id === system.factionId)?.color ?? '#888' }}
-                        />
-                      )}
-                      <select
-                        className="flex-1 bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none"
-                        value={system.factionId ?? ''}
-                        onChange={e => updateSystem(system.id, { factionId: e.target.value || null })}
-                      >
-                        <option value="">— None —</option>
-                        {factions.map(f => (
-                          <option key={f.id} value={f.id}>{f.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tags */}
-                <div>
-                  <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2 font-semibold">Tags</p>
-                  <WorldTagPicker
-                    tags={system.tags ?? []}
-                    onChange={tags => updateSystem(system.id, { tags })}
+          {/* Object cards */}
+          {sorted.length > 0 && (
+            <div className="space-y-3 pt-2">
+              {sorted
+                .sort((a, b) => {
+                  const aHasContent = (a.factionId && a.factionId !== '') || (a.tags ?? []).length > 0 || a.notes.trim().length > 0 || (a.timeline ?? []).length > 0;
+                  const bHasContent = (b.factionId && b.factionId !== '') || (b.tags ?? []).length > 0 || b.notes.trim().length > 0 || (b.timeline ?? []).length > 0;
+                  return bHasContent ? 1 : -1;
+                })
+                .map(obj => (
+                  <CollapsableStoryCard
+                    key={obj.id}
+                    id={obj.id}
+                    title={obj.name}
+                    borderColor={obj.colors[0]}
+                    factionId={obj.factionId}
+                    factions={factions}
+                    tags={obj.tags ?? []}
+                    notes={obj.notes}
+                    events={obj.timeline ?? []}
+                    isExpanded={expandedStoryCardId === obj.id}
+                    onExpandChange={setExpandedStoryCardId}
+                    onFactionChange={factionId => updateObject(system.id, obj.id, { factionId })}
+                    onTagsChange={tags => updateObject(system.id, obj.id, { tags })}
+                    onNotesChange={notes => updateObject(system.id, obj.id, { notes })}
+                    onTimelineChange={timeline => updateObject(system.id, obj.id, { timeline })}
                   />
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2 font-semibold">Notes</p>
-                  <textarea
-                    rows={5}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-xs text-gray-300 placeholder:text-gray-600 outline-none resize-none focus:border-gray-500 transition-colors"
-                    value={system.notes}
-                    onChange={e => updateSystem(system.id, { notes: e.target.value })}
-                    placeholder="System notes, GM secrets…"
-                  />
-                </div>
-              </>
-            )}
-
-            {storyTab === 'timeline' && (
-              <>
-                {historyView ? (
-                  <>
-                    <div className="flex items-center gap-2 mb-4">
-                      <button
-                        onClick={() => setHistoryView(null)}
-                        className="flex items-center gap-1 text-gray-500 hover:text-gray-300 transition-colors"
-                      >
-                        <ChevronLeft size={14} />
-                      </button>
-                      <p className="text-sm font-semibold text-gray-200">
-                        {historyView.kind === 'system' ? system.name : historyObject?.name ?? '?'}
-                      </p>
-                    </div>
-                    <TimelineEditor
-                      events={historyView.kind === 'system' ? system.timeline ?? [] : historyObject?.timeline ?? []}
-                      onChange={timeline =>
-                        historyView.kind === 'system'
-                          ? updateSystem(system.id, { timeline })
-                          : historyObject && updateObject(system.id, historyObject.id, { timeline })
-                      }
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <button
-                        onClick={() => setHistoryView({ kind: 'system' })}
-                        className="w-full p-3 rounded-lg border border-gray-700/50 bg-gray-800/30 hover:bg-gray-800/50 text-left transition-colors group"
-                      >
-                        <p className="text-xs font-semibold text-gray-300 group-hover:text-gray-100">{system.name}</p>
-                        <p className="text-[10px] text-gray-600 mt-0.5">
-                          {(system.timeline ?? []).length === 0
-                            ? 'No history'
-                            : `${(system.timeline ?? []).length} event${(system.timeline ?? []).length === 1 ? '' : 's'}`}
-                        </p>
-                      </button>
-                    </div>
-                    {sorted.length > 0 && (
-                      <>
-                        <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold mt-4 mb-2">Object History</p>
-                        <div className="space-y-2">
-                          {sorted.map(obj => (
-                            <button
-                              key={obj.id}
-                              onClick={() => setHistoryView({ kind: 'object', objId: obj.id })}
-                              className="w-full p-3 rounded-lg border border-gray-700/50 bg-gray-800/30 hover:bg-gray-800/50 text-left transition-colors group"
-                            >
-                              <p className="text-xs font-semibold text-gray-300 group-hover:text-gray-100">{obj.name}</p>
-                              <p className="text-[10px] text-gray-600 mt-0.5">
-                                {(obj.timeline ?? []).length === 0
-                                  ? 'No history'
-                                  : `${(obj.timeline ?? []).length} event${(obj.timeline ?? []).length === 1 ? '' : 's'}`}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </>
+                ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

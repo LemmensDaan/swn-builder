@@ -221,7 +221,7 @@ export default function SectorHexView() {
 
       {/* Right panel — absolute overlay so it never resizes the canvas */}
       {panelOpen && (
-        <div className="absolute right-0 top-0 bottom-0 w-96 flex flex-col border-l border-gray-700/60 bg-gray-900/95 backdrop-blur">
+        <div className="absolute right-0 top-0 bottom-0 w-[480px] flex flex-col border-l border-gray-700/60 bg-gray-900/95 backdrop-blur">
           {selectedSystem ? (
             <SystemPanel
               system={selectedSystem}

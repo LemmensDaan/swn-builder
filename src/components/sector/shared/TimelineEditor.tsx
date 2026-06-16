@@ -95,9 +95,10 @@ export default function TimelineEditor({ events, onChange, compact = false }: Pr
                   {!compact && (
                     <button
                       onClick={() => removeEvent(event.id)}
-                      className="text-gray-700 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                      className="px-2 py-1 rounded bg-red-950/40 border border-red-800/50 text-red-400 hover:bg-red-950/60 hover:text-red-300 transition-colors flex-shrink-0 mt-0.5"
+                      title="Delete event"
                     >
-                      <X size={10} />
+                      <X size={14} />
                     </button>
                   )}
                 </div>

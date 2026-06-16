@@ -35,29 +35,31 @@ export default function WorldTagPicker({ tags, onChange, placeholder = 'Search w
   }
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap gap-1 items-center min-h-[20px]">
-        {tags.map(tag => (
-          <span
-            key={tag}
-            className="inline-flex items-center gap-0.5 text-[10px] bg-amber-950/60 text-amber-300 border border-amber-800/50 px-2 py-0.5 rounded-full"
-          >
-            {tag}
-            <button
-              onClick={() => remove(tag)}
-              className="text-amber-700 hover:text-amber-300 transition-colors ml-0.5"
+    <div className={tags.length > 0 ? 'space-y-1.5' : ''}>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {tags.map(tag => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-0.5 text-[10px] bg-amber-950/60 text-amber-300 border border-amber-800/50 px-2 py-0.5 rounded-full"
             >
-              <X size={9} />
-            </button>
-          </span>
-        ))}
-        <button
-          onClick={openPicker}
-          className="inline-flex items-center gap-0.5 text-[10px] text-gray-600 hover:text-gray-300 border border-dashed border-gray-700 hover:border-gray-500 px-2 py-0.5 rounded-full transition-colors"
-        >
-          <Plus size={9} /> Tag
-        </button>
-      </div>
+              {tag}
+              <button
+                onClick={() => remove(tag)}
+                className="text-amber-700 hover:text-amber-300 transition-colors ml-0.5"
+              >
+                <X size={9} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <button
+        onClick={openPicker}
+        className="inline-flex items-center gap-0.5 text-[10px] text-gray-600 hover:text-gray-300 border border-dashed border-gray-700 hover:border-gray-500 px-2 py-0.5 rounded-full transition-colors"
+      >
+        <Plus size={9} /> Tag
+      </button>
       {open && (
         <div className="relative">
           <input

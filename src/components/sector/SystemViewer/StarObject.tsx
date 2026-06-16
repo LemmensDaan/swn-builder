@@ -800,8 +800,8 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
         {!previewMode && (
           <pointLight
             color={color}
-            intensity={isBlackHole ? 80 : isNeutron ? 200 : 120}
-            distance={isBlackHole ? 180 : isNeutron ? 320 : 220}
+            intensity={isBlackHole ? 180 : isNeutron ? 350 : 250}
+            distance={isBlackHole ? 400 : isNeutron ? 700 : 500}
             decay={1}
             castShadow
             shadow-mapSize-width={highQuality ? 2048 : 512}

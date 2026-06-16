@@ -142,9 +142,9 @@ export interface Sector {
 
 // Defaults per object type used when manually adding objects
 export const OBJECT_TYPE_DEFAULTS: Record<ObjectType, Partial<SystemObject>> = {
-  Star:        { colors: ['#FFF4C2'], size: 2.0, orbitRadius: 0,  inclination: 0, selfRotationSpeed: 0.08, orbitSpeed: 0, axisInclination: 0 },
-  NeutronStar: { colors: ['#A0CFFF'], size: 0.15, orbitRadius: 0,  inclination: 0, selfRotationSpeed: 9,    nsJets: false, orbitSpeed: 0, axisInclination: 0 },
-  BlackHole:   { colors: ['#ff7828'], size: 1.4, orbitRadius: 0,  inclination: 0, selfRotationSpeed: 0,    orbitSpeed: 0, axisInclination: 0 },
+  Star:        { colors: ['#FFF4C2'], size: 6.0, orbitRadius: 0,  inclination: 0, selfRotationSpeed: 0.08, orbitSpeed: 0, axisInclination: 0 },
+  NeutronStar: { colors: ['#A0CFFF'], size: 0.5, orbitRadius: 0,  inclination: 0, selfRotationSpeed: 9,    nsJets: false, orbitSpeed: 0, axisInclination: 0 },
+  BlackHole:   { colors: ['#ff7828'], size: 4.5, orbitRadius: 0,  inclination: 0, selfRotationSpeed: 0,    orbitSpeed: 0, axisInclination: 0 },
   Planet:      { colors: ['#4E9AF1'], size: 0.7, orbitRadius: 10, inclination: 5, selfRotationSpeed: 0.15,
                  planetType: 'Terran', primaryColor: '#3a7bd5', secondaryColor: '#3d9e3d', iceCaps: true, rings: false, ringInclination: 0, ringCount: 3, ringSize: 1, seed: 42, orbitSpeed: 0, axisInclination: 0 },
   GasGiant:    { colors: ['#D4924A', '#C1783B'], size: 1.4, orbitRadius: 22, inclination: 3, selfRotationSpeed: 0.06,

@@ -131,11 +131,25 @@ export interface Faction {
   retired?: boolean;
 }
 
+export type RouteCategory = 'known' | 'experimental' | 'crew-traveled' | 'crew-discovered' | 'hazardous';
+
+export interface SpikeRoute {
+  id: string;
+  fromQ: number;
+  fromR: number;
+  toQ: number;
+  toR: number;
+  category: RouteCategory;
+  label?: string;
+  notes?: string;
+}
+
 export interface Sector {
   id: string;
   name: string;
   hexes: HexCell[];
   factions: Faction[];
+  routes: SpikeRoute[];
   triangleIndex: number;
   notes: string;
 }

@@ -79,9 +79,13 @@ interface Props {
   selected: boolean;
   onSelect: () => void;
   zoomProgressRef?: React.MutableRefObject<number>;
+  routeMode?: boolean;
+  isRouteStart?: boolean;
 }
 
-export default function HexCell({ cell, system, faction, hexSize, selected, onSelect, zoomProgressRef }: Props) {
+const EMISSIVE_ROUTE_START = new THREE.Color('#86efac');
+
+export default function HexCell({ cell, system, faction, hexSize, selected, onSelect, zoomProgressRef, routeMode, isRouteStart }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -107,12 +111,15 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
     // Empty tile hover: lighten the fill color
     matRef.current.color.copy(hovered && !system && !faction ? HEX_BASE_HOVER_COLOR : color);
 
-    // Pulsing emissive for selected, steady dim glow for hover
-    if (selected) {
+    // Pulsing emissive for selected/routeStart, steady dim glow for hover
+    if (isRouteStart) {
+      matRef.current.emissive = EMISSIVE_ROUTE_START;
+      matRef.current.emissiveIntensity = 0.5 + 0.3 * Math.sin(state.clock.elapsedTime * 3);
+    } else if (selected) {
       matRef.current.emissive = EMISSIVE_GLOW;
       matRef.current.emissiveIntensity = 0.45 + 0.25 * Math.sin(state.clock.elapsedTime * 2.5);
     } else if (hovered) {
-      matRef.current.emissive = EMISSIVE_GLOW;
+      matRef.current.emissive = routeMode ? EMISSIVE_ROUTE_START : EMISSIVE_GLOW;
       matRef.current.emissiveIntensity = 0.3;
     } else {
       matRef.current.emissive = EMISSIVE_NONE;
@@ -152,7 +159,7 @@ export default function HexCell({ cell, system, faction, hexSize, selected, onSe
         ref={meshRef}
         rotation={[-Math.PI / 2, 0, 0]}
         onClick={e => { e.stopPropagation(); onSelect(); }}
-        onPointerEnter={e => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+        onPointerEnter={e => { e.stopPropagation(); setHovered(true); document.body.style.cursor = routeMode ? 'crosshair' : 'pointer'; }}
         onPointerLeave={() => { setHovered(false); document.body.style.cursor = ''; }}
       >
         <shapeGeometry args={[shape]} />

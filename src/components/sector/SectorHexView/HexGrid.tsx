@@ -11,9 +11,12 @@ interface Props {
   selectedR: number | null;
   onSelectHex: (q: number, r: number) => void;
   zoomProgressRef?: React.MutableRefObject<number>;
+  routeMode?: boolean;
+  routeStartQ?: number | null;
+  routeStartR?: number | null;
 }
 
-export default function HexGrid({ sector, systems, selectedQ, selectedR, onSelectHex, zoomProgressRef }: Props) {
+export default function HexGrid({ sector, systems, selectedQ, selectedR, onSelectHex, zoomProgressRef, routeMode, routeStartQ, routeStartR }: Props) {
   const factionById: Record<string, Faction> = Object.fromEntries(
     sector.factions.map(f => [f.id, f])
   );
@@ -33,6 +36,8 @@ export default function HexGrid({ sector, systems, selectedQ, selectedR, onSelec
             selected={cell.q === selectedQ && cell.r === selectedR}
             onSelect={() => onSelectHex(cell.q, cell.r)}
             zoomProgressRef={zoomProgressRef}
+            routeMode={routeMode}
+            isRouteStart={cell.q === routeStartQ && cell.r === routeStartR}
           />
         );
       })}

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import localforage from 'localforage';
-import type { Sector, StarSystem, SystemObject, Faction, HexCell, NebulaShape } from '../types/sector';
+import type { Sector, StarSystem, SystemObject, Faction, HexCell, NebulaShape, SpikeRoute, RouteCategory } from '../types/sector';
 import { makeEmptyHexGrid, OBJECT_TYPE_DEFAULTS } from '../types/sector';
 import { GALAXY_TRIANGLES } from '../components/sector/GalaxyView/galaxyData';
 
@@ -38,6 +38,11 @@ interface SectorActions {
   navigateToSystem: (systemId: string) => void;
   navigateBack: () => void;
   navigateHome: () => void;
+
+  // Route CRUD
+  addRoute: (sectorId: string, fromQ: number, fromR: number, toQ: number, toR: number, category: RouteCategory, label?: string) => SpikeRoute;
+  updateRoute: (sectorId: string, routeId: string, updates: Partial<Omit<SpikeRoute, 'id'>>) => void;
+  removeRoute: (sectorId: string, routeId: string) => void;
 
   // Faction CRUD
   addFaction: (sectorId: string, name: string, color: string) => Faction;
@@ -81,6 +86,7 @@ export const useSectorStore = create<SectorStore>()(
           name,
           hexes: makeEmptyHexGrid(),
           factions: [],
+          routes: [],
           notes: '',
           triangleIndex,
         };
@@ -378,6 +384,36 @@ export const useSectorStore = create<SectorStore>()(
         set({ layer: 'galaxy', activeSectorId: null, activeSystemId: null });
       },
 
+      addRoute(sectorId, fromQ, fromR, toQ, toR, category, label) {
+        const route: SpikeRoute = { id: crypto.randomUUID(), fromQ, fromR, toQ, toR, category, label, notes: '' };
+        set(s => ({
+          sectors: s.sectors.map(sec =>
+            sec.id === sectorId ? { ...sec, routes: [...(sec.routes ?? []), route] } : sec
+          ),
+        }));
+        return route;
+      },
+
+      updateRoute(sectorId, routeId, updates) {
+        set(s => ({
+          sectors: s.sectors.map(sec =>
+            sec.id === sectorId
+              ? { ...sec, routes: sec.routes.map(r => r.id === routeId ? { ...r, ...updates } : r) }
+              : sec
+          ),
+        }));
+      },
+
+      removeRoute(sectorId, routeId) {
+        set(s => ({
+          sectors: s.sectors.map(sec =>
+            sec.id === sectorId
+              ? { ...sec, routes: sec.routes.filter(r => r.id !== routeId) }
+              : sec
+          ),
+        }));
+      },
+
       addFaction(sectorId, name, color) {
         const faction: Faction = {
           id: crypto.randomUUID(), name, color, notes: '',
@@ -425,7 +461,7 @@ export const useSectorStore = create<SectorStore>()(
     }),
     {
       name: 'swn-sector-data',
-      version: 4,
+      version: 5,
       migrate(persistedState, version) {
         const state = persistedState as { sectors: Sector[]; systems: Record<string, StarSystem> };
         if (version < 1) {
@@ -473,6 +509,12 @@ export const useSectorStore = create<SectorStore>()(
               ...f,
               timeline: Array.isArray(f.timeline) ? f.timeline : [],
             })),
+          }));
+        }
+        if (version < 5) {
+          state.sectors = state.sectors.map((s: any) => ({
+            ...s,
+            routes: Array.isArray(s.routes) ? s.routes : [],
           }));
         }
         return state;

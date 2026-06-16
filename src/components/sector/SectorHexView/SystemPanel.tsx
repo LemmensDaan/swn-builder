@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Plus, Eye, Trash2, Shuffle, Clock, ChevronLeft } from 'lucide-react';
+import { X, Plus, Eye, Trash2, Shuffle, ChevronLeft } from 'lucide-react';
 import type { StarSystem, SystemObject, ObjectType, SystemType, Faction } from '../../../types/sector';
 import { sortSystemObjects, getPrimaryObjectTypes } from '../../../types/sector';
 import { useSectorStore } from '../../../store/useSectorStore';
@@ -61,18 +61,24 @@ interface Props {
 }
 
 type DragPayload = { kind: 'tl' | 'child'; objId: string };
-type PanelView =
-  | { kind: 'objects' }
-  | { kind: 'system-history' }
-  | { kind: 'object-history'; objId: string };
+type MainTab = 'system' | 'story';
+type StorySubTab = 'details' | 'timeline';
+type SystemHistory = { kind: 'system' } | { kind: 'object'; objId: string };
 
 export default function SystemPanel({ system, sectorId, onClose, onViewSystem, onDeleteSystem }: Props) {
   const { updateSystem, addObject, updateObject, removeObject, reorderObjects, sectors } = useSectorStore();
   const factions: Faction[] = sectors.find(s => s.id === sectorId)?.factions ?? [];
+  const [mainTab, setMainTab] = useState<MainTab>('system');
+  const [storyTab, setStoryTab] = useState<StorySubTab>('details');
   const [addingType, setAddingType] = useState(false);
   const [systemType, setSystemType] = useState<SystemType>('Standard');
-  const [view, setView] = useState<PanelView>({ kind: 'objects' });
+  const [historyView, setHistoryView] = useState<SystemHistory | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [expandedObjectId, setExpandedObjectId] = useState<string | null>(null);
+
+  const handleObjectExpandChange = (objId: string, expanded: boolean) => {
+    setExpandedObjectId(expanded ? objId : null);
+  };
 
   function handleRandomize() {
     const newObjects = randomizeSystem(systemType);
@@ -232,9 +238,19 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
     const extraUpdates: Partial<SystemObject> =
       (() => {
         const newParentObj = !willBeTopLevel ? sorted.find(o => o.id === newParentId) : undefined;
-        return newParentObj?.type === 'AsteroidBelt'
-          ? { inclination: newParentObj.inclination }
-          : {};
+        const oldParentObj = sorted.find(o => o.id === obj.parentId);
+
+        // Moving TO a belt: inherit orbit properties
+        if (newParentObj?.type === 'AsteroidBelt') {
+          return { inclination: newParentObj.inclination, orbitSpeed: newParentObj.orbitSpeed };
+        }
+
+        // Moving AWAY from a belt: reset orbitSpeed to default
+        if (oldParentObj?.type === 'AsteroidBelt') {
+          return { orbitSpeed: 0.05 };
+        }
+
+        return {};
       })();
 
     reorderObjects(
@@ -274,6 +290,12 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
     const targetIsPrimary = primaryTypes.has(targetObj.type);
     const targetIsTL      = isTopLevelNonPrimary(targetObj);
 
+    // Resolve the belt the drop would end up in (if any) and validate the type
+    const wouldBeInBelt = (parentId: string | null | undefined) => {
+      const parent = parentId ? sorted.find(o => o.id === parentId) : undefined;
+      return parent?.type === 'AsteroidBelt';
+    };
+
     if (payload.kind === 'tl') {
       if (targetIsPrimary) return;
       if (targetIsTL) {
@@ -295,12 +317,6 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
       }
       return;
     }
-
-    // Resolve the belt the drop would end up in (if any) and validate the type
-    const wouldBeInBelt = (parentId: string | null | undefined) => {
-      const parent = parentId ? sorted.find(o => o.id === parentId) : undefined;
-      return parent?.type === 'AsteroidBelt';
-    };
 
     // kind === 'child'
     if (targetIsPrimary) {
@@ -339,8 +355,8 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
                 onChange={updates => updateObject(system.id, child.id, updates)}
                 onRemove={() => removeObject(system.id, child.id)}
                 draggable={true}
-                factions={factions}
-                onOpenHistory={() => setView({ kind: 'object-history', objId: child.id })}
+                expanded={expandedObjectId === child.id}
+                onExpandChange={handleObjectExpandChange}
               />
             </div>
             {renderDescendants(child.id)}
@@ -352,326 +368,408 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
 
   // ── History view helpers ────────────────────────────────────────────────
 
-  const historyObject = view.kind === 'object-history'
-    ? system.objects.find(o => o.id === view.objId) ?? null
+  const historyObject = historyView?.kind === 'object'
+    ? system.objects.find(o => o.id === historyView.objId) ?? null
     : null;
 
   return (
     <div className="flex flex-col h-full bg-gray-900/95 backdrop-blur border-l border-gray-700/60">
-      {/* Header row 1: name + close OR history back-nav */}
-      {view.kind === 'objects' ? (
-        <div className="flex items-center gap-2 px-4 pt-3 pb-1">
-          <input
-            className="flex-1 bg-transparent text-base font-bold text-amber-300 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-amber-600 transition-colors"
-            value={system.name}
-            onChange={e => updateSystem(system.id, { name: e.target.value })}
-            placeholder="System name"
-          />
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 flex-shrink-0">
-            <X size={18} />
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 px-4 pt-3 pb-1">
-          <button
-            onClick={() => setView({ kind: 'objects' })}
-            className="flex items-center gap-1 text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0"
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <p className="flex-1 text-sm font-semibold text-gray-200 truncate">
-            {view.kind === 'system-history' ? `${system.name} — History` : `${historyObject?.name ?? '?'} — History`}
-          </p>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 flex-shrink-0">
-            <X size={18} />
-          </button>
-        </div>
-      )}
+      {/* Header: name + close */}
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+        <input
+          className="flex-1 bg-transparent text-base font-bold text-amber-300 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-amber-600 transition-colors"
+          value={system.name}
+          onChange={e => updateSystem(system.id, { name: e.target.value })}
+          placeholder="System name"
+        />
+        <button onClick={onClose} className="text-gray-500 hover:text-gray-300 flex-shrink-0">
+          <X size={18} />
+        </button>
+      </div>
 
-      {/* Header row 2: actions (objects view only) */}
-      {view.kind === 'objects' && (
-        <div className="flex items-center gap-2 px-4 pb-3 border-b border-gray-700/60">
+      {/* Main tabs + View 3D button */}
+      <div className="flex items-center gap-1 px-4 pb-3 border-b border-gray-700/60">
+        <div className="flex gap-1">
           <button
-            onClick={onViewSystem}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-800 hover:bg-sky-700 text-sky-200 text-xs font-medium transition-colors flex-shrink-0"
-          >
-            <Eye size={13} />
-            View 3D
-          </button>
-          <button
-            onClick={() => setView({ kind: 'system-history' })}
-            title="System history"
-            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs transition-colors flex-shrink-0 ${
-              (system.timeline ?? []).length > 0
-                ? 'text-amber-600 hover:text-amber-400 bg-amber-950/30 hover:bg-amber-950/50'
-                : 'text-gray-600 hover:text-gray-300 bg-gray-800/50 hover:bg-gray-700/50'
+            onClick={() => setMainTab('system')}
+            className={`px-3 py-2 text-xs font-medium rounded-t transition-colors ${
+              mainTab === 'system'
+                ? 'text-cyan-300 bg-cyan-950/30 border-b-2 border-cyan-600'
+                : 'text-gray-500 hover:text-gray-300'
             }`}
           >
-            <Clock size={13} />
-            {(system.timeline ?? []).length > 0 && (
-              <span>{(system.timeline ?? []).length}</span>
-            )}
+            System
           </button>
-          <div className="flex items-center gap-1.5 ml-auto">
-            <span className="text-[9px] text-gray-600 font-medium uppercase tracking-wider">Randomize</span>
-            <select
-              value={systemType}
-              onChange={e => setSystemType(e.target.value as SystemType)}
-              className="text-[10px] bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-300 outline-none hover:border-gray-600 transition-colors"
-              title="Select system archetype, then click shuffle to randomize"
-            >
-              {SYSTEM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <button
-              onClick={handleRandomize}
-              title="Randomize system with selected type"
-              className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-amber-300 transition-colors"
-            >
-              <Shuffle size={13} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* History views */}
-      {view.kind === 'system-history' && (
-        <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
-          <TimelineEditor
-            events={system.timeline ?? []}
-            onChange={timeline => updateSystem(system.id, { timeline })}
-          />
-        </div>
-      )}
-
-      {view.kind === 'object-history' && historyObject && (
-        <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
-          <TimelineEditor
-            events={historyObject.timeline ?? []}
-            onChange={timeline => updateObject(system.id, historyObject.id, { timeline })}
-          />
-        </div>
-      )}
-
-      {/* Object list + footer (objects view only) */}
-      {view.kind === 'objects' && (<>
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 min-h-0">
-        {sorted.length === 0 && (
-          <p className="text-gray-600 text-xs text-center py-6">No objects yet. Add one below.</p>
-        )}
-
-        {/* Primary objects — accept drops but not draggable */}
-        {primaryObjs.map(obj => (
-          <div
-            key={obj.id}
-            onDragOver={e => e.preventDefault()}
-            onDrop={e => onDrop(e, obj)}
-            title="Drop here to make an object orbit the star"
+          <button
+            onClick={() => setMainTab('story')}
+            className={`px-3 py-2 text-xs font-medium rounded-t transition-colors ${
+              mainTab === 'story'
+                ? 'text-amber-300 bg-amber-950/30 border-b-2 border-amber-600'
+                : 'text-gray-500 hover:text-gray-300'
+            }`}
           >
-            <ObjectEditor
-              obj={obj}
-              allObjects={system.objects}
-              onChange={updates => updateObject(system.id, obj.id, updates)}
-              onRemove={() => removeObject(system.id, obj.id)}
-              draggable={false}
-              factions={factions}
-              onOpenHistory={() => setView({ kind: 'object-history', objId: obj.id })}
-            />
-          </div>
-        ))}
+            Story
+          </button>
+        </div>
+        <button
+          onClick={onViewSystem}
+          className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg bg-sky-800 hover:bg-sky-700 text-sky-200 text-xs font-medium transition-colors flex-shrink-0"
+        >
+          <Eye size={13} />
+          View 3D
+        </button>
+      </div>
 
-        {/* Separator */}
-        {primaryObjs.length > 0 && sorted.length > primaryObjs.length && (
-          <div className="border-t border-gray-700/40" />
-        )}
+      {/* SYSTEM TAB */}
+      {mainTab === 'system' && (
+        <>
+          {/* Randomize controls (only when system is empty) */}
+          {sorted.length === 0 && (
+            <div className="flex items-center gap-1.5 px-4 py-2 border-b border-gray-700/60 bg-gray-800/30 ml-auto">
+              <span className="text-[9px] text-gray-600 font-medium uppercase tracking-wider">Randomize</span>
+              <select
+                value={systemType}
+                onChange={e => setSystemType(e.target.value as SystemType)}
+                className="text-[10px] bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-300 outline-none hover:border-gray-600 transition-colors"
+                title="Select system archetype, then click shuffle to randomize"
+              >
+                {SYSTEM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <button
+                onClick={handleRandomize}
+                title="Randomize system with selected type"
+                className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-amber-300 transition-colors"
+              >
+                <Shuffle size={13} />
+              </button>
+            </div>
+          )}
 
-        {/* Top-level non-primary objects (draggable) with children nested below */}
-        {(() => {
-          const sysZone  = topLevelNonPrimary.filter(o => !o.isDeepSpace);
-          const deepZone = topLevelNonPrimary.filter(o => o.isDeepSpace);
+          {/* Objects list */}
+          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 min-h-0">
+            {sorted.length === 0 && (
+              <p className="text-gray-600 text-xs text-center py-6">No objects yet. Add one below.</p>
+            )}
 
-          const renderObj = (obj: SystemObject) => {
-            if (obj.type === 'Nebula' || obj.type === 'Comet') return (
-              <div key={obj.id}>
+            {/* Primary objects — accept drops but not draggable */}
+            {primaryObjs.map(obj => (
+              <div
+                key={obj.id}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => onDrop(e, obj)}
+                title="Drop here to make an object orbit the star"
+              >
                 <ObjectEditor
                   obj={obj}
                   allObjects={system.objects}
                   onChange={updates => updateObject(system.id, obj.id, updates)}
                   onRemove={() => removeObject(system.id, obj.id)}
                   draggable={false}
-                  factions={factions}
-                  onOpenHistory={() => setView({ kind: 'object-history', objId: obj.id })}
+                  expanded={expandedObjectId === obj.id}
+                  onExpandChange={handleObjectExpandChange}
                 />
               </div>
-            );
-            return (
-              <div key={obj.id}>
-                <div
-                  draggable
-                  onDragStart={e => onDragStart(e, obj)}
-                  onDragOver={e => e.preventDefault()}
-                  onDrop={e => onDrop(e, obj)}
-                  className="cursor-grab active:cursor-grabbing"
+            ))}
+
+            {/* Separator */}
+            {primaryObjs.length > 0 && sorted.length > primaryObjs.length && (
+              <div className="border-t border-gray-700/40" />
+            )}
+
+            {/* Top-level non-primary objects (draggable) with children nested below */}
+            {(() => {
+              const sysZone  = topLevelNonPrimary.filter(o => !o.isDeepSpace);
+              const deepZone = topLevelNonPrimary.filter(o => o.isDeepSpace);
+
+              const renderObj = (obj: SystemObject) => {
+                if (obj.type === 'Nebula' || obj.type === 'Comet') return (
+                  <div key={obj.id}>
+                    <ObjectEditor
+                      obj={obj}
+                      allObjects={system.objects}
+                      onChange={updates => updateObject(system.id, obj.id, updates)}
+                      onRemove={() => removeObject(system.id, obj.id)}
+                      draggable={false}
+                    />
+                  </div>
+                );
+                return (
+                  <div key={obj.id}>
+                    <div
+                      draggable
+                      onDragStart={e => onDragStart(e, obj)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => onDrop(e, obj)}
+                      className="cursor-grab active:cursor-grabbing"
+                    >
+                      <ObjectEditor
+                        obj={obj}
+                        allObjects={system.objects}
+                        onChange={updates => updateObject(system.id, obj.id, updates)}
+                        onRemove={() => removeObject(system.id, obj.id)}
+                        draggable={true}
+                      />
+                    </div>
+                    {renderDescendants(obj.id)}
+                  </div>
+                );
+              };
+
+              const onDropSeparator = (e: React.DragEvent) => {
+                e.preventDefault();
+                const raw = e.dataTransfer.getData('swn-drag');
+                if (!raw) return;
+                let payload: DragPayload;
+                try { payload = JSON.parse(raw); } catch { return; }
+                const dragged = sorted.find(o => o.id === payload.objId);
+                if (!dragged || dragged.isDeepSpace) return;
+                moveToZone(dragged, true);
+              };
+
+              return (
+                <>
+                  {sysZone.map(renderObj)}
+                  <div
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={onDropSeparator}
+                    className="my-2 flex items-center gap-2 rounded py-0.5 transition-colors hover:bg-gray-700/20"
+                    title="Drop here to move to deep space"
+                  >
+                    <div className="flex-1 border-t border-gray-600/60" />
+                    <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold select-none">Deep Space</span>
+                    <div className="flex-1 border-t border-gray-600/60" />
+                  </div>
+                  {deepZone.map(renderObj)}
+                </>
+              );
+            })()}
+          </div>
+
+          {/* Add object section */}
+          <div className="px-3 py-3 border-t border-gray-700/60 bg-gray-800/20">
+            {!addingType ? (
+              <button
+                onClick={() => setAddingType(true)}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-gray-600 text-gray-500 hover:text-gray-300 hover:border-gray-500 text-sm transition-colors"
+              >
+                <Plus size={14} />
+                Add Object
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_TYPES.map(({ type, label, extra }) => {
+                    const color = OBJECT_TYPE_COLORS[type];
+                    return (
+                      <button
+                        key={label}
+                        onClick={() => {
+                          addObject(system.id, { type, ...extra });
+                          setAddingType(false);
+                        }}
+                        className="px-2.5 py-1 rounded-md bg-gray-800 hover:bg-gray-700 border text-xs font-medium transition-colors"
+                        style={{
+                          borderColor: color,
+                          color: color,
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => setAddingType(false)}
+                  className="text-xs text-gray-600 hover:text-gray-400"
                 >
-                  <ObjectEditor
-                    obj={obj}
-                    allObjects={system.objects}
-                    onChange={updates => updateObject(system.id, obj.id, updates)}
-                    onRemove={() => removeObject(system.id, obj.id)}
-                    draggable={true}
-                    factions={factions}
-                    onOpenHistory={() => setView({ kind: 'object-history', objId: obj.id })}
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Delete system section */}
+          <div className="px-3 py-3 border-t border-gray-700/60 bg-gray-800/10">
+            {!confirmingDelete ? (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="flex items-center gap-1.5 text-red-500 hover:text-red-400 text-xs transition-colors"
+              >
+                <Trash2 size={12} />
+                Delete System
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setConfirmingDelete(false)}
+                  className="flex-1 px-2 py-1.5 rounded text-xs font-medium text-gray-300 hover:text-gray-100 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setConfirmingDelete(false);
+                    onDeleteSystem();
+                  }}
+                  className="flex-1 px-2 py-1.5 rounded text-xs font-medium text-red-300 hover:text-red-100 bg-red-950/40 hover:bg-red-950/60 border border-red-800/50 transition-colors"
+                >
+                  Confirm Delete
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* STORY TAB */}
+      {mainTab === 'story' && (
+        <>
+          {/* Story sub-tabs */}
+          <div className="flex gap-1 px-4 py-2 border-b border-gray-700/60 bg-gray-800/20">
+            <button
+              onClick={() => setStoryTab('details')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                storyTab === 'details'
+                  ? 'text-purple-300 bg-purple-950/30'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Details
+            </button>
+            <button
+              onClick={() => setStoryTab('timeline')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                storyTab === 'timeline'
+                  ? 'text-orange-300 bg-orange-950/30'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Timeline
+              {(system.timeline ?? []).length > 0 && (
+                <span className="ml-1.5 text-[10px] font-semibold">({(system.timeline ?? []).length})</span>
+              )}
+            </button>
+          </div>
+
+          {/* Story sub-tab content */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0 space-y-4">
+            {storyTab === 'details' && (
+              <>
+                {/* Faction */}
+                {factions.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2 font-semibold">Faction</p>
+                    <div className="flex items-center gap-2">
+                      {system.factionId && (
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
+                          style={{ background: factions.find(f => f.id === system.factionId)?.color ?? '#888' }}
+                        />
+                      )}
+                      <select
+                        className="flex-1 bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none"
+                        value={system.factionId ?? ''}
+                        onChange={e => updateSystem(system.id, { factionId: e.target.value || null })}
+                      >
+                        <option value="">— None —</option>
+                        {factions.map(f => (
+                          <option key={f.id} value={f.id}>{f.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tags */}
+                <div>
+                  <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2 font-semibold">Tags</p>
+                  <WorldTagPicker
+                    tags={system.tags ?? []}
+                    onChange={tags => updateSystem(system.id, { tags })}
                   />
                 </div>
-                {renderDescendants(obj.id)}
-              </div>
-            );
-          };
 
-          const onDropSeparator = (e: React.DragEvent) => {
-            e.preventDefault();
-            const raw = e.dataTransfer.getData('swn-drag');
-            if (!raw) return;
-            let payload: DragPayload;
-            try { payload = JSON.parse(raw); } catch { return; }
-            const dragged = sorted.find(o => o.id === payload.objId);
-            if (!dragged || dragged.isDeepSpace) return;
-            moveToZone(dragged, true);
-          };
+                {/* Notes */}
+                <div>
+                  <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2 font-semibold">Notes</p>
+                  <textarea
+                    rows={5}
+                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-xs text-gray-300 placeholder:text-gray-600 outline-none resize-none focus:border-gray-500 transition-colors"
+                    value={system.notes}
+                    onChange={e => updateSystem(system.id, { notes: e.target.value })}
+                    placeholder="System notes, GM secrets…"
+                  />
+                </div>
+              </>
+            )}
 
-          return (
-            <>
-              {sysZone.map(renderObj)}
-              <div
-                onDragOver={e => e.preventDefault()}
-                onDrop={onDropSeparator}
-                className="my-2 flex items-center gap-2 rounded py-0.5 transition-colors hover:bg-gray-700/20"
-                title="Drop here to move to deep space"
-              >
-                <div className="flex-1 border-t border-gray-600/60" />
-                <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold select-none">Deep Space</span>
-                <div className="flex-1 border-t border-gray-600/60" />
-              </div>
-              {deepZone.map(renderObj)}
-            </>
-          );
-        })()}
-      </div>
-
-      {/* Add object row */}
-      <div className="px-3 py-3 border-t border-gray-700/60">
-        {!addingType ? (
-          <button
-            onClick={() => setAddingType(true)}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-gray-600 text-gray-500 hover:text-gray-300 hover:border-gray-500 text-sm transition-colors"
-          >
-            <Plus size={14} />
-            Add Object
-          </button>
-        ) : (
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-1.5">
-              {QUICK_TYPES.map(({ type, label, extra }) => {
-                const color = OBJECT_TYPE_COLORS[type];
-                return (
-                  <button
-                    key={label}
-                    onClick={() => {
-                      addObject(system.id, { type, ...extra });
-                      setAddingType(false);
-                    }}
-                    className="px-2.5 py-1 rounded-md bg-gray-800 hover:bg-gray-700 border text-xs font-medium transition-colors"
-                    style={{
-                      borderColor: color,
-                      color: color,
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              onClick={() => setAddingType(false)}
-              className="text-xs text-gray-600 hover:text-gray-400"
-            >
-              Cancel
-            </button>
+            {storyTab === 'timeline' && (
+              <>
+                {historyView ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-4">
+                      <button
+                        onClick={() => setHistoryView(null)}
+                        className="flex items-center gap-1 text-gray-500 hover:text-gray-300 transition-colors"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <p className="text-sm font-semibold text-gray-200">
+                        {historyView.kind === 'system' ? system.name : historyObject?.name ?? '?'}
+                      </p>
+                    </div>
+                    <TimelineEditor
+                      events={historyView.kind === 'system' ? system.timeline ?? [] : historyObject?.timeline ?? []}
+                      onChange={timeline =>
+                        historyView.kind === 'system'
+                          ? updateSystem(system.id, { timeline })
+                          : historyObject && updateObject(system.id, historyObject.id, { timeline })
+                      }
+                    />
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <button
+                        onClick={() => setHistoryView({ kind: 'system' })}
+                        className="w-full p-3 rounded-lg border border-gray-700/50 bg-gray-800/30 hover:bg-gray-800/50 text-left transition-colors group"
+                      >
+                        <p className="text-xs font-semibold text-gray-300 group-hover:text-gray-100">{system.name}</p>
+                        <p className="text-[10px] text-gray-600 mt-0.5">
+                          {(system.timeline ?? []).length === 0
+                            ? 'No history'
+                            : `${(system.timeline ?? []).length} event${(system.timeline ?? []).length === 1 ? '' : 's'}`}
+                        </p>
+                      </button>
+                    </div>
+                    {sorted.length > 0 && (
+                      <>
+                        <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold mt-4 mb-2">Object History</p>
+                        <div className="space-y-2">
+                          {sorted.map(obj => (
+                            <button
+                              key={obj.id}
+                              onClick={() => setHistoryView({ kind: 'object', objId: obj.id })}
+                              className="w-full p-3 rounded-lg border border-gray-700/50 bg-gray-800/30 hover:bg-gray-800/50 text-left transition-colors group"
+                            >
+                              <p className="text-xs font-semibold text-gray-300 group-hover:text-gray-100">{obj.name}</p>
+                              <p className="text-[10px] text-gray-600 mt-0.5">
+                                {(obj.timeline ?? []).length === 0
+                                  ? 'No history'
+                                  : `${(obj.timeline ?? []).length} event${(obj.timeline ?? []).length === 1 ? '' : 's'}`}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )}
           </div>
-        )}
-      </div>
-
-      {/* Delete system */}
-      <div className="px-3 pt-2 border-t border-gray-700/60">
-        {!confirmingDelete ? (
-          <button
-            onClick={() => setConfirmingDelete(true)}
-            className="flex items-center gap-1.5 text-red-500 hover:text-red-400 text-xs transition-colors"
-          >
-            <Trash2 size={12} />
-            Delete System
-          </button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setConfirmingDelete(false)}
-              className="flex-1 px-2 py-1.5 rounded text-xs font-medium text-gray-300 hover:text-gray-100 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                setConfirmingDelete(false);
-                onDeleteSystem();
-              }}
-              className="flex-1 px-2 py-1.5 rounded text-xs font-medium text-red-300 hover:text-red-100 bg-red-950/40 hover:bg-red-950/60 border border-red-800/50 transition-colors"
-            >
-              Confirm Delete
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Faction + Tags + Notes */}
-      <div className="px-3 pb-3 pt-2 space-y-2">
-        {factions.length > 0 && (
-          <div>
-            <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Faction</p>
-            <div className="flex items-center gap-2">
-              {system.factionId && (
-                <div
-                  className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
-                  style={{ background: factions.find(f => f.id === system.factionId)?.color ?? '#888' }}
-                />
-              )}
-              <select
-                className="flex-1 bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none"
-                value={system.factionId ?? ''}
-                onChange={e => updateSystem(system.id, { factionId: e.target.value || null })}
-              >
-                <option value="">— None —</option>
-                {factions.map(f => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-        <div>
-          <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">System Tags</p>
-          <WorldTagPicker
-            tags={system.tags ?? []}
-            onChange={tags => updateSystem(system.id, { tags })}
-          />
-        </div>
-        <textarea
-          rows={2}
-          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-xs text-gray-300 placeholder:text-gray-600 outline-none resize-none focus:border-gray-500 transition-colors"
-          value={system.notes}
-          onChange={e => updateSystem(system.id, { notes: e.target.value })}
-          placeholder="System notes, GM secrets…"
-        />
-      </div>
-      </>)}
+        </>
+      )}
     </div>
   );
 }

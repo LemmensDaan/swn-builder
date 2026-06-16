@@ -94,7 +94,7 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
     Math.min(MAX_GRAINS, Math.round(GRAIN_DENSITY * Math.PI * (outer * outer - inner * inner))),
   );
 
-  const geo = useMemo(() => new THREE.OctahedronGeometry(0.012, 0), []);
+  const geo = useMemo(() => new THREE.OctahedronGeometry(0.020, 0), []);
   const mat = useMemo(() => new THREE.MeshLambertMaterial({ color: '#ffffff', flatShading: true }), []);
 
   useEffect(() => {
@@ -113,7 +113,7 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
       );
       dummy.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
       // Gaps (low density) hide grains; brightness scales with density with higher contrast.
-      dummy.scale.setScalar(d < 0.12 ? 0 : (0.3 + rng() * 0.5));
+      dummy.scale.setScalar(d < 0.12 ? 0 : (0.5 + rng() * 0.6));
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
       tmpColor.copy(baseColor).multiplyScalar(0.25 + d * 1.2);

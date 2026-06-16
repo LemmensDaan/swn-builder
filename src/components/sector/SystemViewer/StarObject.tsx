@@ -552,33 +552,64 @@ function makeNeutronStarGeometry(color: string, size: number, detail: number): T
 
 // ─── Neutron star bipolar jets ─────────────────────────────────────────────
 
+// Length gradient for the beam, built the same way as the black-hole accretion disc:
+// white-hot at the tip (the star), through the hue, fading to transparent at the far
+// end — so the beam glows and dissolves into space instead of ending on a hard edge.
+function makeJetTexture(baseHex: string): THREE.Texture {
+  const hsl = { h: 0, s: 0, l: 0 };
+  new THREE.Color(baseHex).getHSL(hsl);
+  const hue = Math.round(hsl.h * 360);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 1;
+  const ctx = canvas.getContext('2d')!;
+  const grad = ctx.createLinearGradient(0, 0, 512, 0);
+  grad.addColorStop(0,    'rgba(255,255,255,1)');         // tip at the star — hottest
+  grad.addColorStop(0.04, 'rgba(255,250,235,1)');
+  grad.addColorStop(0.14, `hsla(${hue},100%,75%,0.95)`);
+  grad.addColorStop(0.40, `hsla(${hue},95%,58%,0.55)`);
+  grad.addColorStop(0.70, `hsla(${hue},85%,42%,0.22)`);
+  grad.addColorStop(0.90, `hsla(${hue},75%,30%,0.06)`);
+  grad.addColorStop(1,    'rgba(0,0,0,0)');               // far end fades out
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 512, 1);
+  return new THREE.CanvasTexture(canvas);
+}
+
 function makeNeutronJets(baseHex: string, size: number): THREE.Group {
   const group = new THREE.Group();
   group.userData.isStar = true;
 
-  const base  = new THREE.Color(baseHex);
-  const white = new THREE.Color(1, 1, 1);
-  const H     = size * 240; // immense — pulsar beams extend far beyond the system scale
+  const H    = size * 540; // immense — pulsar beams extend far beyond the system scale
+  const farR = size * 16;  // radius at the far (wide) end
 
-  // Unit cone: narrow tip at y=0 (the star) widening to its base at y=1 (far end),
-  // so the beam GROWS with distance like a searchlight cone (tip pinned to the star).
-  const unitGeo = new THREE.ConeGeometry(1, 1, 4);
+  const tex = makeJetTexture(baseHex);
+
+  // Smooth, open-ended cone: narrow tip at y=0 (the star) widening to its base at y=1.
+  // High radial segment count keeps the surface smooth (not the old faceted 4-gon), and
+  // we remap the UVs so the gradient runs along the BEAM LENGTH (u = y) rather than around
+  // it — the same inner→outer falloff the accretion disc uses.
+  const unitGeo = new THREE.ConeGeometry(1, 1, 64, 1, true);
   unitGeo.rotateX(Math.PI);     // flip the apex to the bottom
   unitGeo.translate(0, 0.5, 0); // tip at y=0, wide base at y=1
+  {
+    const pos = unitGeo.attributes.position as THREE.BufferAttribute;
+    const uv  = unitGeo.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getY(i), 0.5);
+    uv.needsUpdate = true;
+  }
 
-  // Far-end radius of each additive layer: bright core → soft halo → wide outer haze.
-  const farR = size * 16;
+  // Bright tight core → soft halo → wide faint haze, all sharing the gradient texture.
   const layers = [
-    { rMult: 0.22, col: white.clone(),                  op: 0.82 },
-    { rMult: 0.6,  col: white.clone().lerp(base, 0.35), op: 0.30 },
-    { rMult: 1.1,  col: base.clone(),                   op: 0.15 },
-    { rMult: 1.9,  col: base.clone(),                   op: 0.07 }, // extra-wide diffuse haze
+    { rMult: 0.4, op: 0.95 },
+    { rMult: 1.0, op: 0.50 },
+    { rMult: 1.9, op: 0.20 },
   ];
 
   for (const dir of [1, -1]) {
     for (const layer of layers) {
       const mat = new THREE.MeshBasicMaterial({
-        color: layer.col, transparent: true, opacity: layer.op,
+        map: tex, transparent: true, opacity: layer.op,
         toneMapped: false, blending: THREE.AdditiveBlending,
         depthWrite: false, side: THREE.DoubleSide,
       });
@@ -619,6 +650,7 @@ interface Props {
 
 export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true, highQuality = true }: Props) {
   const groupRef        = useRef<THREE.Group>(null);
+  const axisGroupRef    = useRef<THREE.Group>(null);
   const meshRef         = useRef<THREE.Mesh>(null);
   const diskGroupRef    = useRef<THREE.Group>(null);
   const photonGroupRef  = useRef<THREE.Group>(null);
@@ -715,6 +747,12 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
 
     // Self-rotation around the spin axis (neutron stars spin rapidly by default).
     const spinSpeed = obj.selfRotationSpeed || (isNeutron ? 7 : 0.08);
+
+    // Apply axis inclination (tilts the rotation axis)
+    if (axisGroupRef.current && obj.axisInclination !== undefined) {
+      axisGroupRef.current.rotation.z = THREE.MathUtils.degToRad(obj.axisInclination);
+    }
+
     if (meshRef.current && !isBlackHole) {
       meshRef.current.rotation.y += delta * spinSpeed;
     }
@@ -863,36 +901,38 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
         )}
 
         {/* ── Main body (all types) ────────────────────────────────────────── */}
-        <mesh
-          ref={meshRef}
-          userData={{ isStar: true }}
-          onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
-          onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
-          onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
-          castShadow={false}
-          receiveShadow={false}
-        >
-          {isNeutron && nsGeo
-            ? <primitive object={nsGeo} attach="geometry" />
-            : <icosahedronGeometry args={[obj.size, highQuality ? 4 : 2]} />}
-          {isNeutron && nsGeo ? (
-            // Self-luminous: meshBasicMaterial ignores all scene lights & shadows,
-            // so the neutron star looks identical whether or not a companion star
-            // is nearby. vertexColors render the painted checkerboard directly.
-            <meshBasicMaterial
-              vertexColors
-              toneMapped={false}
-            />
-          ) : (
-            <meshLambertMaterial
-              color={isBlackHole ? '#050008' : '#000000'}
-              emissive={isBlackHole ? '#000000' : color}
-              emissiveIntensity={isBlackHole ? 0 : isNeutron ? 1.5 : 1.4}
-              flatShading
-              toneMapped={false}
-            />
-          )}
-        </mesh>
+        <group ref={axisGroupRef}>
+          <mesh
+            ref={meshRef}
+            userData={{ isStar: true }}
+            onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+            onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
+            onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
+            castShadow={false}
+            receiveShadow={false}
+          >
+            {isNeutron && nsGeo
+              ? <primitive object={nsGeo} attach="geometry" />
+              : <icosahedronGeometry args={[obj.size, highQuality ? 4 : 2]} />}
+            {isNeutron && nsGeo ? (
+              // Self-luminous: meshBasicMaterial ignores all scene lights & shadows,
+              // so the neutron star looks identical whether or not a companion star
+              // is nearby. vertexColors render the painted checkerboard directly.
+              <meshBasicMaterial
+                vertexColors
+                toneMapped={false}
+              />
+            ) : (
+              <meshLambertMaterial
+                color={isBlackHole ? '#050008' : '#000000'}
+                emissive={isBlackHole ? '#000000' : color}
+                emissiveIntensity={isBlackHole ? 0 : isNeutron ? 1.5 : 1.4}
+                flatShading
+                toneMapped={false}
+              />
+            )}
+          </mesh>
+        </group>
 
         {hovered && (
           <Html center distanceFactor={50} position={[0, obj.size + 1.2, 0]} style={{ pointerEvents: 'none' }}>

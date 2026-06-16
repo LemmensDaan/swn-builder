@@ -57,6 +57,7 @@ interface Props {
 
 export default function PlanetObject({ obj, children, onPositionUpdate, onClick, showOrbits = true, highQuality = true }: Props) {
   const groupRef = useRef<THREE.Group>(null);
+  const axisGroupRef = useRef<THREE.Group>(null);
   const meshRef  = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
   const isGasGiant = obj.planetType === 'GasGiant';
@@ -85,7 +86,12 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
       onPositionUpdate?.([_worldPos.x, _worldPos.y, _worldPos.z]);
     }
 
-    if (meshRef.current) {
+    if (meshRef.current && axisGroupRef.current) {
+      // Set axis inclination on the axis group (tilts the rotation axis)
+      if (obj.axisInclination !== undefined) {
+        axisGroupRef.current.rotation.z = THREE.MathUtils.degToRad(obj.axisInclination);
+      }
+
       if (obj.planetType === 'TidallyLocked') {
         // Tidally locked: always face the star
         // Calculate direction from planet to star (at origin)
@@ -111,7 +117,7 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
           meshRef.current.quaternion.identity();
         }
       } else {
-        // Normal rotation
+        // Normal rotation around the axis (which is tilted by axisInclination)
         meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
       }
     }
@@ -135,18 +141,20 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
             />
           </sprite>
         )}
-        <mesh
-          ref={meshRef}
-          geometry={geo}
-          castShadow
-          receiveShadow
-          onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
-          onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
-          onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
-        >
-          <meshLambertMaterial vertexColors flatShading shadowSide={THREE.BackSide} />
-        </mesh>
-        {obj.rings && <PlanetRings obj={obj} />}
+        <group ref={axisGroupRef}>
+          <mesh
+            ref={meshRef}
+            geometry={geo}
+            castShadow
+            receiveShadow
+            onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+            onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
+            onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
+          >
+            <meshLambertMaterial vertexColors flatShading shadowSide={THREE.BackSide} />
+          </mesh>
+          {obj.rings && <PlanetRings obj={obj} />}
+        </group>
         {/* Hover label — monospace text, no line, no box */}
         {hovered && (
           <Html

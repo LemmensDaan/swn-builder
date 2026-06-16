@@ -443,6 +443,14 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                         onChange={e => onChange({ selfRotationSpeed: parseFloat(e.target.value) || 0 })}
                       />
                     </label>
+                    <label className="flex flex-col gap-0.5 pt-2">
+                      <span className="text-gray-500">Axis Inclination °</span>
+                      <input type="number" step="1" min="-90" max="90"
+                        className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                        value={obj.axisInclination}
+                        onChange={e => onChange({ axisInclination: parseFloat(e.target.value) || 0 })}
+                      />
+                    </label>
                   </div>
                 )}
               </div>
@@ -480,14 +488,6 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                         className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
                         value={obj.orbitSpeed}
                         onChange={e => onChange({ orbitSpeed: parseFloat(e.target.value) || 0 })}
-                      />
-                    </label>
-                    <label className="flex flex-col gap-0.5">
-                      <span className="text-gray-500">Axis Inclination °</span>
-                      <input type="number" step="1" min="-90" max="90"
-                        className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-                        value={obj.axisInclination}
-                        onChange={e => onChange({ axisInclination: parseFloat(e.target.value) || 0 })}
                       />
                     </label>
                   </div>

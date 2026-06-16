@@ -98,7 +98,7 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
   const color = type === 'BlackHole' || type === 'NeutronStar'
     ? (OBJECT_TYPE_DEFAULTS[type].colors as [string])[0]
     : pick(STAR_COLORS[systemType], rng);
-  const size = type === 'BlackHole' ? 1.4 : type === 'NeutronStar' ? 1.0 : randBetween(1.5, 2.5, rng);
+  const size = type === 'BlackHole' ? 1.4 : type === 'NeutronStar' ? randBetween(0.12, 0.18, rng) : randBetween(1.5, 2.5, rng);
 
   // Binary stars: both orbit shared barycenter at equal distance, exactly opposite
   // Use SAME seed for both so they have identical angles, then +π offset ensures 180° separation
@@ -115,9 +115,13 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
     colors: [color] as [string],
     orbitRadius: orbitRad,
     inclination,
-    selfRotationSpeed: type === 'BlackHole' ? 0 : randBetween(0.05, 0.25, rng),
+    selfRotationSpeed: type === 'BlackHole' ? 0 : type === 'NeutronStar' ? randBetween(6, 12, rng) : randBetween(0.05, 0.25, rng),
     orbitSpeed: orbitRad > 0 ? randBetween(0.01, 0.08, rng) : 0,
     axisInclination: (rng() - 0.5) * 2 * 30,
+    ...(type === 'NeutronStar' ? {
+      nsJets:    false,         // Pulsar disabled by default
+      nsMagnetar: rng() < 0.2, // 20% magnetars
+    } : {}),
     notes: '', tags: [], factionId: null,
     seed: sharedSeed,
   };
@@ -176,8 +180,19 @@ function makePlanet(
     rings = rng() < 0.05; // rocky planets: 5% chance (rare)
   }
 
-  // Ring inclination: independent tilt, widely varied (±65°)
+  // Ring inclination: independent tilt, widely varied (±65°). Shared by all bands by default.
   const ringInclination = rings ? randBetween(-65, 65, rng) : undefined;
+  // Ring bands: 2–5 concentric rings spreading outward, all sharing the inclination
+  // initially (the user can retune size/inclination/color per ring afterwards).
+  const RING_TONES = ['#8C7B6B', '#9a8878', '#7a6a5a', '#6B6B5A', '#8B8B7A', '#A09080', '#A5956B', '#9B8B6B', '#8B8B8B'];
+  const ringBands = rings
+    ? Array.from({ length: Math.floor(randBetween(2, 6, rng)) }, (_, i) => ({
+        color: pick(RING_TONES, rng),
+        size: 1.4 + i * randBetween(0.35, 0.6, rng),
+        width: randBetween(0.2, 0.5, rng),
+        inclination: ringInclination as number,
+      }))
+    : undefined;
 
   return {
     type,
@@ -197,6 +212,7 @@ function makePlanet(
     iceCaps,
     rings,
     ringInclination,
+    ringBands,
     seed: Math.floor(rng() * 999983),
     notes: '', tags: [], factionId: null,
   };
@@ -209,7 +225,7 @@ function makeBelt(order: number, rng: () => number): Omit<SystemObject, 'id'> {
     name: 'Asteroid Belt',
     parentId: null,
     sortOrder: order,
-    size: 0.1,
+    size: 1,
     colors: [pick(['#8C7B6B', '#9a8878', '#7a6a5a'], rng)] as [string],
     orbitRadius: radius,
     inclination: randBetween(-5, 5, rng),

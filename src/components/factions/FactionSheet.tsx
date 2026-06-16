@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
   ArrowLeft, Skull,
-  Plus, X, Check, Heart, Target, Swords, Shield, Eye, DollarSign,
+  Plus, X, Check, Heart, Target, Swords, Shield, Eye, DollarSign, Clock,
 } from 'lucide-react';
 import { useSectorStore } from '../../store/useSectorStore';
 import { REFERENCE_ASSETS, FACTION_TAGS, FACTION_GOALS } from '../../data/faction-assets';
-import type { Faction, FactionAsset, FactionGoal, FactionAssetType } from '../../types/sector';
+import type { Faction, FactionAsset, FactionGoal, FactionAssetType, TimelineEvent } from '../../types/sector';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -325,6 +325,8 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
   const [showGoalPicker, setShowGoalPicker] = useState(false);
   const [newTagInput, setNewTagInput] = useState('');
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  const [tlDate, setTlDate] = useState('');
+  const [tlTitle, setTlTitle] = useState('');
 
   const maxHp = derivedMaxHp(local.force, local.cunning, local.wealth);
   const retired = local.retired ?? false;
@@ -364,6 +366,19 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
 
   function removeTag(tag: string) {
     patch({ tags: local.tags.filter(t => t !== tag) });
+  }
+
+  function addTlEvent() {
+    const trimmed = tlTitle.trim();
+    if (!trimmed) return;
+    const event: TimelineEvent = { id: crypto.randomUUID(), date: tlDate.trim(), title: trimmed };
+    patch({ timeline: [event, ...(local.timeline ?? [])] });
+    setTlDate('');
+    setTlTitle('');
+  }
+
+  function removeTlEvent(id: string) {
+    patch({ timeline: (local.timeline ?? []).filter(e => e.id !== id) });
   }
 
   function addAsset(asset: FactionAsset) {
@@ -729,6 +744,74 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
                 ))}
               </div>
             )}
+          </SheetSection>
+
+          {/* Timeline */}
+          <SheetSection
+            title={`Timeline (${(local.timeline ?? []).length})`}
+            action={null}
+          >
+            <div className="space-y-3">
+              {/* Add event form */}
+              <div className="space-y-1.5">
+                <input
+                  className="input text-xs"
+                  placeholder='Date or era — "Session 14", "3200 CY", "Before the Scream"'
+                  value={tlDate}
+                  onChange={e => setTlDate(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && tlTitle.trim()) addTlEvent(); }}
+                />
+                <div className="flex gap-1.5">
+                  <input
+                    className="input text-xs flex-1"
+                    placeholder="What happened?"
+                    value={tlTitle}
+                    onChange={e => setTlTitle(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addTlEvent(); }}
+                  />
+                  <button
+                    onClick={addTlEvent}
+                    disabled={!tlTitle.trim()}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-amber-300 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Plus size={11} />
+                  </button>
+                </div>
+              </div>
+              {/* Event list */}
+              {(local.timeline ?? []).length === 0 ? (
+                <p className="text-sm text-gray-600 italic py-1">No events yet.</p>
+              ) : (
+                <div>
+                  {(local.timeline ?? []).map((event, i) => (
+                    <div key={event.id} className="flex gap-3">
+                      <div className="flex flex-col items-center pt-[5px]">
+                        <div className="w-2 h-2 rounded-full bg-amber-600 flex-shrink-0" />
+                        {i < (local.timeline ?? []).length - 1 && (
+                          <div className="w-px bg-gray-700 flex-1 mt-1.5 min-h-[14px]" />
+                        )}
+                      </div>
+                      <div className={`flex-1 ${i < (local.timeline ?? []).length - 1 ? 'pb-3' : ''}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            {event.date && (
+                              <span className="text-[10px] font-mono text-amber-600/90 block leading-tight">{event.date}</span>
+                            )}
+                            <p className="text-sm text-gray-300 leading-snug mt-0.5">{event.title}</p>
+                          </div>
+                          <button
+                            onClick={() => removeTlEvent(event.id)}
+                            className="text-gray-600 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </SheetSection>
 
           {/* Notes */}

@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { X, Plus, Eye, Trash2, Shuffle } from 'lucide-react';
-import type { StarSystem, SystemObject, ObjectType, SystemType } from '../../../types/sector';
+import { X, Plus, Eye, Trash2, Shuffle, Clock, ChevronLeft } from 'lucide-react';
+import type { StarSystem, SystemObject, ObjectType, SystemType, Faction } from '../../../types/sector';
 import { sortSystemObjects, getPrimaryObjectTypes } from '../../../types/sector';
 import { useSectorStore } from '../../../store/useSectorStore';
 import { randomizeSystem } from '../SystemViewer/systemRandomizer';
 import ObjectEditor from './ObjectEditor';
+import WorldTagPicker from '../shared/WorldTagPicker';
+import TimelineEditor from '../shared/TimelineEditor';
 
 const SYSTEM_TYPES: SystemType[] = ['Standard', 'Binary', 'Hostile', 'Rich', 'Dead', 'Frontier'];
 
@@ -59,11 +61,17 @@ interface Props {
 }
 
 type DragPayload = { kind: 'tl' | 'child'; objId: string };
+type PanelView =
+  | { kind: 'objects' }
+  | { kind: 'system-history' }
+  | { kind: 'object-history'; objId: string };
 
-export default function SystemPanel({ system, sectorId: _sectorId, onClose, onViewSystem, onDeleteSystem }: Props) {
-  const { updateSystem, addObject, updateObject, removeObject, reorderObjects } = useSectorStore();
+export default function SystemPanel({ system, sectorId, onClose, onViewSystem, onDeleteSystem }: Props) {
+  const { updateSystem, addObject, updateObject, removeObject, reorderObjects, sectors } = useSectorStore();
+  const factions: Faction[] = sectors.find(s => s.id === sectorId)?.factions ?? [];
   const [addingType, setAddingType] = useState(false);
   const [systemType, setSystemType] = useState<SystemType>('Standard');
+  const [view, setView] = useState<PanelView>({ kind: 'objects' });
 
   function handleRandomize() {
     const newObjects = randomizeSystem(systemType);
@@ -330,6 +338,8 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
                 onChange={updates => updateObject(system.id, child.id, updates)}
                 onRemove={() => removeObject(system.id, child.id)}
                 draggable={true}
+                factions={factions}
+                onOpenHistory={() => setView({ kind: 'object-history', objId: child.id })}
               />
             </div>
             {renderDescendants(child.id)}
@@ -339,51 +349,110 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
     );
   }
 
+  // ── History view helpers ────────────────────────────────────────────────
+
+  const historyObject = view.kind === 'object-history'
+    ? system.objects.find(o => o.id === view.objId) ?? null
+    : null;
+
   return (
     <div className="flex flex-col h-full bg-gray-900/95 backdrop-blur border-l border-gray-700/60">
-      {/* Header row 1: name + close */}
-      <div className="flex items-center gap-2 px-4 pt-3 pb-1">
-        <input
-          className="flex-1 bg-transparent text-base font-bold text-amber-300 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-amber-600 transition-colors"
-          value={system.name}
-          onChange={e => updateSystem(system.id, { name: e.target.value })}
-          placeholder="System name"
-        />
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-300 flex-shrink-0">
-          <X size={18} />
-        </button>
-      </div>
-
-      {/* Header row 2: actions */}
-      <div className="flex items-center gap-2 px-4 pb-3 border-b border-gray-700/60">
-        <button
-          onClick={onViewSystem}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-800 hover:bg-sky-700 text-sky-200 text-xs font-medium transition-colors flex-shrink-0"
-        >
-          <Eye size={13} />
-          View 3D
-        </button>
-        <div className="flex items-center gap-1.5 ml-auto">
-          <span className="text-[9px] text-gray-600 font-medium uppercase tracking-wider">Randomize</span>
-          <select
-            value={systemType}
-            onChange={e => setSystemType(e.target.value as SystemType)}
-            className="text-[10px] bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-300 outline-none hover:border-gray-600 transition-colors"
-            title="Select system archetype, then click shuffle to randomize"
-          >
-            {SYSTEM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <button
-            onClick={handleRandomize}
-            title="Randomize system with selected type"
-            className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-amber-300 transition-colors"
-          >
-            <Shuffle size={13} />
+      {/* Header row 1: name + close OR history back-nav */}
+      {view.kind === 'objects' ? (
+        <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+          <input
+            className="flex-1 bg-transparent text-base font-bold text-amber-300 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-amber-600 transition-colors"
+            value={system.name}
+            onChange={e => updateSystem(system.id, { name: e.target.value })}
+            placeholder="System name"
+          />
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 flex-shrink-0">
+            <X size={18} />
           </button>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+          <button
+            onClick={() => setView({ kind: 'objects' })}
+            className="flex items-center gap-1 text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <p className="flex-1 text-sm font-semibold text-gray-200 truncate">
+            {view.kind === 'system-history' ? `${system.name} — History` : `${historyObject?.name ?? '?'} — History`}
+          </p>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 flex-shrink-0">
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
-      {/* Object list */}
+      {/* Header row 2: actions (objects view only) */}
+      {view.kind === 'objects' && (
+        <div className="flex items-center gap-2 px-4 pb-3 border-b border-gray-700/60">
+          <button
+            onClick={onViewSystem}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-800 hover:bg-sky-700 text-sky-200 text-xs font-medium transition-colors flex-shrink-0"
+          >
+            <Eye size={13} />
+            View 3D
+          </button>
+          <button
+            onClick={() => setView({ kind: 'system-history' })}
+            title="System history"
+            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs transition-colors flex-shrink-0 ${
+              (system.timeline ?? []).length > 0
+                ? 'text-amber-600 hover:text-amber-400 bg-amber-950/30 hover:bg-amber-950/50'
+                : 'text-gray-600 hover:text-gray-300 bg-gray-800/50 hover:bg-gray-700/50'
+            }`}
+          >
+            <Clock size={13} />
+            {(system.timeline ?? []).length > 0 && (
+              <span>{(system.timeline ?? []).length}</span>
+            )}
+          </button>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-[9px] text-gray-600 font-medium uppercase tracking-wider">Randomize</span>
+            <select
+              value={systemType}
+              onChange={e => setSystemType(e.target.value as SystemType)}
+              className="text-[10px] bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-300 outline-none hover:border-gray-600 transition-colors"
+              title="Select system archetype, then click shuffle to randomize"
+            >
+              {SYSTEM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <button
+              onClick={handleRandomize}
+              title="Randomize system with selected type"
+              className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-amber-300 transition-colors"
+            >
+              <Shuffle size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* History views */}
+      {view.kind === 'system-history' && (
+        <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
+          <TimelineEditor
+            events={system.timeline ?? []}
+            onChange={timeline => updateSystem(system.id, { timeline })}
+          />
+        </div>
+      )}
+
+      {view.kind === 'object-history' && historyObject && (
+        <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
+          <TimelineEditor
+            events={historyObject.timeline ?? []}
+            onChange={timeline => updateObject(system.id, historyObject.id, { timeline })}
+          />
+        </div>
+      )}
+
+      {/* Object list + footer (objects view only) */}
+      {view.kind === 'objects' && (<>
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 min-h-0">
         {sorted.length === 0 && (
           <p className="text-gray-600 text-xs text-center py-6">No objects yet. Add one below.</p>
@@ -403,6 +472,8 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
               onChange={updates => updateObject(system.id, obj.id, updates)}
               onRemove={() => removeObject(system.id, obj.id)}
               draggable={false}
+              factions={factions}
+              onOpenHistory={() => setView({ kind: 'object-history', objId: obj.id })}
             />
           </div>
         ))}
@@ -426,6 +497,8 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
                   onChange={updates => updateObject(system.id, obj.id, updates)}
                   onRemove={() => removeObject(system.id, obj.id)}
                   draggable={false}
+                  factions={factions}
+                  onOpenHistory={() => setView({ kind: 'object-history', objId: obj.id })}
                 />
               </div>
             );
@@ -444,6 +517,8 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
                     onChange={updates => updateObject(system.id, obj.id, updates)}
                     onRemove={() => removeObject(system.id, obj.id)}
                     draggable={true}
+                    factions={factions}
+                    onOpenHistory={() => setView({ kind: 'object-history', objId: obj.id })}
                   />
                 </div>
                 {renderDescendants(obj.id)}
@@ -535,8 +610,38 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
         </button>
       </div>
 
-      {/* Notes */}
-      <div className="px-3 pb-3 pt-2">
+      {/* Faction + Tags + Notes */}
+      <div className="px-3 pb-3 pt-2 space-y-2">
+        {factions.length > 0 && (
+          <div>
+            <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Faction</p>
+            <div className="flex items-center gap-2">
+              {system.factionId && (
+                <div
+                  className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
+                  style={{ background: factions.find(f => f.id === system.factionId)?.color ?? '#888' }}
+                />
+              )}
+              <select
+                className="flex-1 bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none"
+                value={system.factionId ?? ''}
+                onChange={e => updateSystem(system.id, { factionId: e.target.value || null })}
+              >
+                <option value="">— None —</option>
+                {factions.map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+        <div>
+          <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">System Tags</p>
+          <WorldTagPicker
+            tags={system.tags ?? []}
+            onChange={tags => updateSystem(system.id, { tags })}
+          />
+        </div>
         <textarea
           rows={2}
           className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-xs text-gray-300 placeholder:text-gray-600 outline-none resize-none focus:border-gray-500 transition-colors"
@@ -545,6 +650,7 @@ export default function SystemPanel({ system, sectorId: _sectorId, onClose, onVi
           placeholder="System notes, GM secrets…"
         />
       </div>
+      </>)}
     </div>
   );
 }

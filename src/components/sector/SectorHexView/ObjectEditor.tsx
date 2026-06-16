@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Trash2, Orbit, Pencil } from 'lucide-react';
-import type { SystemObject, ObjectType, PlanetType, NebulaShape } from '../../../types/sector';
+import { ChevronDown, ChevronRight, Trash2, Orbit, Earth, Pencil, Plus, Clock } from 'lucide-react';
+import type { SystemObject, ObjectType, PlanetType, NebulaShape, RingBand, Faction } from '../../../types/sector';
 import { OBJECT_TYPE_DEFAULTS } from '../../../types/sector';
 import { PLANET_PRESETS } from '../SystemViewer/planetRenderer';
+import { resolveRingBands, RING_EARTH_TONES } from '../SystemViewer/PlanetRings';
+import WorldTagPicker from '../shared/WorldTagPicker';
 
 const OBJECT_TYPES: ObjectType[] = [
   'Star', 'NeutronStar', 'BlackHole',
@@ -11,15 +13,28 @@ const OBJECT_TYPES: ObjectType[] = [
   'Nebula', 'Other',
 ];
 
+// Build a ringBands array of the given length, preserving existing bands and giving
+// new bands the shared inclination, a spread-out radius, default width and earth tone.
+function buildRingBands(count: number, inclination: number, existing?: RingBand[]): RingBand[] {
+  return Array.from({ length: count }, (_, i) => existing?.[i] ?? {
+    color: RING_EARTH_TONES[i % RING_EARTH_TONES.length],
+    size: 1.5 + i * 0.45,
+    width: 0.4,
+    inclination,
+  });
+}
+
 interface Props {
   obj: SystemObject;
   allObjects: SystemObject[];
   onChange: (updates: Partial<SystemObject>) => void;
   onRemove: () => void;
   draggable?: boolean;
+  factions?: Faction[];
+  onOpenHistory?: () => void;
 }
 
-export default function ObjectEditor({ obj, allObjects, onChange, onRemove, draggable = true }: Props) {
+export default function ObjectEditor({ obj, allObjects, onChange, onRemove, draggable = true, factions, onOpenHistory }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [orbitalPropsExpanded, setOrbitalPropsExpanded] = useState(false);
   const [orbitSettingsExpanded, setOrbitSettingsExpanded] = useState(false);
@@ -122,6 +137,15 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
           {OBJECT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
 
+        {onOpenHistory && (
+          <button
+            onClick={onOpenHistory}
+            title="View history"
+            className={`transition-colors ${obj.timeline.length > 0 ? 'text-amber-700 hover:text-amber-400' : 'text-gray-600 hover:text-gray-300'}`}
+          >
+            <Clock size={13} />
+          </button>
+        )}
         <button onClick={() => setExpanded(v => !v)} className="text-gray-500 hover:text-gray-300">
           <Pencil size={14} />
         </button>
@@ -187,12 +211,16 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                 onChange={e => {
                   const ptype = e.target.value as PlanetType;
                   const preset = PLANET_PRESETS[ptype];
+                  const inc = Math.random() * 130 - 65;
                   onChange({
                     planetType: ptype,
                     colors: [preset.primaryColor, preset.secondaryColor] as [string, string],
                     iceCaps: preset.iceCaps,
                     rings: preset.rings,
-                    ringInclination: preset.rings ? (Math.random() * 130 - 65) : 0,
+                    ...(preset.rings ? {
+                      ringInclination: inc,
+                      ringBands: obj.ringBands?.length ? obj.ringBands : buildRingBands(4, inc),
+                    } : {}),
                   });
                 }}
               >
@@ -225,10 +253,18 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                 <input
                   type="checkbox"
                   checked={obj.rings ?? false}
-                  onChange={e => onChange({
-                    rings: e.target.checked,
-                    ringInclination: e.target.checked ? (Math.random() * 130 - 65) : 0
-                  })}
+                  onChange={e => {
+                    if (e.target.checked) {
+                      const inc = obj.ringInclination ?? (Math.random() * 130 - 65);
+                      onChange({
+                        rings: true,
+                        ringInclination: inc,
+                        ringBands: obj.ringBands?.length ? obj.ringBands : buildRingBands(3, inc),
+                      });
+                    } else {
+                      onChange({ rings: false });
+                    }
+                  }}
                   className="w-4 h-4 cursor-pointer"
                 />
                 <span className="text-gray-500 text-sm">Rings</span>
@@ -236,35 +272,136 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
             </div>
           )}
 
-          {/* Neutron star jet axis */}
+          {/* Ring settings — per-band size, inclination and color */}
+          {isPlanet && obj.rings && (() => {
+            const bands = resolveRingBands(obj);
+            const setBands = (next: RingBand[]) => onChange({ ringBands: next });
+            const updateBand = (i: number, patch: Partial<RingBand>) =>
+              setBands(bands.map((b, idx) => idx === i ? { ...b, ...patch } : b));
+            return (
+              <div className="rounded bg-gray-900/30 border border-gray-700/30 px-2 py-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 font-medium">Ring Settings</span>
+                  <button
+                    onClick={() => {
+                      const last = bands[bands.length - 1];
+                      setBands([...bands, {
+                        color: RING_EARTH_TONES[bands.length % RING_EARTH_TONES.length],
+                        size: (last ? last.size : 1.5) + 0.4,
+                        width: 0.4,
+                        inclination: bands[0]?.inclination ?? 0,
+                      }]);
+                    }}
+                    disabled={bands.length >= 8}
+                    className="flex items-center gap-1 text-gray-400 hover:text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Add ring"
+                  >
+                    <Plus size={12} /> Add
+                  </button>
+                </div>
+                {/* Column headers */}
+                <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-x-2 items-center text-[10px] text-gray-600">
+                  <span>Color</span><span>Orbit Radius</span><span>Size</span><span>Incl °</span><span></span>
+                </div>
+                {bands.map((band, i) => (
+                  <div key={i} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-x-2 items-center">
+                    <label title={`Ring ${i + 1} color`} className="cursor-pointer">
+                      <div
+                        className="w-5 h-5 rounded-sm border border-gray-600 hover:scale-110 transition-transform"
+                        style={{ background: band.color }}
+                      />
+                      <input
+                        type="color"
+                        className="sr-only"
+                        value={band.color}
+                        onChange={e => updateBand(i, { color: e.target.value })}
+                      />
+                    </label>
+                    <input
+                      type="number" step="0.1" min="1" max="6"
+                      className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none w-full"
+                      value={band.size}
+                      onChange={e => updateBand(i, { size: parseFloat(e.target.value) || 1 })}
+                    />
+                    <input
+                      type="number" step="0.05" min="0.05" max="3"
+                      className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none w-full"
+                      value={band.width ?? 0.4}
+                      onChange={e => updateBand(i, { width: parseFloat(e.target.value) || 0.05 })}
+                    />
+                    <input
+                      type="number" step="1" min="-90" max="90"
+                      className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none w-full"
+                      value={band.inclination}
+                      onChange={e => updateBand(i, { inclination: parseFloat(e.target.value) || 0 })}
+                    />
+                    <button
+                      onClick={() => setBands(bands.filter((_, idx) => idx !== i))}
+                      disabled={bands.length <= 1}
+                      className="text-gray-600 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Remove ring"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* Neutron star variants — pulsar (jets) and/or magnetar (intense glow) */}
           {obj.type === 'NeutronStar' && (
-            <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-              <label className="flex flex-col gap-0.5">
-                <span className="text-gray-500">Jet Tilt X °</span>
-                <input
-                  type="number" step="1" min="-90" max="90"
-                  className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-                  value={obj.nsJetTiltX ?? ''}
-                  placeholder="auto"
-                  onChange={e => {
-                    const v = parseFloat(e.target.value);
-                    onChange({ nsJetTiltX: isNaN(v) ? undefined : v });
-                  }}
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-gray-500">Jet Tilt Z °</span>
-                <input
-                  type="number" step="1" min="-90" max="90"
-                  className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-                  value={obj.nsJetTiltZ ?? ''}
-                  placeholder="auto"
-                  onChange={e => {
-                    const v = parseFloat(e.target.value);
-                    onChange({ nsJetTiltZ: isNaN(v) ? undefined : v });
-                  }}
-                />
-              </label>
+            <div className="space-y-2">
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={obj.nsJets ?? true}
+                    onChange={e => onChange({ nsJets: e.target.checked })}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                  <span className="text-gray-500 text-sm">Jets (Pulsar)</span>
+                </label>
+                <label className="flex items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={obj.nsMagnetar ?? false}
+                    onChange={e => onChange({ nsMagnetar: e.target.checked })}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                  <span className="text-gray-500 text-sm">Magnetar</span>
+                </label>
+              </div>
+              {(obj.nsJets ?? true) && (
+                <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-gray-500">Jet Tilt X °</span>
+                    <input
+                      type="number" step="1" min="-90" max="90"
+                      className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                      value={obj.nsJetTiltX ?? ''}
+                      placeholder="auto"
+                      onChange={e => {
+                        const v = parseFloat(e.target.value);
+                        onChange({ nsJetTiltX: isNaN(v) ? undefined : v });
+                      }}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-gray-500">Jet Tilt Z °</span>
+                    <input
+                      type="number" step="1" min="-90" max="90"
+                      className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                      value={obj.nsJetTiltZ ?? ''}
+                      placeholder="auto"
+                      onChange={e => {
+                        const v = parseFloat(e.target.value);
+                        onChange({ nsJetTiltZ: isNaN(v) ? undefined : v });
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
           )}
 
@@ -294,8 +431,8 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                   className="w-full flex items-center gap-2 px-2 py-1.5 text-gray-400 hover:text-gray-300 transition-colors"
                 >
                   {orbitalPropsExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  <Orbit size={12} />
-                  <span className="font-medium">Orbital Properties</span>
+                  <Earth size={12} />
+                  <span className="font-medium">Object Properties</span>
                 </button>
                 {orbitalPropsExpanded && (
                   <div className="px-2 pb-2 grid grid-cols-2 gap-x-2 gap-y-2 border-t border-gray-700/30">
@@ -368,16 +505,36 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
             </div>
           )}
 
+          {/* Faction */}
+          {factions && factions.length > 0 && (
+            <label className="flex flex-col gap-0.5">
+              <span className="text-gray-500">Faction</span>
+              <div className="flex items-center gap-2">
+                {obj.factionId && (
+                  <div
+                    className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
+                    style={{ background: factions.find(f => f.id === obj.factionId)?.color ?? '#888' }}
+                  />
+                )}
+                <select
+                  className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+                  value={obj.factionId ?? ''}
+                  onChange={e => onChange({ factionId: e.target.value || null })}
+                >
+                  <option value="">— None —</option>
+                  {factions.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+              </div>
+            </label>
+          )}
+
           {/* Tags */}
-          <label className="flex flex-col gap-0.5">
-            <span className="text-gray-500">Tags (comma-separated)</span>
-            <input
-              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
-              value={obj.tags.join(', ')}
-              onChange={e => onChange({ tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
-              placeholder="e.g. TL4, Hostile Biosphere"
-            />
-          </label>
+          <div className="flex flex-col gap-1">
+            <span className="text-gray-500">World Tags</span>
+            <WorldTagPicker tags={obj.tags} onChange={tags => onChange({ tags })} />
+          </div>
 
           {/* Notes */}
           <label className="flex flex-col gap-0.5">

@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { ChevronLeft, ChevronRight, Sliders } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sliders, X, Clock } from 'lucide-react';
+import TimelineEditor from '../shared/TimelineEditor';
 import { sortSystemObjects, getPrimaryObjectTypes } from '../../../types/sector';
 import { useSectorStore } from '../../../store/useSectorStore';
 import SystemScene from './SystemScene';
@@ -136,6 +137,7 @@ export default function SystemViewer() {
   const { activeSystemId, activeSectorId, systems, sectors, navigateBack, navigateHome } = useSectorStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [infoPanelObjectId, setInfoPanelObjectId] = useState<string | null>(null);
   const [introComplete, setIntroComplete] = useState(false);
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
   const [starfieldOpacity, setStarfieldOpacity] = useState(0);
@@ -153,6 +155,15 @@ export default function SystemViewer() {
   };
 
   if (!system) return null;
+
+  function handleObjectClick(id: string) {
+    if (id === selectedObjectId) {
+      setInfoPanelObjectId(prev => (prev === id ? null : id));
+    } else {
+      setSelectedObjectId(id);
+      setInfoPanelObjectId(null);
+    }
+  }
 
   const selectedObjectSize = selectedObjectId
     ? (system.objects.find(o => o.id === selectedObjectId)?.size ?? 1)
@@ -186,7 +197,7 @@ export default function SystemViewer() {
           <SystemScene
             system={system}
             selectedObjectId={selectedObjectId}
-            onObjectClick={setSelectedObjectId}
+            onObjectClick={handleObjectClick}
             objectPositionsRef={objectPositionsRef}
             introOpacityRef={introComplete ? undefined : introOpacityRef}
             starfieldOpacity={starfieldOpacity}
@@ -246,6 +257,66 @@ export default function SystemViewer() {
           />
         )}
 
+        {/* Object info panel — shown when a focused object is clicked again */}
+        {infoPanelObjectId && (() => {
+          const obj = system.objects.find(o => o.id === infoPanelObjectId);
+          if (!obj) return null;
+          const faction = obj.factionId ? sector?.factions.find(f => f.id === obj.factionId) : null;
+          const hasTags = obj.tags.length > 0;
+          const hasNotes = obj.notes.trim().length > 0;
+          const hasTimeline = (obj.timeline ?? []).length > 0;
+          const isEmpty = !faction && !hasTags && !hasNotes && !hasTimeline;
+          return (
+            <div className="absolute bottom-16 left-4 w-72 max-h-[60vh] overflow-y-auto bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur p-3 space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-gray-100 text-sm font-semibold leading-tight">{obj.name}</p>
+                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">{obj.type}</p>
+                </div>
+                <button
+                  onClick={() => setInfoPanelObjectId(null)}
+                  className="text-gray-600 hover:text-gray-300 transition-colors flex-shrink-0 mt-0.5"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              {faction && (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: faction.color }} />
+                  <span className="text-xs text-gray-300">{faction.name}</span>
+                </div>
+              )}
+              {hasTags && (
+                <div className="flex flex-wrap gap-1">
+                  {obj.tags.map(tag => (
+                    <span
+                      key={tag}
+                      className="text-[10px] bg-amber-950/60 text-amber-300 border border-amber-800/50 px-2 py-0.5 rounded-full"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {hasNotes && (
+                <p className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap">{obj.notes}</p>
+              )}
+              {hasTimeline && (
+                <div className="border-t border-gray-700/50 pt-2.5">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Clock size={10} className="text-amber-700" />
+                    <span className="text-[9px] text-gray-600 uppercase tracking-wider font-medium">History</span>
+                  </div>
+                  <TimelineEditor events={obj.timeline ?? []} onChange={() => {}} compact />
+                </div>
+              )}
+              {isEmpty && (
+                <p className="text-xs text-gray-600 italic">No data recorded</p>
+              )}
+            </div>
+          );
+        })()}
+
       </div>
 
       {/* Collapsible sidebar — flex sibling, never floats over canvas */}
@@ -278,7 +349,7 @@ export default function SystemViewer() {
                           <div className="my-1 border-t border-gray-700/40" />
                         )}
                         <button
-                          onClick={() => obj.type !== 'Nebula' && setSelectedObjectId(obj.id)}
+                          onClick={() => obj.type !== 'Nebula' && handleObjectClick(obj.id)}
                           disabled={obj.type === 'Nebula'}
                           className={`w-full flex items-center gap-2 py-1.5 px-2 rounded text-left transition-colors ${
                             obj.type === 'Nebula' ? 'cursor-default text-gray-600' : (
@@ -291,7 +362,7 @@ export default function SystemViewer() {
                             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                             style={{ background: obj.colors[0] }}
                           />
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="text-gray-200 text-xs font-medium truncate">{obj.name}</p>
                             <p className="text-gray-600 text-[10px]">
                               {obj.type === 'SpaceStation'
@@ -299,6 +370,15 @@ export default function SystemViewer() {
                                 : obj.type}
                             </p>
                           </div>
+                          {obj.factionId && (() => {
+                            const fc = sector?.factions.find(f => f.id === obj.factionId);
+                            return fc ? (
+                              <div className="w-2 h-2 rounded-full flex-shrink-0 border border-gray-800" style={{ background: fc.color }} title={fc.name} />
+                            ) : null;
+                          })()}
+                          {(obj.tags.length > 0 || obj.notes.trim()) && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-600/70 flex-shrink-0" title="Has notes or tags" />
+                          )}
                         </button>
                         {renderTree(obj.id, depth + 1)}
                       </div>

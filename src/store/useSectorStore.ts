@@ -24,7 +24,7 @@ interface SectorActions {
 
   // Hex / system CRUD
   createSystem: (sectorId: string, q: number, r: number, name: string) => StarSystem;
-  updateSystem: (systemId: string, updates: Partial<Pick<StarSystem, 'name' | 'factionId' | 'notes'>>) => void;
+  updateSystem: (systemId: string, updates: Partial<Pick<StarSystem, 'name' | 'factionId' | 'notes' | 'tags' | 'timeline'>>) => void;
   clearHex: (sectorId: string, q: number, r: number) => void;
 
   // Object CRUD
@@ -109,7 +109,7 @@ export const useSectorStore = create<SectorStore>()(
 
       createSystem(sectorId, q, r, name) {
         const id = crypto.randomUUID();
-        const system: StarSystem = { id, name, sectorId, objects: [], factionId: null, notes: '' };
+        const system: StarSystem = { id, name, sectorId, objects: [], factionId: null, notes: '', tags: [], timeline: [] };
         set(s => ({
           systems: { ...s.systems, [id]: system },
           sectors: s.sectors.map(sec =>
@@ -233,7 +233,9 @@ export const useSectorStore = create<SectorStore>()(
           autoOrbitRadius = BASE_ORBIT + nextOrder * ORBIT_SPACING + (Math.random() - 0.5) * 12;
         }
 
-        const autoRotationSpeed = (rng() * 0.2) + 0.05;
+        const autoRotationSpeed = partial.type === 'NeutronStar'
+          ? (rng() * 6) + 6
+          : (rng() * 0.2) + 0.05;
         const autoInclination = (rng() - 0.5) * 2 * (partial.type === 'Moon' ? 3 : 8);
         const autoOrbitSpeed = autoOrbitRadius > 0 ? (rng() * 0.05) + 0.01 : 0;
         const autoAxisInclination = (rng() - 0.5) * 2 * 25;
@@ -270,6 +272,7 @@ export const useSectorStore = create<SectorStore>()(
           notes: partial.notes ?? '',
           tags: partial.tags ?? [],
           factionId: partial.factionId ?? null,
+          timeline: partial.timeline ?? [],
           planetType: partial.planetType ?? defaults.planetType,
           primaryColor: partial.primaryColor ?? defaults.primaryColor,
           secondaryColor: partial.secondaryColor ?? defaults.secondaryColor,
@@ -279,6 +282,9 @@ export const useSectorStore = create<SectorStore>()(
           nebulaShape: partial.nebulaShape ?? (partial.type === 'Nebula'
             ? (['emission', 'planetary', 'supernova', 'reflection', 'bipolar'] as NebulaShape[])[Math.floor(Math.random() * 5)]
             : defaults.nebulaShape),
+          nsJets: partial.nsJets ?? defaults.nsJets,
+          nsMagnetar: partial.nsMagnetar ?? defaults.nsMagnetar,
+          bhDiscInclination: partial.bhDiscInclination ?? defaults.bhDiscInclination,
         };
         set(s => {
           const updatedSystem = { ...s.systems[systemId], objects: [...s.systems[systemId].objects, obj] };
@@ -376,7 +382,7 @@ export const useSectorStore = create<SectorStore>()(
       addFaction(sectorId, name, color) {
         const faction: Faction = {
           id: crypto.randomUUID(), name, color, notes: '',
-          force: 1, cunning: 1, wealth: 1, hp: 6, xp: 0, tags: [], assets: [], goals: [],
+          force: 1, cunning: 1, wealth: 1, hp: 6, xp: 0, tags: [], assets: [], goals: [], timeline: [],
         };
         set(s => ({
           sectors: s.sectors.map(sec =>
@@ -420,7 +426,7 @@ export const useSectorStore = create<SectorStore>()(
     }),
     {
       name: 'swn-sector-data',
-      version: 2,
+      version: 4,
       migrate(persistedState, version) {
         const state = persistedState as { sectors: Sector[]; systems: Record<string, StarSystem> };
         if (version < 1) {
@@ -443,6 +449,31 @@ export const useSectorStore = create<SectorStore>()(
               const defaults = { force: 1, cunning: 1, wealth: 1, hp: 6, xp: 0, tags: [] as string[], assets: [] as Faction['assets'], goals: [] as Faction['goals'] };
               return { ...defaults, ...f } as Faction;
             }),
+          }));
+        }
+        if (version < 3) {
+          // Add tags to StarSystem objects
+          const systems = state.systems as Record<string, any>;
+          Object.keys(systems).forEach(k => {
+            if (!Array.isArray(systems[k].tags)) systems[k].tags = [];
+          });
+        }
+        if (version < 4) {
+          // Add timeline to StarSystem, SystemObject, and Faction
+          const systems = state.systems as Record<string, any>;
+          Object.keys(systems).forEach(k => {
+            if (!Array.isArray(systems[k].timeline)) systems[k].timeline = [];
+            systems[k].objects = (systems[k].objects ?? []).map((o: any) => ({
+              ...o,
+              timeline: Array.isArray(o.timeline) ? o.timeline : [],
+            }));
+          });
+          state.sectors = state.sectors.map((s: any) => ({
+            ...s,
+            factions: (s.factions ?? []).map((f: any) => ({
+              ...f,
+              timeline: Array.isArray(f.timeline) ? f.timeline : [],
+            })),
           }));
         }
         return state;

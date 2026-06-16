@@ -98,7 +98,7 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
     [obj.seed, obj.sortOrder]
   );
   const angleRef = useRef(initialAngle);
-  const orbitSpeed = obj.orbitSpeed > 0 ? obj.orbitSpeed : (isInBelt ? (obj.orbitRadius > 0 ? 0.2 / Math.sqrt(obj.orbitRadius) : 0.05) : 0.05);
+  const orbitSpeed = obj.orbitSpeed > 0 ? obj.orbitSpeed : (isInBelt ? (obj.orbitRadius > 0 ? 0.5 / Math.sqrt(obj.orbitRadius) : 0.15) : 0.15);
 
   const posHistoryRef = useRef<THREE.Vector3[]>([]);
   const historyIndexRef = useRef(0);

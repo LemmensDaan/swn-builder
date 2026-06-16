@@ -133,6 +133,8 @@ function makePlanet(
   rng: () => number,
   parentSize?: number,
   prevMoonOrbit?: number,
+  parentHasRings?: boolean,
+  parentRingMaxRadius?: number,
 ): Omit<SystemObject, 'id'> {
   const preset = PLANET_PRESETS[planetType];
   const isGas = planetType === 'GasGiant';
@@ -145,7 +147,9 @@ function makePlanet(
   let radius: number;
   if (isMoon) {
     const clearance = 0.3;
-    const fromParent = (parentSize ?? 0) + size + clearance;
+    // Account for parent's rings when calculating moon orbit
+    const ringBuffer = (parentHasRings && parentRingMaxRadius) ? parentRingMaxRadius + 1 : 0;
+    const fromParent = Math.max((parentSize ?? 0) + size + clearance, ringBuffer);
     const fromPrevMoon = (prevMoonOrbit ?? 0) + size * 2 + clearance;
     const minOrbit = Math.max(fromParent, fromPrevMoon);
     radius = randBetween(minOrbit, minOrbit + 1.0, rng);
@@ -291,9 +295,10 @@ export function randomizeSystem(systemType: SystemType): SystemObject[] {
     // Mid planets: 0–2 moons
     const moonCount = randInt(0, pt === 'GasGiant' ? 3 : 1, rng);
     let prevMoonOrbit = 0;
+    const maxRingRadius = planet.ringBands ? Math.max(...planet.ringBands.map(b => b.size * planet.size)) : undefined;
     for (let m = 0; m < moonCount; m++) {
       const moonPt = pick(['Barren', 'Ice', 'Barren'] as PlanetType[], rng);
-      const moon = { id: makeId(), ...makePlanet(moonPt, m, planet.id, rng, planet.size, prevMoonOrbit) };
+      const moon = { id: makeId(), ...makePlanet(moonPt, m, planet.id, rng, planet.size, prevMoonOrbit, planet.rings, maxRingRadius) };
       prevMoonOrbit = moon.orbitRadius;
       objects.push(moon);
     }
@@ -313,9 +318,10 @@ export function randomizeSystem(systemType: SystemType): SystemObject[] {
     // Gas giants: 0–3 moons
     const moonCount = randInt(0, 3, rng);
     let prevMoonOrbit = 0;
+    const maxRingRadius = planet.ringBands ? Math.max(...planet.ringBands.map(b => b.size * planet.size)) : undefined;
     for (let m = 0; m < moonCount; m++) {
       const moonPt = pick(['Barren', 'Ice', 'Toxic', 'Barren'] as PlanetType[], rng);
-      const moon = { id: makeId(), ...makePlanet(moonPt, m, planet.id, rng, planet.size, prevMoonOrbit) };
+      const moon = { id: makeId(), ...makePlanet(moonPt, m, planet.id, rng, planet.size, prevMoonOrbit, planet.rings, maxRingRadius) };
       prevMoonOrbit = moon.orbitRadius;
       objects.push(moon);
     }

@@ -4,9 +4,94 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
 import OrbitRing from './OrbitRing';
-import PlanetRings from './PlanetRings';
+import PlanetRings, { resolveRingBands } from './PlanetRings';
 import { generatePlanetGeometry, PLANET_PRESETS, mulberry32 } from './planetRenderer';
 import { getOrbitPosition } from './orbitUtils';
+
+// Maximum number of ring bands the analytic shadow shader handles.
+const MAX_RING_BANDS = 8;
+
+// GLSL prepended to the Lambert fragment shader.  For each ring band we cast a
+// ray from the surface fragment toward the star and test whether it passes
+// through the ring's annular disc.  The result is a smooth scalar multiplied
+// onto the direct-diffuse term — no shadow map, no triangle-edge aliasing.
+const RING_SHADOW_FRAG_PARS = /* glsl */`
+varying vec3 vRingWorldPos;
+uniform vec3  uRingStarPos;
+uniform vec3  uRingPlanetCenter;
+uniform float uRingBandCount;
+uniform float uRingBandData[${MAX_RING_BANDS * 5}];
+
+float computeRingShadow() {
+  if (uRingBandCount <= 0.0) return 1.0;
+  vec3 L = normalize(uRingStarPos - vRingWorldPos);
+  float shadow = 1.0;
+  for (int i = 0; i < ${MAX_RING_BANDS}; i++) {
+    if (float(i) >= uRingBandCount) break;
+    float inner = uRingBandData[i * 5];
+    float outer = uRingBandData[i * 5 + 1];
+    vec3  N     = vec3(uRingBandData[i * 5 + 2],
+                       uRingBandData[i * 5 + 3],
+                       uRingBandData[i * 5 + 4]);
+    float dDotN = dot(L, N);
+    if (abs(dDotN) < 1e-4) continue;
+    float t = dot(uRingPlanetCenter - vRingWorldPos, N) / dDotN;
+    if (t <= 0.0) continue;
+    vec3  Q    = vRingWorldPos + t * L;
+    float dist = length(Q - uRingPlanetCenter);
+    float soft = max(outer * 0.02, 0.005);
+    float inRing = smoothstep(inner - soft, inner + soft, dist) *
+                   (1.0 - smoothstep(outer - soft, outer + soft, dist));
+    shadow *= 1.0 - inRing * 0.85;
+  }
+  return shadow;
+}
+`;
+
+interface RingUniforms {
+  uRingStarPos:    { value: THREE.Vector3 };
+  uRingPlanetCenter: { value: THREE.Vector3 };
+  uRingBandCount:  { value: number };
+  uRingBandData:   { value: Float32Array };
+}
+
+function buildPlanetMaterial(): { mat: THREE.MeshLambertMaterial; uniforms: RingUniforms } {
+  const uniforms: RingUniforms = {
+    uRingStarPos:    { value: new THREE.Vector3() },
+    uRingPlanetCenter: { value: new THREE.Vector3() },
+    uRingBandCount:  { value: 0 },
+    uRingBandData:   { value: new Float32Array(MAX_RING_BANDS * 5) },
+  };
+
+  const mat = new THREE.MeshLambertMaterial({
+    vertexColors: true,
+    flatShading: true,
+    shadowSide: THREE.BackSide,
+  });
+
+  mat.customProgramCacheKey = () => 'planet-ring-shadow-v1';
+
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+
+    // Vertex: pass world position to fragment shader
+    shader.vertexShader =
+      'varying vec3 vRingWorldPos;\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <worldpos_vertex>',
+      '#include <worldpos_vertex>\nvRingWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+    );
+
+    // Fragment: prepend declarations + function, then apply shadow
+    shader.fragmentShader = RING_SHADOW_FRAG_PARS + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '\tvec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;',
+      '\tfloat ringShadow = computeRingShadow();\n\tvec3 outgoingLight = reflectedLight.directDiffuse * ringShadow + reflectedLight.indirectDiffuse + totalEmissiveRadiance;',
+    );
+  };
+
+  return { mat, uniforms };
+}
 
 function makeGasGiantGlowTexture(): THREE.Texture {
   const size = 64;
@@ -61,6 +146,10 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
   const meshRef  = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
   const isGasGiant = obj.planetType === 'GasGiant';
+
+  const { mat: planetMat, uniforms: ringUniforms } = useMemo(() => buildPlanetMaterial(), []);
+  // Reusable vector for ring normal computation — avoids per-frame allocation.
+  const ringNormTmp = useRef(new THREE.Vector3());
 
   const angleRef = useRef(mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2);
 
@@ -121,6 +210,34 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
         meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
       }
     }
+
+    // Update analytic ring shadow uniforms every frame.
+    // Star position approximated at world origin — accurate for single-star systems.
+    if (obj.rings && groupRef.current && axisGroupRef.current) {
+      ringUniforms.uRingStarPos.value.set(0, 0, 0);
+      groupRef.current.getWorldPosition(ringUniforms.uRingPlanetCenter.value);
+      const bands = resolveRingBands(obj);
+      const count = Math.min(bands.length, MAX_RING_BANDS);
+      ringUniforms.uRingBandCount.value = count;
+      const data = ringUniforms.uRingBandData.value;
+      const axisQ = axisGroupRef.current.quaternion;
+      for (let i = 0; i < count; i++) {
+        const band = bands[i];
+        const bIncRad = THREE.MathUtils.degToRad(band.inclination);
+        ringNormTmp.current
+          .set(0, Math.cos(bIncRad), Math.sin(bIncRad))
+          .applyQuaternion(axisQ);
+        const centerR = band.size * obj.size;
+        const w = (band.width ?? 0.4) * obj.size;
+        data[i * 5]     = Math.max(0.02, centerR - w / 2);
+        data[i * 5 + 1] = centerR + w / 2;
+        data[i * 5 + 2] = ringNormTmp.current.x;
+        data[i * 5 + 3] = ringNormTmp.current.y;
+        data[i * 5 + 4] = ringNormTmp.current.z;
+      }
+    } else {
+      ringUniforms.uRingBandCount.value = 0;
+    }
   });
 
   return (
@@ -176,14 +293,13 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
           <mesh
             ref={meshRef}
             geometry={geo}
+            material={planetMat}
             castShadow
             receiveShadow
             onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
             onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
             onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
-          >
-            <meshLambertMaterial vertexColors flatShading shadowSide={THREE.BackSide} />
-          </mesh>
+          />
           {obj.rings && <PlanetRings obj={obj} />}
         </group>
         {/* Hover label — monospace text, no line, no box */}

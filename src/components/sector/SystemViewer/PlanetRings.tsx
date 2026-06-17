@@ -157,13 +157,6 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
         </mesh>
         <instancedMesh ref={meshRef} args={[geo, mat, count]} receiveShadow />
       </group>
-      {/* Per-band invisible shadow caster at this band's exact inclination and extent.
-          Transparent materials don't produce reliable shadow maps, so the opaque proxy
-          gives a clean, correctly-sized shadow on the planet for every individual band. */}
-      <mesh castShadow rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[inner, outer, 64]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
     </group>
   );
 }

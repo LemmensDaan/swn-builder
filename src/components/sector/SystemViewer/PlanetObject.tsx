@@ -312,9 +312,6 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
           >
             <div style={{ fontFamily: 'monospace', fontSize: '10px', color: '#ddd', whiteSpace: 'nowrap', textShadow: '0 1px 4px #000' }}>
               {obj.name}
-              {obj.tags.length > 0 && (
-                <div style={{ color: '#aaa', marginTop: '2px' }}>{obj.tags.join(' · ')}</div>
-              )}
             </div>
           </Html>
         )}

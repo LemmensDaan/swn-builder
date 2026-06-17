@@ -10,46 +10,49 @@ import CollapsableStoryCard from '../shared/CollapsableStoryCard';
 const SYSTEM_TYPES: SystemType[] = ['Standard', 'Binary', 'Hostile', 'Rich', 'Dead', 'Frontier'];
 
 const QUICK_TYPES: { type: ObjectType; label: string; extra?: Partial<SystemObject> }[] = [
-  { type: 'Star',         label: 'Star'        },
-  { type: 'NeutronStar',  label: 'Neutron Star'},
-  { type: 'Planet',       label: 'Planet'      },
-  { type: 'GasGiant',     label: 'Gas Giant'   },
-  { type: 'Moon',         label: 'Moon'        },
-  { type: 'AsteroidBelt', label: 'Belt'        },
-  { type: 'Comet',        label: 'Comet'       },
-  { type: 'SpaceStation', label: 'Station'     },
-  { type: 'JumpGate',     label: 'Gate'        },
-  { type: 'BlackHole',    label: 'Black Hole'  },
-  { type: 'Nebula',       label: 'Nebula',     extra: { isDeepSpace: true } },
-  { type: 'Other',        label: 'Other'       },
+  { type: 'Star', label: 'Star' },
+  { type: 'NeutronStar', label: 'Neutron Star' },
+  { type: 'Planet', label: 'Planet' },
+  { type: 'GasGiant', label: 'Gas Giant' },
+  { type: 'Moon', label: 'Moon' },
+  { type: 'AsteroidBelt', label: 'Belt' },
+  { type: 'Comet', label: 'Comet' },
+  { type: 'SpaceStation', label: 'Station' },
+  { type: 'JumpGate', label: 'Gate' },
+  { type: 'BlackHole', label: 'Black Hole' },
+  { type: 'Nebula', label: 'Nebula', extra: { isDeepSpace: true } },
+  { type: 'Other', label: 'Other' },
 ];
 
 const OBJECT_TYPE_COLORS: Record<ObjectType, string> = {
-  Star:        '#FFF4C2',
+  Star: '#FFF4C2',
   NeutronStar: '#A0CFFF',
-  BlackHole:   '#ff7828',
-  Planet:      '#4E9AF1',
-  GasGiant:    '#D4924A',
-  Moon:        '#9E9E9E',
-  AsteroidBelt:'#8C7B6B',
-  SpaceStation:'#B0C4DE',
-  JumpGate:    '#00FFCC',
-  Comet:       '#E8F4F8',
-  Other:       '#888888',
-  Nebula:      '#9b0d7c',
+  BlackHole: '#ff7828',
+  Planet: '#4E9AF1',
+  GasGiant: '#D4924A',
+  Moon: '#9E9E9E',
+  AsteroidBelt: '#8C7B6B',
+  SpaceStation: '#B0C4DE',
+  JumpGate: '#00FFCC',
+  Comet: '#E8F4F8',
+  Other: '#888888',
+  Nebula: '#9b0d7c',
 };
 
-const DEEP_ORBIT_BASE    = 80;
+const DEEP_ORBIT_BASE = 80;
 const DEEP_ORBIT_SPACING = 15;
 
 // Orbit radius increments when placing a reparented object
-const TL_BASE_ORBIT    = 8;
-const TL_SPACING       = 10;
+const TL_BASE_ORBIT = 8;
+const TL_SPACING = 10;
 const CHILD_BASE_ORBIT = 1.5;
-const CHILD_SPACING    = 0.8;
+const CHILD_SPACING = 0.8;
 
 // Only these types may orbit an asteroid belt
 const BELT_ALLOWED_TYPES = new Set<ObjectType>(['SpaceStation', 'JumpGate', 'Other']);
+
+// These object types cannot be assigned to a faction
+const NO_FACTION_TYPES = new Set<ObjectType>(['Star', 'BlackHole', 'NeutronStar', 'Nebula', 'AsteroidBelt', 'Comet']);
 
 interface Props {
   system: StarSystem;
@@ -156,7 +159,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
       : toDeep ? DEEP_ORBIT_BASE : TL_BASE_ORBIT;
 
     // Place obj at the end of its new zone in the sorted order.
-    const sysObjs  = others.filter(o => !o.isDeepSpace);
+    const sysObjs = others.filter(o => !o.isDeepSpace);
     const deepObjs = others.filter(o => o.isDeepSpace);
     const newTLOrder = toDeep
       ? [...sysObjs, ...deepObjs, obj]
@@ -173,7 +176,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
   function reorderSiblings(draggedObj: SystemObject, targetObj: SystemObject) {
     const siblings = childrenOf.get(draggedObj.parentId!) ?? [];
     const fromIdx = siblings.findIndex(s => s.id === draggedObj.id);
-    const toIdx   = siblings.findIndex(s => s.id === targetObj.id);
+    const toIdx = siblings.findIndex(s => s.id === targetObj.id);
     if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
 
     const newSibIds = siblings.map(s => s.id);
@@ -196,7 +199,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
    * Assigns a sensible orbit radius and updates the full sorted order atomically.
    */
   function reparentTo(obj: SystemObject, newParentId: string | null) {
-    const wasTopLevel  = isTopLevelNonPrimary(obj);
+    const wasTopLevel = isTopLevelNonPrimary(obj);
     const willBeTopLevel = newParentId === null || primaryIds.has(newParentId ?? '');
 
     // New TL order
@@ -290,7 +293,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
     if (dragged.type === 'Nebula' || dragged.type === 'Comet') return;
 
     const targetIsPrimary = primaryTypes.has(targetObj.type);
-    const targetIsTL      = isTopLevelNonPrimary(targetObj);
+    const targetIsTL = isTopLevelNonPrimary(targetObj);
 
     // Resolve the belt the drop would end up in (if any) and validate the type
     const wouldBeInBelt = (parentId: string | null | undefined) => {
@@ -309,7 +312,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
           moveToZone(dragged, !!targetObj.isDeepSpace);
         } else {
           const fromTlIdx = topLevelNonPrimary.findIndex(o => o.id === dragged.id);
-          const toTlIdx   = topLevelNonPrimary.findIndex(o => o.id === targetObj.id);
+          const toTlIdx = topLevelNonPrimary.findIndex(o => o.id === targetObj.id);
           reorderTopLevel(fromTlIdx, toTlIdx);
         }
       } else {
@@ -387,21 +390,19 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
         <div className="flex gap-1">
           <button
             onClick={() => handleMainTabChange('system')}
-            className={`px-3 py-2 text-xs font-medium rounded-t transition-colors ${
-              mainTab === 'system'
+            className={`px-3 py-2 text-xs font-medium rounded-t transition-colors ${mainTab === 'system'
                 ? 'text-cyan-300 bg-cyan-950/30 border-b-2 border-cyan-600'
                 : 'text-gray-500 hover:text-gray-300'
-            }`}
+              }`}
           >
             System
           </button>
           <button
             onClick={() => handleMainTabChange('story')}
-            className={`px-3 py-2 text-xs font-medium rounded-t transition-colors ${
-              mainTab === 'story'
+            className={`px-3 py-2 text-xs font-medium rounded-t transition-colors ${mainTab === 'story'
                 ? 'text-purple-300 bg-purple-950/30 border-b-2 border-purple-600'
                 : 'text-gray-500 hover:text-gray-300'
-            }`}
+              }`}
           >
             Story
           </button>
@@ -474,7 +475,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
 
             {/* Top-level non-primary objects (draggable) with children nested below */}
             {(() => {
-              const sysZone  = topLevelNonPrimary.filter(o => !o.isDeepSpace);
+              const sysZone = topLevelNonPrimary.filter(o => !o.isDeepSpace);
               const deepZone = topLevelNonPrimary.filter(o => o.isDeepSpace);
 
               const renderObj = (obj: SystemObject) => {
@@ -649,29 +650,33 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
                 .sort((a, b) => {
                   const aHasContent = (a.factionId && a.factionId !== '') || (a.tags ?? []).length > 0 || a.notes.trim().length > 0 || (a.timeline ?? []).length > 0;
                   const bHasContent = (b.factionId && b.factionId !== '') || (b.tags ?? []).length > 0 || b.notes.trim().length > 0 || (b.timeline ?? []).length > 0;
-                  return bHasContent ? 1 : -1;
+                  return Number(bHasContent) - Number(aHasContent);
                 })
-                .map(obj => (
-                  <CollapsableStoryCard
-                    key={obj.id}
-                    id={obj.id}
-                    title={obj.name}
-                    borderColor={obj.colors[0]}
-                    factionId={obj.factionId}
-                    factions={factions}
-                    contestedFactionIds={obj.contestedFactionIds ?? []}
-                    tags={obj.tags ?? []}
-                    notes={obj.notes}
-                    events={obj.timeline ?? []}
-                    isExpanded={expandedStoryCardId === obj.id}
-                    onExpandChange={setExpandedStoryCardId}
-                    onFactionChange={factionId => updateObject(system.id, obj.id, { factionId })}
-                    onContestedFactionsChange={ids => updateObject(system.id, obj.id, { contestedFactionIds: ids })}
-                    onTagsChange={tags => updateObject(system.id, obj.id, { tags })}
-                    onNotesChange={notes => updateObject(system.id, obj.id, { notes })}
-                    onTimelineChange={timeline => updateObject(system.id, obj.id, { timeline })}
-                  />
-                ))}
+                .map(obj => {
+                  const noFaction = NO_FACTION_TYPES.has(obj.type);
+                  return (
+                    <CollapsableStoryCard
+                      key={obj.id}
+                      id={obj.id}
+                      title={obj.name}
+                      borderColor={obj.colors[0]}
+                      factionId={obj.factionId}
+                      factions={noFaction ? [] : factions}
+                      contestedFactionIds={obj.contestedFactionIds ?? []}
+                      tags={obj.tags ?? []}
+                      notes={obj.notes}
+                      events={obj.timeline ?? []}
+                      isExpanded={expandedStoryCardId === obj.id}
+                      onExpandChange={setExpandedStoryCardId}
+                      onFactionChange={factionId => updateObject(system.id, obj.id, { factionId })}
+                      onContestedFactionsChange={noFaction ? undefined : ((ids) => updateObject(system.id, obj.id, { contestedFactionIds: ids }))}
+                      onTagsChange={tags => updateObject(system.id, obj.id, { tags })}
+                      onNotesChange={notes => updateObject(system.id, obj.id, { notes })}
+                      onTimelineChange={timeline => updateObject(system.id, obj.id, { timeline })}
+                    />
+                  );
+                })
+              }
             </div>
           )}
         </div>

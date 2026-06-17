@@ -419,8 +419,8 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
   const WealthIcon = STAT_ICON.Wealth;
 
   return (
-    <div className="min-h-screen text-gray-100 flex justify-center bg-gray-950">
-      <div className="w-full max-w-4xl flex flex-col min-h-screen">
+    <div className="min-h-screen text-gray-100 flex justify-center">
+      <div className="w-full max-w-4xl flex flex-col min-h-screen bg-gray-950">
 
         {/* ── Header ───────────────────────────────────────────────────────── */}
         <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center gap-3 flex-shrink-0">

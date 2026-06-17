@@ -119,9 +119,27 @@ export const useSectorStore = create<SectorStore>()(
         const sector = get().sectors.find(s => s.id === sectorId);
         if (!sector) return;
 
-        const emptyHexes = sector.hexes.filter(h => !h.systemId);
+        // Clear all existing systems in this sector
+        const { systems } = get();
+        const sectorSystems = Object.entries(systems)
+          .filter(([, sys]) => sys.sectorId === sectorId)
+          .map(([id]) => id);
+
+        set(s => ({
+          systems: Object.fromEntries(
+            Object.entries(s.systems).filter(([id]) => !sectorSystems.includes(id))
+          ),
+          sectors: s.sectors.map(sec =>
+            sec.id === sectorId
+              ? { ...sec, hexes: sec.hexes.map(h => ({ ...h, systemId: null })) }
+              : sec
+          ),
+        }));
+
+        // Generate new systems
+        const allHexes = sector.hexes;
         const seed = Math.floor(Math.random() * 0xffffffff);
-        const plan = randomizeSectorPlan(seed, emptyHexes);
+        const plan = randomizeSectorPlan(seed, allHexes);
 
         plan.forEach(({q, r, systemType}) => {
           const sys = get().createSystem(sectorId, q, r, `System ${String(q).padStart(2,'0')}${String(r).padStart(2,'0')}`);

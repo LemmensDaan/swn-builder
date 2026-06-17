@@ -228,6 +228,10 @@ export default function SectorHexView() {
     }
   }
 
+  function handleDirectRandomize() {
+    randomizeSector(sector!.id);
+  }
+
   function handleClosePanel() {
     setPanelOpen(false);
     setSelectedQ(null);
@@ -247,7 +251,7 @@ export default function SectorHexView() {
   return (
     <div className="relative h-full">
       {/* 3D Canvas — always fills full container; panel overlays it absolutely */}
-      <div className="h-full relative" style={{ pointerEvents: pendingRouteEnd || confirmingRandomize ? 'none' : 'auto' }}>
+      <div className="h-full relative">
         <Canvas
           camera={{ position: CAM_START.toArray(), fov: 50 }}
           gl={{ antialias: true, alpha: true }}
@@ -282,7 +286,7 @@ export default function SectorHexView() {
           />
           <OrbitControls
             ref={controlsRef}
-            enabled={!isZooming}
+            enabled={!isZooming && !pendingRouteEnd && !confirmingRandomize}
             target={GRID_CENTER.toArray() as [number, number, number]}
             enablePan
             enableZoom
@@ -310,66 +314,11 @@ export default function SectorHexView() {
           </div>
         </div>
 
-        {/* Bottom left buttons — route mode toggle */}
-        <div className="absolute bottom-4 left-4 flex flex-col gap-2">
-          <button
-            onClick={handleToggleRouteMode}
-            className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-              routeMode
-                ? 'bg-green-900/80 border-green-600/60 text-green-300 hover:bg-green-800/80'
-                : 'bg-gray-900/70 border-gray-700/60 text-gray-400 hover:text-gray-200 hover:border-gray-500'
-            }`}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
-              <circle cx="2" cy="2" r="1.5" fill="currentColor" />
-              <circle cx="10" cy="10" r="1.5" fill="currentColor" />
-              <line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 1.5" />
-            </svg>
-            {routeMode ? 'Drawing Route' : 'Draw Route'}
-          </button>
-
-          {/* Settings button */}
-          <div className="relative">
-            <button
-              onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-              className="pointer-events-auto p-2 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-400 hover:text-gray-200 transition-colors"
-              title="Sector settings"
-            >
-              <Sliders size={13} />
-            </button>
-
-            {/* Settings menu */}
-            {showSettingsMenu && (
-              <div className="absolute bottom-full left-0 mb-2 bg-gray-950 border border-gray-700 rounded-lg shadow-lg z-40">
-                <button
-                  onClick={() => {
-                    setShowSettingsMenu(false);
-                    setConfirmingRandomize(true);
-                  }}
-                  className="block w-full px-4 py-2 text-left text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-900/50 transition-colors border-b border-gray-800 last:border-b-0"
-                >
-                  Randomize Sector
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Route mode instructions */}
-          {routeMode && (
-            <div className="pointer-events-none bg-gray-950/80 border border-green-800/40 rounded-lg px-3 py-2 text-xs text-gray-400 max-w-[220px]">
-              {!routeStart
-                ? <span className="text-green-400">Click a hex to set the start</span>
-                : <span className="text-green-300">Click another hex to complete the route</span>
-              }
-              <div className="text-gray-600 mt-1">Press Esc or click button to cancel</div>
-            </div>
-          )}
-        </div>
 
         {/* Randomize sector confirmation dialog */}
         {confirmingRandomize && (
-          <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm">
-            <div className="bg-gray-950 border border-gray-700 rounded-2xl p-6 w-80 shadow-2xl">
+          <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm pointer-events-auto">
+            <div className="bg-gray-950 border border-gray-700 rounded-2xl p-6 w-80 shadow-2xl pointer-events-auto">
               <h3 className="text-gray-200 text-sm font-semibold mb-2">Randomize Sector?</h3>
               <p className="text-gray-400 text-xs mb-4">
                 This will populate all empty hexes with randomly generated systems and override any existing configuration. This action cannot be undone.
@@ -396,10 +345,82 @@ export default function SectorHexView() {
         )}
       </div>
 
+      {/* Bottom left buttons */}
+      <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-40">
+        <button
+          onClick={handleToggleRouteMode}
+          className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+            routeMode
+              ? 'bg-green-900/80 border-green-600/60 text-green-300 hover:bg-green-800/80'
+              : 'bg-gray-900/70 border-gray-700/60 text-gray-400 hover:text-gray-200 hover:border-gray-500'
+          }`}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
+            <circle cx="2" cy="2" r="1.5" fill="currentColor" />
+            <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+            <line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 1.5" />
+          </svg>
+          {routeMode ? 'Drawing Route' : 'Draw Route'}
+        </button>
+
+        {/* Randomize sector button — only shown when sector is empty */}
+        {Object.values(systems).filter(s => s.sectorId === sector.id).length === 0 && (
+          <button
+            onClick={handleDirectRandomize}
+            className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border bg-amber-900/40 border-amber-700/60 text-amber-300 hover:text-amber-200 hover:border-amber-600 animate-pulse"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
+              <path d="M2 6C2 3.8 3.8 2 6 2" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <path d="M10 6C10 8.2 8.2 10 6 10" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <path d="M9.5 5.5L10 6.5L9 6" fill="currentColor" />
+              <path d="M2.5 6.5L2 5.5L3 6" fill="currentColor" />
+            </svg>
+            Randomize
+          </button>
+        )}
+
+        {/* Route mode instructions */}
+        {routeMode && (
+          <div className="pointer-events-none bg-gray-950/80 border border-green-800/40 rounded-lg px-3 py-2 text-xs text-gray-400 max-w-[220px]">
+            {!routeStart
+              ? <span className="text-green-400">Click a hex to set the start</span>
+              : <span className="text-green-300">Click another hex to complete the route</span>
+            }
+            <div className="text-gray-600 mt-1">Press Esc or click button to cancel</div>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom right — Settings button */}
+      <div className="absolute bottom-4 right-4 z-40">
+        <button
+          onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+          className="pointer-events-auto p-2 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-400 hover:text-gray-200 transition-colors"
+          title="Sector settings"
+        >
+          <Sliders size={13} />
+        </button>
+
+        {/* Settings menu */}
+        {showSettingsMenu && (
+          <div className="absolute bottom-full right-0 mb-2 bg-gray-950 border border-gray-700 rounded-lg shadow-lg z-40">
+            <button
+              onClick={() => {
+                setShowSettingsMenu(false);
+                setConfirmingRandomize(true);
+              }}
+              className="block w-full px-4 py-2 text-left text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-900/50 transition-colors"
+            >
+              Randomize Sector
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Route category picker popup */}
       {pendingRouteEnd && (
-        <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm">
-          <div className="bg-gray-950 border border-gray-700 rounded-2xl p-5 w-80 shadow-2xl">
+        <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm pointer-events-auto">
+          <div className="bg-gray-950 border border-gray-700 rounded-2xl p-5 w-80 shadow-2xl pointer-events-auto">
             <h3 className="text-gray-200 text-sm font-semibold mb-1">New Spike Drive Route</h3>
             {routeStart && (
               <p className="text-gray-500 text-xs mb-4 font-mono">

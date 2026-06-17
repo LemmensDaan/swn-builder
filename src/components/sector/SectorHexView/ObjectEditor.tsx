@@ -179,6 +179,28 @@ interface Props {
   onExpandChange?: (id: string, expanded: boolean) => void;
 }
 
+function calculateOrbitRadiusForParent(parentId: string | null, obj: SystemObject, allObjects: SystemObject[]): number {
+  if (!parentId) return obj.orbitRadius;
+
+  const parent = allObjects.find(o => o.id === parentId);
+  if (!parent) return obj.orbitRadius;
+
+  const parentSize = parent.size ?? 1;
+  const objSize = obj.size ?? 1;
+  const CLEARANCE = 1.5;
+
+  if (parent.type === 'AsteroidBelt') {
+    return parent.orbitRadius;
+  }
+
+  const siblings = allObjects.filter(o => o.parentId === parentId && o.id !== obj.id);
+  if (siblings.length > 0) {
+    return Math.max(...siblings.map(s => s.orbitRadius)) + objSize * 2 + CLEARANCE;
+  }
+
+  return parentSize + objSize + CLEARANCE + 4;
+}
+
 export default function ObjectEditor({ obj, allObjects, onChange, onRemove, draggable = true, onDragStart, expanded: externalExpanded, onExpandChange }: Props) {
   const [expanded, setExpandedLocal] = useState(false);
   const expanded_ = externalExpanded !== undefined ? externalExpanded : expanded;
@@ -588,12 +610,8 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                             value={obj.parentId ?? ''}
                             onChange={e => {
                               const newParentId = e.target.value || null;
-                              const newParent = allObjects.find(o => o.id === newParentId);
-                              if (newParent?.type === 'AsteroidBelt') {
-                                onChange({ parentId: newParentId, orbitRadius: newParent.orbitRadius, inclination: newParent.inclination });
-                              } else {
-                                onChange({ parentId: newParentId });
-                              }
+                              const newOrbitRadius = calculateOrbitRadiusForParent(newParentId, obj, allObjects);
+                              onChange({ parentId: newParentId, orbitRadius: newOrbitRadius });
                             }}
                           >
                             <option value="">— None (top-level orbit) —</option>

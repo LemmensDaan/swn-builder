@@ -205,8 +205,6 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
     switch (childType) {
       // These types cannot orbit anything
       case 'Nebula':
-      case 'SpaceStation':
-      case 'JumpGate':
       case 'Comet':
         return [];
 
@@ -228,6 +226,11 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
       // Can orbit stars, planets, gas giants, or moons
       case 'Moon':
         return [...STARS, 'Planet', 'GasGiant', 'Moon'] as ObjectType[];
+
+      // Gates and stations can orbit planets, moons, belts, gas giants, or other objects
+      case 'SpaceStation':
+      case 'JumpGate':
+        return [...STARS, 'Planet', 'GasGiant', 'Moon', 'AsteroidBelt', 'Other'] as ObjectType[];
 
       // Can orbit stars, planets, gas giants, moons, belts, or other
       case 'Other':

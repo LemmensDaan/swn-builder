@@ -106,12 +106,9 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
   const sharedSeed = 999; // Same seed for both binary companions = consistent 180° opposition
 
   const inclination = order === 0 ? 0 : (rng() - 0.5) * 2 * 15;
-  // For binary systems, vary the orbit speed slightly so stars don't orbit in perfect sync
-  let effectiveOrbitSpeed = orbitRad > 0 ? (binaryOrbitSpeed ?? randBetween(0.01, 0.08, rng)) : 0;
-  if (order === 1 && binaryOrbitRad && effectiveOrbitSpeed > 0) {
-    // Secondary star orbits slightly faster or slower (multiply by 0.85-1.15)
-    effectiveOrbitSpeed *= randBetween(0.85, 1.15, rng);
-  }
+  // Add orbital delay to secondary star so it starts rotating later, and random starting angle
+  const orbitDelay = order === 1 && binaryOrbitRad ? randBetween(2, 8, rng) : 0;
+  const orbitPhaseOffset = order === 1 && binaryOrbitRad ? rng() * Math.PI * 2 : 0;
 
   return {
     type,
@@ -123,7 +120,9 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
     orbitRadius: orbitRad,
     inclination,
     selfRotationSpeed: type === 'BlackHole' ? 0 : type === 'NeutronStar' ? randBetween(6, 12, rng) : randBetween(0.05, 0.25, rng),
-    orbitSpeed: effectiveOrbitSpeed,
+    orbitSpeed: orbitRad > 0 ? (binaryOrbitSpeed ?? randBetween(0.01, 0.08, rng)) : 0,
+    orbitDelay,
+    orbitPhaseOffset,
     axisInclination: (rng() - 0.5) * 2 * 30,
     ...(type === 'NeutronStar' ? {
       nsJets: rng() < 0.3,      // 30% chance of being a pulsar

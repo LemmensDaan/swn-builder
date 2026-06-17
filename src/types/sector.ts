@@ -42,6 +42,8 @@ export interface SystemObject {
   inclination: number;  // degrees
   selfRotationSpeed: number;
   orbitSpeed: number;   // affects speed of orbital motion
+  orbitDelay?: number;  // seconds to wait before starting orbital motion (for binary stars)
+  orbitPhaseOffset?: number;  // starting angle offset in radians (0-2π)
   axisInclination: number;  // degrees — inclination of the object's rotation axis
   // Planet renderer fields (optional; when set, override colors)
   planetType?: PlanetType;

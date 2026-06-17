@@ -721,7 +721,10 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   // Binary orbit
   let initialAngle = mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2;
   if (obj.sortOrder === 1) initialAngle += Math.PI;
+  // Apply random phase offset to secondary star
+  initialAngle += obj.orbitPhaseOffset ?? 0;
   const orbitSpeed = obj.orbitSpeed > 0 ? obj.orbitSpeed : (obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0);
+  const orbitDelay = obj.orbitDelay ?? 0;
   const angleRef   = useRef(initialAngle);
 
   useFrame(({ camera }, delta) => {
@@ -730,7 +733,10 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
 
     // Binary orbit
     if (obj.orbitRadius > 0 && groupRef.current) {
-      angleRef.current += delta * orbitSpeed;
+      // Only start orbiting after delay time
+      if (time >= orbitDelay) {
+        angleRef.current += delta * orbitSpeed;
+      }
       const incRad = THREE.MathUtils.degToRad(obj.inclination);
       const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
       groupRef.current.position.set(x, y, z);

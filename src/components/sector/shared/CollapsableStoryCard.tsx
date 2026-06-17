@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import type { TimelineEvent, Faction } from '../../../types/sector';
 import TimelineEditor from './TimelineEditor';
 import WorldTagPicker from './WorldTagPicker';
@@ -96,77 +96,88 @@ export default function CollapsableStoryCard({
 
       {isExpanded && (
         <div className="border-t border-gray-700/50 px-4 py-3 space-y-3">
-          {/* Faction + Contested — side by side when contested handler is provided */}
-          <div className={onContestedFactionsChange ? 'flex gap-2' : undefined}>
-              {/* Faction */}
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5 font-semibold">Faction</p>
-                <div className="flex items-center gap-1.5">
-                  {factionId && (
-                    <div
-                      className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
-                      style={{ background: factions.find(f => f.id === factionId)?.color ?? '#888' }}
-                    />
-                  )}
-                  <select
-                    className="flex-1 min-w-0 bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none cursor-pointer hover:border-gray-600 focus:border-gray-500 transition-colors"
-                    value={factionId ?? ''}
-                    onChange={e => onFactionChange(e.target.value || null)}
+          {/* Faction + Contested dropdowns side by side */}
+          <div className="flex gap-2">
+            {/* Faction */}
+            <div className="flex-1">
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5 font-semibold">Faction</p>
+              <div className="flex items-center gap-1.5">
+                {factionId && (
+                  <div
+                    className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
+                    style={{ background: factions.find(f => f.id === factionId)?.color ?? '#888' }}
+                  />
+                )}
+                <select
+                  className="flex-1 min-w-0 bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none cursor-pointer hover:border-gray-600 focus:border-gray-500 transition-colors"
+                  value={factionId ?? ''}
+                  onChange={e => onFactionChange(e.target.value || null)}
+                >
+                  {!factionId && <option value="">Controlled by...</option>}
+                  {factions.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+                {factionId && (
+                  <button
+                    onClick={() => onFactionChange(null)}
+                    className="text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0"
+                    title="Clear faction"
                   >
-                    <option value="">— None —</option>
-                    {factions.map(f => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                  </select>
-                </div>
+                    <X size={14} />
+                  </button>
+                )}
               </div>
-
-              {/* Contested — only when handler provided */}
-              {onContestedFactionsChange && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5 font-semibold">Contested</p>
-                  {(contestedFactionIds ?? []).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-1.5">
-                      {(contestedFactionIds ?? []).map(fid => {
-                        const f = factions.find(f => f.id === fid);
-                        if (!f) return null;
-                        return (
-                          <span
-                            key={fid}
-                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] text-gray-200 border border-gray-600/50"
-                            style={{ background: f.color + '33' }}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: f.color }} />
-                            <span className="truncate max-w-[48px]">{f.name}</span>
-                            <button
-                              onClick={() => onContestedFactionsChange((contestedFactionIds ?? []).filter(id => id !== fid))}
-                              className="text-gray-500 hover:text-gray-200 leading-none ml-0.5 flex-shrink-0"
-                            >×</button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {(contestedFactionIds?.length ?? 0) < 3 && (
-                    <select
-                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none cursor-pointer hover:border-gray-600 focus:border-gray-500 transition-colors"
-                      value=""
-                      onChange={e => {
-                        if (!e.target.value) return;
-                        const newIds = [...(contestedFactionIds ?? []), e.target.value].slice(0, 3);
-                        onContestedFactionsChange(newIds);
-                      }}
-                    >
-                      <option value="">Add contested…</option>
-                      {factions
-                        .filter(f => !(contestedFactionIds ?? []).includes(f.id))
-                        .map(f => <option key={f.id} value={f.id}>{f.name}</option>)
-                      }
-                    </select>
-                  )}
-                </div>
-              )}
             </div>
+
+            {/* Contested — only when handler provided */}
+            {onContestedFactionsChange && (
+              <div className="flex-1">
+                <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5 font-semibold">Contested</p>
+                {(contestedFactionIds?.length ?? 0) < 3 && (
+                  <select
+                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none cursor-pointer hover:border-gray-600 focus:border-gray-500 transition-colors"
+                    value=""
+                    onChange={e => {
+                      if (!e.target.value) return;
+                      const newIds = [...(contestedFactionIds ?? []), e.target.value].slice(0, 3);
+                      onContestedFactionsChange(newIds);
+                    }}
+                  >
+                    {factions.filter(f => !(contestedFactionIds ?? []).includes(f.id) && f.id !== factionId).length > 0 && <option value="">Add contested…</option>}
+                    {factions
+                      .filter(f => !(contestedFactionIds ?? []).includes(f.id) && f.id !== factionId)
+                      .map(f => <option key={f.id} value={f.id}>{f.name}</option>)
+                    }
+                  </select>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Selected contested factions below dropdowns */}
+          {onContestedFactionsChange && (contestedFactionIds ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-1 justify-end">
+              {(contestedFactionIds ?? []).map(fid => {
+                const f = factions.find(f => f.id === fid);
+                if (!f) return null;
+                return (
+                  <span
+                    key={fid}
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] text-gray-200 border border-gray-600/50"
+                    style={{ background: f.color + '33' }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: f.color }} />
+                    <span className="truncate max-w-[48px]">{f.name}</span>
+                    <button
+                      onClick={() => onContestedFactionsChange((contestedFactionIds ?? []).filter(id => id !== fid))}
+                      className="text-gray-500 hover:text-gray-200 leading-none ml-0.5 flex-shrink-0"
+                    >×</button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
 
           {/* Tags */}
           <div>

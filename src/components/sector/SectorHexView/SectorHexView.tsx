@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { Sliders } from 'lucide-react';
+import { Sliders, Shuffle } from 'lucide-react';
 import { useSectorStore } from '../../../store/useSectorStore';
 import Starfield from '../shared/Starfield';
 import HexGrid, { HEX_SIZE } from './HexGrid';
 import { hexToWorld } from './HexCell';
 import SystemPanel from './SystemPanel';
+import { randomizeSystem } from '../SystemViewer/systemRandomizer';
+import type { SystemType } from '../../../types/sector';
 import SpikeRoutes from './SpikeRoutes';
 import { ROUTE_COLORS, ROUTE_LABELS, ROUTE_DASHED, hexDistance, travelDays } from './routeUtils';
 import { GRID_COLS, GRID_ROWS, type RouteCategory } from '../../../types/sector';
@@ -103,7 +105,7 @@ function CameraZoomController({
 const ALL_CATEGORIES: RouteCategory[] = ['known', 'experimental', 'crew-traveled', 'crew-discovered', 'hazardous'];
 
 export default function SectorHexView() {
-  const { activeSectorId, sectors, systems, createSystem, clearHex, navigateToSystem, layer, addRoute, updateRoute, removeRoute, randomizeSector } = useSectorStore();
+  const { activeSectorId, sectors, systems, createSystem, addObject, clearHex, navigateToSystem, layer, addRoute, updateRoute, removeRoute, randomizeSector } = useSectorStore();
   const sector = sectors.find(s => s.id === activeSectorId);
   const [selectedQ, setSelectedQ] = useState<number | null>(null);
   const [selectedR, setSelectedR] = useState<number | null>(null);
@@ -126,6 +128,7 @@ export default function SectorHexView() {
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [confirmingRandomize, setConfirmingRandomize] = useState(false);
   const [focusMode, setFocusMode] = useState<'hexes' | 'routes'>('hexes');
+  const [newSystemType, setNewSystemType] = useState<SystemType>('Standard');
 
   const sectorRoutes = sector?.routes ?? [];
   const selectedRoute = selectedRouteId ? sectorRoutes.find(r => r.id === selectedRouteId) : null;
@@ -259,6 +262,17 @@ export default function SectorHexView() {
   function handleCreateSystem() {
     if (selectedQ === null || selectedR === null) return;
     createSystem(sector?.id ?? '', selectedQ, selectedR, `System ${String(selectedQ).padStart(2,'0')}${String(selectedR).padStart(2,'0')}`);
+  }
+
+  function handleCreateRandomizedSystem() {
+    if (selectedQ === null || selectedR === null || !sector) return;
+    const systemName = `System ${String(selectedQ).padStart(2,'0')}${String(selectedR).padStart(2,'0')}`;
+    const newSystem = createSystem(sector.id, selectedQ, selectedR, systemName);
+    // Populate the system with randomized objects
+    const randomizedObjects = randomizeSystem(newSystemType);
+    randomizedObjects.forEach(obj => {
+      addObject(newSystem.id, obj);
+    });
   }
 
   function handleClearHex() {
@@ -559,12 +573,41 @@ export default function SectorHexView() {
                 <button onClick={handleClosePanel} className="text-gray-600 hover:text-gray-300">×</button>
               </div>
               <p className="text-gray-600 text-xs mb-4">Empty sector hex. Create a star system here?</p>
-              <button
-                onClick={handleCreateSystem}
-                className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-sky-600 text-white text-sm font-medium transition-colors"
-              >
-                + Create System
-              </button>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleCreateSystem}
+                  className="w-full px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium transition-colors"
+                >
+                  + Create System
+                </button>
+
+                <div className="border-t border-gray-700/40 pt-3">
+                  <p className="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">Or randomize:</p>
+                  <div className="space-y-2">
+                    <select
+                      value={newSystemType}
+                      onChange={e => setNewSystemType(e.target.value as SystemType)}
+                      className="w-full text-xs bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-gray-300 outline-none hover:border-gray-600 transition-colors appearance-none cursor-pointer"
+                      style={{ backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23888888%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '1em 1em', paddingRight: '1.5rem' }}
+                    >
+                      <option value="Standard">Standard</option>
+                      <option value="Binary">Binary</option>
+                      <option value="Hostile">Hostile</option>
+                      <option value="Rich">Rich</option>
+                      <option value="Dead">Dead</option>
+                      <option value="Frontier">Frontier</option>
+                    </select>
+                    <button
+                      onClick={handleCreateRandomizedSystem}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-amber-300 text-sm font-medium transition-colors border border-gray-700 hover:border-gray-600"
+                    >
+                      <Shuffle size={14} />
+                      Randomize System
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

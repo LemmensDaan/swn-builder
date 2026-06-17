@@ -102,7 +102,7 @@ function CameraZoomController({
 const ALL_CATEGORIES: RouteCategory[] = ['known', 'experimental', 'crew-traveled', 'crew-discovered', 'hazardous'];
 
 export default function SectorHexView() {
-  const { activeSectorId, sectors, systems, createSystem, clearHex, navigateToSystem, layer, addRoute, updateRoute, removeRoute } = useSectorStore();
+  const { activeSectorId, sectors, systems, createSystem, clearHex, navigateToSystem, layer, addRoute, updateRoute, removeRoute, randomizeSector } = useSectorStore();
   const sector = sectors.find(s => s.id === activeSectorId);
   const [selectedQ, setSelectedQ] = useState<number | null>(null);
   const [selectedR, setSelectedR] = useState<number | null>(null);
@@ -292,9 +292,9 @@ export default function SectorHexView() {
           />
         </Canvas>
 
-        {/* Sector name + route mode toggle */}
-        <div className="absolute top-4 left-4 flex flex-col gap-2">
-          <div className="pointer-events-none">
+        {/* Sector name */}
+        <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
+          <div>
             <h2 className="text-amber-400 text-lg font-bold tracking-wide drop-shadow-lg">
               {sector.name}
             </h2>
@@ -305,9 +305,13 @@ export default function SectorHexView() {
               )}
             </p>
           </div>
+        </div>
+
+        {/* Bottom left buttons — route mode toggle and randomize */}
+        <div className="absolute bottom-4 left-4 flex flex-col gap-2">
           <button
             onClick={handleToggleRouteMode}
-            className={`pointer-events-auto self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+            className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
               routeMode
                 ? 'bg-green-900/80 border-green-600/60 text-green-300 hover:bg-green-800/80'
                 : 'bg-gray-900/70 border-gray-700/60 text-gray-400 hover:text-gray-200 hover:border-gray-500'
@@ -319,6 +323,19 @@ export default function SectorHexView() {
               <line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 1.5" />
             </svg>
             {routeMode ? 'Drawing Route' : 'Draw Route'}
+          </button>
+
+          <button
+            onClick={() => randomizeSector(sector.id)}
+            className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border bg-gray-900/70 border-gray-700/60 text-gray-400 hover:text-gray-200 hover:border-gray-500"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
+              <path d="M2 6C2 3.8 3.8 2 6 2" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <path d="M10 6C10 8.2 8.2 10 6 10" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <path d="M9.5 5.5L10 6.5L9 6" fill="currentColor" />
+              <path d="M2.5 6.5L2 5.5L3 6" fill="currentColor" />
+            </svg>
+            Randomize Sector
           </button>
 
           {/* Route mode instructions */}

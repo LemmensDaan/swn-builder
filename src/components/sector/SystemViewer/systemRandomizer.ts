@@ -106,6 +106,9 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
   const sharedSeed = 999; // Same seed for both binary companions = consistent 180° opposition
 
   const inclination = order === 0 ? 0 : (rng() - 0.5) * 2 * 15;
+  // Add phase offset to secondary star so they don't animate in perfect synchrony
+  const orbitPhaseOffset = order === 1 && binaryOrbitRad ? randBetween(0.3, 0.7, rng) : 0;
+
   return {
     type,
     name: order === 0 ? 'Primary Star' : 'Secondary Star',
@@ -117,11 +120,12 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
     inclination,
     selfRotationSpeed: type === 'BlackHole' ? 0 : type === 'NeutronStar' ? randBetween(6, 12, rng) : randBetween(0.05, 0.25, rng),
     orbitSpeed: orbitRad > 0 ? (binaryOrbitSpeed ?? randBetween(0.01, 0.08, rng)) : 0,
+    orbitPhaseOffset,
     axisInclination: (rng() - 0.5) * 2 * 30,
     ...(type === 'NeutronStar' ? {
       nsJets: rng() < 0.3,      // 30% chance of being a pulsar
     } : {}),
-    notes: '', tags: [], factionId: null,
+    notes: '', tags: [], factionId: null, timeline: [],
     seed: sharedSeed,
   };
 }
@@ -217,7 +221,7 @@ function makePlanet(
     ringInclination,
     ringBands,
     seed: Math.floor(rng() * 999983),
-    notes: '', tags: [], factionId: null,
+    notes: '', tags: [], factionId: null, timeline: [],
   };
 }
 
@@ -235,7 +239,7 @@ function makeBelt(order: number, rng: () => number): Omit<SystemObject, 'id'> {
     selfRotationSpeed: 0,
     orbitSpeed: radius > 0 ? randBetween(0.01, 0.06, rng) : 0,
     axisInclination: (rng() - 0.5) * 2 * 15,
-    notes: '', tags: [], factionId: null,
+    notes: '', tags: [], factionId: null, timeline: [],
   };
 }
 
@@ -253,7 +257,7 @@ function makeStation(order: number, rng: () => number): Omit<SystemObject, 'id'>
     selfRotationSpeed: randBetween(0.02, 0.08, rng),
     orbitSpeed: radius > 0 ? randBetween(0.01, 0.06, rng) : 0,
     axisInclination: (rng() - 0.5) * 2 * 10,
-    notes: '', tags: [], factionId: null,
+    notes: '', tags: [], factionId: null, timeline: [],
   };
 }
 
@@ -351,9 +355,20 @@ export function randomizeSystem(systemType: SystemType): SystemObject[] {
       isDeepSpace: true,
       nebulaShape: pick(nebulaShapes, rng),
       seed: Math.floor(rng() * 999983),
-      notes: '', tags: [], factionId: null,
+      notes: '', tags: [], factionId: null, timeline: [],
     });
   }
 
   return objects;
+}
+
+export function randomizeSectorPlan(seed: number, emptyHexes: Array<{q: number; r: number}>): Array<{q: number; r: number; systemType: SystemType}> {
+  const rng = mulberry32(seed);
+  const systemTypes: SystemType[] = ['Standard', 'Binary', 'Hostile', 'Rich', 'Dead', 'Frontier'];
+  const density = 0.35; // ~35% of empty hexes get systems
+
+  return emptyHexes.filter(() => rng() < density).map(hex => ({
+    ...hex,
+    systemType: pick(systemTypes, rng),
+  }));
 }

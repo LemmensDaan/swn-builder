@@ -4,6 +4,7 @@ import localforage from 'localforage';
 import type { Sector, StarSystem, SystemObject, Faction, HexCell, NebulaShape, SpikeRoute, RouteCategory } from '../types/sector';
 import { makeEmptyHexGrid, OBJECT_TYPE_DEFAULTS } from '../types/sector';
 import { GALAXY_TRIANGLES } from '../components/sector/GalaxyView/galaxyData';
+import { randomizeSystem, randomizeSectorPlan } from '../components/sector/SystemViewer/systemRandomizer';
 
 
 interface SectorState {
@@ -21,6 +22,7 @@ interface SectorActions {
   createSector: (name: string) => Sector;
   updateSector: (id: string, updates: Partial<Omit<Sector, 'id'>>) => void;
   deleteSector: (id: string) => void;
+  randomizeSector: (sectorId: string) => void;
 
   // Hex / system CRUD
   createSystem: (sectorId: string, q: number, r: number, name: string) => StarSystem;
@@ -111,6 +113,21 @@ export const useSectorStore = create<SectorStore>()(
           activeSectorId: s.activeSectorId === id ? null : s.activeSectorId,
           layer: s.activeSectorId === id ? 'galaxy' : s.layer,
         }));
+      },
+
+      randomizeSector(sectorId) {
+        const sector = get().sectors.find(s => s.id === sectorId);
+        if (!sector) return;
+
+        const emptyHexes = sector.hexes.filter(h => !h.systemId);
+        const seed = Math.floor(Math.random() * 0xffffffff);
+        const plan = randomizeSectorPlan(seed, emptyHexes);
+
+        plan.forEach(({q, r, systemType}) => {
+          const sys = get().createSystem(sectorId, q, r, `System ${String(q).padStart(2,'0')}${String(r).padStart(2,'0')}`);
+          const objects = randomizeSystem(systemType);
+          objects.forEach(obj => get().addObject(sys.id, obj));
+        });
       },
 
       createSystem(sectorId, q, r, name) {

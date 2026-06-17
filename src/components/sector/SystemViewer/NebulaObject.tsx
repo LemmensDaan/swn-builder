@@ -137,48 +137,6 @@ function webFilamentTex(size: number, fr: number, fg: number, fb: number, alpha:
   return new THREE.CanvasTexture(canvas);
 }
 
-// Ring with lumpy knot-etchings along the edge — characteristic of planetary nebula shells
-function lumpyRingTex(size: number, r: number, g: number, b: number, innerFrac: number, alpha: number, seed: number): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = size; canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  const h = size / 2;
-  let s = (seed | 1) >>> 0;
-  const rnd = (): number => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-
-  const f = innerFrac;
-  // Base smooth ring
-  const grd = ctx.createRadialGradient(h, h, 0, h, h, h);
-  grd.addColorStop(0,                     `rgba(${r},${g},${b},0)`);
-  grd.addColorStop(f * 0.50,              `rgba(${r},${g},${b},${(alpha * 0.06).toFixed(3)})`);
-  grd.addColorStop(f * 0.85,              `rgba(${r},${g},${b},${(alpha * 0.50).toFixed(3)})`);
-  grd.addColorStop(f,                     `rgba(${r},${g},${b},${alpha.toFixed(3)})`);
-  grd.addColorStop(Math.min(1, f + 0.12), `rgba(${r},${g},${b},${(alpha * 0.22).toFixed(3)})`);
-  grd.addColorStop(1,                     `rgba(${r},${g},${b},0)`);
-  ctx.fillStyle = grd;
-  ctx.fillRect(0, 0, size, size);
-
-  // Knot etchings dotted around the ring edge — dense and wide-spread for chaotic look
-  const ringR    = h * f;
-  const knotCount = 28 + Math.floor(rnd() * 16);
-  for (let i = 0; i < knotCount; i++) {
-    const angle = (i / knotCount) * Math.PI * 2 + rnd() * 0.9;
-    const kRad  = ringR * (0.72 + rnd() * 0.58);
-    const kx    = h + Math.cos(angle) * kRad;
-    const ky    = h + Math.sin(angle) * kRad;
-    const kr    = h * (0.025 + rnd() * 0.085);
-    const ka    = alpha * (0.50 + rnd() * 0.45);
-    const kgrd  = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
-    kgrd.addColorStop(0, `rgba(${r},${g},${b},${ka.toFixed(3)})`);
-    kgrd.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = kgrd;
-    ctx.beginPath();
-    ctx.arc(kx, ky, kr, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  return new THREE.CanvasTexture(canvas);
-}
-
 // Mix characteristic nebula color (75%) with user tint (25%)
 function blend(characteristic: number, userVal: number): number {
   return Math.min(255, Math.round(characteristic * 0.75 + userVal * 0.25));
@@ -400,14 +358,12 @@ function bipolarLayers0(rng: () => number, vr: number, R: number, G: number, B: 
 
   const Rl = blend(208, R); const Gl = blend( 28, G); const Bl = blend( 20, B);
   const Ro = blend(178, R); const Go = blend( 72, G); const Bo = blend( 25, B);
-  const Rk = blend(255, R); const Gk = blend(150, G); const Bk = blend( 60, B);
   const Rfp = blend(255, R); const Gfp = blend(108, G); const Bfp = blend( 38, B);
 
   const tHaze   = cloudTex(128,     Rl,  Gl,  Bl,  0.35, 0.30);
   const tLobeO  = cloudTex(256,     Ro,  Go,  Bo,  0.55, 0.46);
   const tLobe   = lumpyCloudTex(256, Rl,  Gl,  Bl,  1.00, texSeed);
   const tLobe2  = lumpyCloudTex(256, Ro,  Go,  Bo,  0.70, texSeed + 17);
-  const tKnot   = cloudTex(64,      Rk,  Gk,  Bk,  1.00, 0.10);
   const tFinger = cloudTex(64,      Rfp, Gfp, Bfp, 0.88, 0.22);
   const tStar   = cloudTex(64,      255, 255, 255, 1.00, 0.04);
 
@@ -450,7 +406,6 @@ function bipolarLayers1(rng: () => number, vr: number, R: number, G: number, B: 
   const Rw = blend(255, R); const Gw = blend(200, G); const Bw = blend(105, B);
 
   const tHaze  = cloudTex(128,     Rd, Gd, Bd, 0.32, 0.36);
-  const tShell = lumpyRingTex(256,  Ro, Go, Bo, 0.38, 0.92, texSeed);
   const tFill  = lumpyCloudTex(256, Ro, Go, Bo, 0.65, texSeed + 11);
   const tInner = lumpyCloudTex(256, Rh, Gh, Bh, 0.80, texSeed + 29);
   const tWaist = cloudTex(128,     Rw, Gw, Bw, 1.00, 0.14);

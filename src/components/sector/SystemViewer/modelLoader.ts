@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
+// @ts-ignore - three loaders are available at runtime
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+// @ts-ignore - three loaders are available at runtime
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
 const modelCache = new Map<string, THREE.Group>();
 const gltfLoader = new GLTFLoader();

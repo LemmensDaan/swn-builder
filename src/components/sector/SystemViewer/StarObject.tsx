@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
@@ -374,7 +374,7 @@ function respawnPromSlot(slot: PromSlot, baseHex: string, size: number): void {
 }
 
 function makeProminenceRoot(
-  baseHex: string, size: number, seed: number, hq: boolean,
+  seed: number, hq: boolean,
 ): { root: THREE.Group; slots: PromSlot[] } {
   const root = new THREE.Group();
   root.userData.isStar = true;
@@ -684,7 +684,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   const coronaData = useMemo(() => {
     if (isBlackHole || isNeutron) return null;
     const seed = (obj.seed ?? obj.id.charCodeAt(0) * 191) >>> 0;
-    return makeProminenceRoot(color, obj.size, seed, highQuality);
+    return makeProminenceRoot(seed, highQuality);
   }, [color, obj.size, obj.seed, obj.id, isBlackHole, isNeutron, highQuality]);
   const coronaDataRef = useRef(coronaData);
   coronaDataRef.current = coronaData;
@@ -698,8 +698,6 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
     () => isNeutron ? makeNeutronStarGeometry(color, obj.size, highQuality ? 4 : 2) : null,
     [color, obj.size, isNeutron, highQuality],
   );
-
-  const camera = useThree(state => state.camera);
 
   // Track BH chunk angles
   const chunkAnglesRef = useRef<number[]>([]);

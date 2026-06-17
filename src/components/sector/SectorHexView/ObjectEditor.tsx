@@ -44,7 +44,7 @@ function SizeViz({ type, currentSize }: { type: ObjectType; currentSize: number 
   const refR = Math.max(1.5, (defaultSize / maxSz) * maxR);
   const curR = Math.max(1.5, (currentSize / maxSz) * maxR);
   return (
-    <svg width="38" height="38" viewBox="0 0 38 38" className="flex-shrink-0" title={`Default: ${defaultSize}`}>
+    <svg width="38" height="38" viewBox="0 0 38 38" className="flex-shrink-0" role="img" aria-label={`Default: ${defaultSize}`}>
       <circle cx="19" cy="19" r={refR} fill="none" stroke="#4b5563" strokeWidth="1" strokeDasharray="2,2"/>
       <circle cx="19" cy="19" r={curR} fill="rgba(96,165,250,0.12)" stroke="#60a5fa" strokeWidth="1.5"/>
     </svg>

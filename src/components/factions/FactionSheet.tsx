@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ArrowLeft, Skull,
-  Plus, X, Check, Heart, Target, Swords, Shield, Eye, DollarSign, Clock,
+  Plus, X, Check, Heart, Target, Swords, Shield, Eye, DollarSign,
 } from 'lucide-react';
 import { useSectorStore } from '../../store/useSectorStore';
 import { REFERENCE_ASSETS, FACTION_TAGS, FACTION_GOALS } from '../../data/faction-assets';

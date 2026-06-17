@@ -31,7 +31,6 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
   // Root stellar objects: those not orbiting another stellar object
   const rootStars = sorted.filter(o => STELLAR.includes(o.type) && (!o.parentId || !stellarIds.has(o.parentId)));
   const topLevel  = sorted.filter(o => !o.parentId && !STELLAR.includes(o.type));
-  const hasStar = rootStars.length > 0;
 
   // A neutron star is a supernova remnant — fill the system background with a
   // remnant nebula tinted to its colour. Automatic; uses the first neutron star.

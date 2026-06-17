@@ -300,17 +300,23 @@ export default function SystemViewer() {
         {infoPanelObjectId && (() => {
           const obj = system.objects.find(o => o.id === infoPanelObjectId);
           if (!obj) return null;
-          const faction = obj.factionId ? sector?.factions.find(f => f.id === obj.factionId) : null;
+
           const hasTags = obj.tags.length > 0;
           const hasNotes = obj.notes.trim().length > 0;
           const hasTimeline = (obj.timeline ?? []).length > 0;
+          const faction = obj.factionId ? sector?.factions.find(f => f.id === obj.factionId) : null;
+          const hasOverviewContent = !!faction || (obj.contestedFactionIds ?? []).length > 0;
 
           const tabs: Array<{ id: 'overview' | 'notes' | 'tags' | 'history'; label: string; icon: React.ReactNode; count?: number; visible: boolean }> = [
-            { id: 'overview', label: 'Factions', icon: <Shield size={12} />, visible: true },
-            { id: 'notes', label: 'Notes', icon: <FileText size={12} />, count: hasNotes ? 1 : 0, visible: true },
-            { id: 'tags', label: 'Tags', icon: <Tag size={12} />, count: obj.tags.length, visible: true },
+            { id: 'overview', label: 'Factions', icon: <Shield size={12} />, visible: hasOverviewContent },
+            { id: 'notes', label: 'Notes', icon: <FileText size={12} />, count: hasNotes ? 1 : 0, visible: hasNotes },
+            { id: 'tags', label: 'Tags', icon: <Tag size={12} />, count: obj.tags.length, visible: hasTags },
             { id: 'history', label: 'History', icon: <Clock size={12} />, count: (obj.timeline ?? []).length, visible: hasTimeline },
           ];
+
+          const visibleTabs = tabs.filter(t => t.visible);
+          const currentTabVisible = visibleTabs.some(t => t.id === infoPanelTab);
+          const activeTab = currentTabVisible ? infoPanelTab : (visibleTabs[0]?.id ?? 'overview');
 
           return (
             <div ref={infoPanelRef} className="absolute bottom-16 left-4 w-[420px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
@@ -328,30 +334,32 @@ export default function SystemViewer() {
                 </button>
               </div>
 
-              {/* Tabs */}
-              <div className="flex gap-1 px-3 pt-2 pb-0 border-b border-gray-700/40 flex-shrink-0 overflow-x-auto">
-                {tabs.filter(t => t.visible).map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setInfoPanelTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
-                      infoPanelTab === tab.id
-                        ? 'border-blue-500 text-blue-300'
-                        : 'border-transparent text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    {typeof tab.icon === 'string' ? tab.icon : tab.icon}
-                    {tab.label}
-                    {tab.count !== undefined && tab.count > 0 && (
-                      <span className="text-[9px] bg-gray-700/60 px-1.5 rounded-full">{tab.count}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
+              {visibleTabs.length > 0 && (
+                <>
+                  {/* Tabs */}
+                  <div className="flex gap-1 px-3 pt-2 pb-0 border-b border-gray-700/40 flex-shrink-0 overflow-x-auto">
+                    {visibleTabs.map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setInfoPanelTab(tab.id)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
+                          activeTab === tab.id
+                            ? 'border-blue-500 text-blue-300'
+                            : 'border-transparent text-gray-500 hover:text-gray-300'
+                        }`}
+                      >
+                        {typeof tab.icon === 'string' ? tab.icon : tab.icon}
+                        {tab.label}
+                        {tab.count !== undefined && tab.count > 0 && (
+                          <span className="text-[9px] bg-gray-700/60 px-1.5 rounded-full">{tab.count}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
 
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-3">
-                {infoPanelTab === 'overview' && (
+                  {/* Content */}
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-3">
+                {activeTab === 'overview' && (
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium mb-1.5">Controlled by</p>
@@ -384,7 +392,7 @@ export default function SystemViewer() {
                   </div>
                 )}
 
-                {infoPanelTab === 'notes' && (
+                {activeTab === 'notes' && (
                   <>
                     {hasNotes ? (
                       <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{obj.notes}</p>
@@ -394,7 +402,7 @@ export default function SystemViewer() {
                   </>
                 )}
 
-                {infoPanelTab === 'tags' && (
+                {activeTab === 'tags' && (
                   <>
                     {hasTags ? (
                       <div className="flex flex-wrap gap-2">
@@ -413,10 +421,12 @@ export default function SystemViewer() {
                   </>
                 )}
 
-                {infoPanelTab === 'history' && hasTimeline && (
-                  <TimelineEditor events={obj.timeline ?? []} onChange={() => {}} compact />
-                )}
-              </div>
+                    {activeTab === 'history' && hasTimeline && (
+                      <TimelineEditor events={obj.timeline ?? []} onChange={() => {}} compact />
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           );
         })()}
@@ -427,13 +437,18 @@ export default function SystemViewer() {
           const hasNotes = system.notes.trim().length > 0;
           const hasTimeline = (system.timeline ?? []).length > 0;
           const faction = system.factionId ? sector?.factions.find(f => f.id === system.factionId) : null;
+          const hasOverviewContent = !!faction || (system.contestedFactionIds ?? []).length > 0;
 
           const tabs: Array<{ id: 'overview' | 'notes' | 'tags' | 'history'; label: string; icon: React.ReactNode; count?: number; visible: boolean }> = [
-            { id: 'overview', label: 'Factions', icon: <Shield size={12} />, visible: true },
-            { id: 'notes', label: 'Notes', icon: <FileText size={12} />, count: hasNotes ? 1 : 0, visible: true },
-            { id: 'tags', label: 'Tags', icon: <Tag size={12} />, count: system.tags.length, visible: true },
+            { id: 'overview', label: 'Factions', icon: <Shield size={12} />, visible: hasOverviewContent },
+            { id: 'notes', label: 'Notes', icon: <FileText size={12} />, count: hasNotes ? 1 : 0, visible: hasNotes },
+            { id: 'tags', label: 'Tags', icon: <Tag size={12} />, count: system.tags.length, visible: hasTags },
             { id: 'history', label: 'History', icon: <Clock size={12} />, count: (system.timeline ?? []).length, visible: hasTimeline },
           ];
+
+          const visibleTabs = tabs.filter(t => t.visible);
+          const currentTabVisible = visibleTabs.some(t => t.id === systemInfoTab);
+          const activeTab = currentTabVisible ? systemInfoTab : (visibleTabs[0]?.id ?? 'overview');
 
           return (
             <div ref={systemInfoPanelRef} className="absolute bottom-16 right-4 w-[420px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
@@ -451,30 +466,32 @@ export default function SystemViewer() {
                 </button>
               </div>
 
-              {/* Tabs */}
-              <div className="flex gap-1 px-3 pt-2 pb-0 border-b border-gray-700/40 flex-shrink-0 overflow-x-auto">
-                {tabs.filter(t => t.visible).map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setSystemInfoTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
-                      systemInfoTab === tab.id
-                        ? 'border-blue-500 text-blue-300'
-                        : 'border-transparent text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    {typeof tab.icon === 'string' ? tab.icon : tab.icon}
-                    {tab.label}
-                    {tab.count !== undefined && tab.count > 0 && (
-                      <span className="text-[9px] bg-gray-700/60 px-1.5 rounded-full">{tab.count}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
+              {visibleTabs.length > 0 && (
+                <>
+                  {/* Tabs */}
+                  <div className="flex gap-1 px-3 pt-2 pb-0 border-b border-gray-700/40 flex-shrink-0 overflow-x-auto">
+                    {visibleTabs.map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setSystemInfoTab(tab.id)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
+                          activeTab === tab.id
+                            ? 'border-blue-500 text-blue-300'
+                            : 'border-transparent text-gray-500 hover:text-gray-300'
+                        }`}
+                      >
+                        {typeof tab.icon === 'string' ? tab.icon : tab.icon}
+                        {tab.label}
+                        {tab.count !== undefined && tab.count > 0 && (
+                          <span className="text-[9px] bg-gray-700/60 px-1.5 rounded-full">{tab.count}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
 
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-3">
-                {systemInfoTab === 'overview' && (
+                  {/* Content */}
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-3">
+                    {activeTab === 'overview' && (
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium mb-1.5">Controlled by</p>
@@ -507,7 +524,7 @@ export default function SystemViewer() {
                   </div>
                 )}
 
-                {systemInfoTab === 'notes' && (
+                {activeTab === 'notes' && (
                   <>
                     {hasNotes ? (
                       <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{system.notes}</p>
@@ -517,7 +534,7 @@ export default function SystemViewer() {
                   </>
                 )}
 
-                {systemInfoTab === 'tags' && (
+                {activeTab === 'tags' && (
                   <>
                     {hasTags ? (
                       <div className="flex flex-wrap gap-2">
@@ -536,10 +553,12 @@ export default function SystemViewer() {
                   </>
                 )}
 
-                {systemInfoTab === 'history' && hasTimeline && (
-                  <TimelineEditor events={system.timeline ?? []} onChange={() => {}} compact />
-                )}
-              </div>
+                    {activeTab === 'history' && hasTimeline && (
+                      <TimelineEditor events={system.timeline ?? []} onChange={() => {}} compact />
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           );
         })()}

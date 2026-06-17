@@ -721,7 +721,6 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   // Binary orbit
   let initialAngle = mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2;
   if (obj.sortOrder === 1) initialAngle += Math.PI;
-  initialAngle += obj.orbitPhaseOffset ?? 0;
   const orbitSpeed = obj.orbitSpeed > 0 ? obj.orbitSpeed : (obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0);
   const angleRef   = useRef(initialAngle);
 

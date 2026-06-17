@@ -71,17 +71,33 @@ interface BandMeshProps {
 
 // One ring band: a translucent disc plus fine debris grains, tilted to its own
 // inclination, with radial density/brightness variation (bright & dark strokes).
+// The disc boosts opacity when the camera is far so rings read as solid bands.
+// Each band carries its own invisible shadow-caster at its exact inclination.
 function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const spinRef = useRef<THREE.Group>(null);
+  const discMatRef = useRef<THREE.MeshLambertMaterial>(null);
+  const worldPosRef = useRef(new THREE.Vector3());
+  // Keep latest opacity accessible inside useFrame without stale closure.
+  const opacityRef = useRef(opacity);
+  opacityRef.current = opacity;
 
   const baseColor = useMemo(() => ringColorFromHex(band.color), [band.color]);
   const incRad = THREE.MathUtils.degToRad(band.inclination);
   // Debris orbits within the ring's own plane — inner rings a touch faster (Keplerian-ish).
   const orbitSpeed = 0.12 / Math.sqrt(Math.max(0.5, band.size));
 
-  useFrame((_, delta) => {
+  useFrame(({ camera }, delta) => {
     if (spinRef.current) spinRef.current.rotation.y += delta * orbitSpeed;
+
+    // LOD: ramp disc opacity from 70 % (close) to 100 % (far) so rings read as
+    // solid semi-transparent bands when zoomed out rather than sparse grains.
+    if (discMatRef.current && spinRef.current) {
+      spinRef.current.getWorldPosition(worldPosRef.current);
+      const dist = camera.position.distanceTo(worldPosRef.current);
+      const farFactor = THREE.MathUtils.smoothstep(dist, 10, 35);
+      discMatRef.current.opacity = opacityRef.current * (0.7 + farFactor * 0.3);
+    }
   });
 
   const width = (band.width ?? DEFAULT_WIDTH) * planetSize;
@@ -94,7 +110,7 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
     Math.min(MAX_GRAINS, Math.round(GRAIN_DENSITY * Math.PI * (outer * outer - inner * inner))),
   );
 
-  const geo = useMemo(() => new THREE.OctahedronGeometry(0.012, 0), []);
+  const geo = useMemo(() => new THREE.OctahedronGeometry(0.007, 0), []);
   const mat = useMemo(() => new THREE.MeshLambertMaterial({ color: '#ffffff', flatShading: true }), []);
 
   useEffect(() => {
@@ -113,7 +129,7 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
       );
       dummy.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
       // Gaps (low density) hide grains; brightness scales with density with higher contrast.
-      dummy.scale.setScalar(d < 0.12 ? 0 : (0.3 + rng() * 0.5));
+      dummy.scale.setScalar(d < 0.12 ? 0 : (0.2 + rng() * 0.35));
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
       tmpColor.copy(baseColor).multiplyScalar(0.25 + d * 1.2);
@@ -125,14 +141,12 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
 
   return (
     <group rotation={[incRad, 0, 0]}>
-      {/* Spin around the ring-local axis so debris orbits within the (tilted) ring plane
-          rather than precessing around the planet's vertical axis. */}
       <group ref={spinRef}>
-        {/* Faint translucent base so gaps read as dim rather than pure black; the grains
-            carry the bright/dark strokes. Doesn't receiveShadow (coplanar → acne). */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        {/* Base disc — receives star shadows; opacity driven by camera distance. */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <ringGeometry args={[inner, outer, 96]} />
           <meshLambertMaterial
+            ref={discMatRef}
             color={baseColor}
             transparent
             opacity={opacity * 0.7}
@@ -143,6 +157,13 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
         </mesh>
         <instancedMesh ref={meshRef} args={[geo, mat, count]} receiveShadow />
       </group>
+      {/* Per-band invisible shadow caster at this band's exact inclination and extent.
+          Transparent materials don't produce reliable shadow maps, so the opaque proxy
+          gives a clean, correctly-sized shadow on the planet for every individual band. */}
+      <mesh castShadow rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[inner, outer, 64]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
     </group>
   );
 }
@@ -160,18 +181,6 @@ export default function PlanetRings({ obj }: Props) {
     return bands.map(() => 0.45 + rng() * 0.35);
   }, [obj.seed, bands.length]);
 
-  // Invisible flat annulus spanning the full ring extent is the sole shadow caster,
-  // tilted to the average ring inclination (the original ring-shadow behavior).
-  const avgInc = bands.reduce((s, b) => s + b.inclination, 0) / (bands.length || 1);
-  const shadowInner = bands.reduce(
-    (m, b) => Math.min(m, (b.size - (b.width ?? DEFAULT_WIDTH) / 2) * obj.size),
-    Infinity,
-  );
-  const shadowOuter = bands.reduce(
-    (m, b) => Math.max(m, (b.size + (b.width ?? DEFAULT_WIDTH) / 2) * obj.size),
-    0,
-  );
-
   return (
     <group>
       {bands.map((band, i) => (
@@ -183,13 +192,6 @@ export default function PlanetRings({ obj }: Props) {
           seed={((obj.seed ?? 1) * 40503 + i * 9176 + 7) >>> 0}
         />
       ))}
-      {/* Invisible flat annulus — sole shadow caster, gives a smooth ring shadow on the planet. */}
-      <group rotation={[THREE.MathUtils.degToRad(avgInc), 0, 0]}>
-        <mesh castShadow rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[Math.max(0.02, shadowInner), shadowOuter, 64]} />
-          <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
-        </mesh>
-      </group>
     </group>
   );
 }

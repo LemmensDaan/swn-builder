@@ -267,7 +267,8 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
     const kind: DragPayload['kind'] = isTopLevelNonPrimary(obj) ? 'tl' : 'child';
     e.dataTransfer.setData('swn-drag', JSON.stringify({ kind, objId: obj.id } satisfies DragPayload));
     e.dataTransfer.effectAllowed = 'move';
-    const el = e.currentTarget as HTMLElement;
+    // Traverse up from the drag handle to the card root for the ghost image
+    const el = ((e.currentTarget as HTMLElement).closest('[data-drag-card]') ?? e.currentTarget) as HTMLElement;
     const rect = el.getBoundingClientRect();
     // Clone into body so the drag ghost isn't affected by the scrolled container's offset
     const ghost = el.cloneNode(true) as HTMLElement;
@@ -344,11 +345,9 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
         {children.map(child => (
           <div key={child.id}>
             <div
-              draggable
-              onDragStart={e => onDragStart(e, child)}
               onDragOver={e => e.preventDefault()}
               onDrop={e => onDrop(e, child)}
-              className="pl-2 cursor-grab active:cursor-grabbing"
+              className="pl-2"
             >
               <ObjectEditor
                 obj={child}
@@ -356,6 +355,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
                 onChange={updates => updateObject(system.id, child.id, updates)}
                 onRemove={() => removeObject(system.id, child.id)}
                 draggable={true}
+                onDragStart={e => onDragStart(e, child)}
                 expanded={expandedObjectId === child.id}
                 onExpandChange={handleObjectExpandChange}
               />
@@ -494,11 +494,8 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
                 return (
                   <div key={obj.id}>
                     <div
-                      draggable
-                      onDragStart={e => onDragStart(e, obj)}
                       onDragOver={e => e.preventDefault()}
                       onDrop={e => onDrop(e, obj)}
-                      className="cursor-grab active:cursor-grabbing"
                     >
                       <ObjectEditor
                         obj={obj}
@@ -506,6 +503,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
                         onChange={updates => updateObject(system.id, obj.id, updates)}
                         onRemove={() => removeObject(system.id, obj.id)}
                         draggable={true}
+                        onDragStart={e => onDragStart(e, obj)}
                         expanded={expandedObjectId === obj.id}
                         onExpandChange={handleObjectExpandChange}
                       />

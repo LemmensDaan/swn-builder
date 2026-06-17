@@ -279,6 +279,12 @@ export const useSectorStore = create<SectorStore>()(
           seed = partial.seed ?? Math.floor(Math.random() * 999983);
         }
 
+        // For binary stars, add delay and random starting position
+        const isBinaryStar = isStarType && !parentId && system &&
+          system.objects.filter(o => ['Star', 'BlackHole', 'NeutronStar'].includes(o.type) && o.parentId === null).length >= 1;
+        const orbitDelay = isBinaryStar ? Math.random() * 6 + 2 : undefined;
+        const orbitPhaseOffset = isBinaryStar ? Math.random() * Math.PI * 2 : undefined;
+
         const obj: SystemObject = {
           id: partial.id ?? crypto.randomUUID(),
           type: partial.type,
@@ -289,6 +295,8 @@ export const useSectorStore = create<SectorStore>()(
           inclination: partial.inclination ?? autoInclination,
           selfRotationSpeed: partial.selfRotationSpeed ?? autoRotationSpeed,
           orbitSpeed: partial.orbitSpeed ?? autoOrbitSpeed,
+          orbitDelay: partial.orbitDelay ?? orbitDelay,
+          orbitPhaseOffset: partial.orbitPhaseOffset ?? orbitPhaseOffset,
           axisInclination: partial.axisInclination ?? autoAxisInclination,
           parentId,
           sortOrder: nextOrder,

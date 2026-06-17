@@ -718,11 +718,9 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
     return (rng() - 0.5) * Math.PI * 0.35;
   }, [obj.bhDiscInclination, obj.seed, obj.id]);
 
-  // Binary orbit
-  let initialAngle = mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2;
-  if (obj.sortOrder === 1) initialAngle += Math.PI;
-  // Apply random phase offset to secondary star
-  initialAngle += obj.orbitPhaseOffset ?? 0;
+  // Binary orbit - use phase offset for starting position (or default to opposite for primary)
+  let initialAngle = obj.orbitPhaseOffset ?? (mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2);
+  if (obj.sortOrder === 1 && !obj.orbitPhaseOffset) initialAngle += Math.PI;
   const orbitSpeed = obj.orbitSpeed > 0 ? obj.orbitSpeed : (obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0);
   const orbitDelay = obj.orbitDelay ?? 0;
   const angleRef   = useRef(initialAngle);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
+import { Sliders } from 'lucide-react';
 import { useSectorStore } from '../../../store/useSectorStore';
 import Starfield from '../shared/Starfield';
 import HexGrid, { HEX_SIZE } from './HexGrid';
@@ -122,6 +123,8 @@ export default function SectorHexView() {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [routeEditLabel, setRouteEditLabel] = useState('');
   const [routeEditNotes, setRouteEditNotes] = useState('');
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [confirmingRandomize, setConfirmingRandomize] = useState(false);
 
   const sectorRoutes = sector?.routes ?? [];
   const selectedRoute = selectedRouteId ? sectorRoutes.find(r => r.id === selectedRouteId) : null;
@@ -244,7 +247,7 @@ export default function SectorHexView() {
   return (
     <div className="relative h-full">
       {/* 3D Canvas — always fills full container; panel overlays it absolutely */}
-      <div className="h-full relative">
+      <div className="h-full relative" style={{ pointerEvents: pendingRouteEnd || confirmingRandomize ? 'none' : 'auto' }}>
         <Canvas
           camera={{ position: CAM_START.toArray(), fov: 50 }}
           gl={{ antialias: true, alpha: true }}
@@ -307,7 +310,7 @@ export default function SectorHexView() {
           </div>
         </div>
 
-        {/* Bottom left buttons — route mode toggle and randomize */}
+        {/* Bottom left buttons — route mode toggle */}
         <div className="absolute bottom-4 left-4 flex flex-col gap-2">
           <button
             onClick={handleToggleRouteMode}
@@ -325,18 +328,31 @@ export default function SectorHexView() {
             {routeMode ? 'Drawing Route' : 'Draw Route'}
           </button>
 
-          <button
-            onClick={() => randomizeSector(sector.id)}
-            className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border bg-gray-900/70 border-gray-700/60 text-gray-400 hover:text-gray-200 hover:border-gray-500"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
-              <path d="M2 6C2 3.8 3.8 2 6 2" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-              <path d="M10 6C10 8.2 8.2 10 6 10" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-              <path d="M9.5 5.5L10 6.5L9 6" fill="currentColor" />
-              <path d="M2.5 6.5L2 5.5L3 6" fill="currentColor" />
-            </svg>
-            Randomize Sector
-          </button>
+          {/* Settings button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+              className="pointer-events-auto p-2 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-400 hover:text-gray-200 transition-colors"
+              title="Sector settings"
+            >
+              <Sliders size={13} />
+            </button>
+
+            {/* Settings menu */}
+            {showSettingsMenu && (
+              <div className="absolute bottom-full left-0 mb-2 bg-gray-950 border border-gray-700 rounded-lg shadow-lg z-40">
+                <button
+                  onClick={() => {
+                    setShowSettingsMenu(false);
+                    setConfirmingRandomize(true);
+                  }}
+                  className="block w-full px-4 py-2 text-left text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-900/50 transition-colors border-b border-gray-800 last:border-b-0"
+                >
+                  Randomize Sector
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Route mode instructions */}
           {routeMode && (
@@ -349,6 +365,35 @@ export default function SectorHexView() {
             </div>
           )}
         </div>
+
+        {/* Randomize sector confirmation dialog */}
+        {confirmingRandomize && (
+          <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm">
+            <div className="bg-gray-950 border border-gray-700 rounded-2xl p-6 w-80 shadow-2xl">
+              <h3 className="text-gray-200 text-sm font-semibold mb-2">Randomize Sector?</h3>
+              <p className="text-gray-400 text-xs mb-4">
+                This will populate all empty hexes with randomly generated systems and override any existing configuration. This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmingRandomize(false)}
+                  className="flex-1 px-4 py-2 rounded-lg text-xs text-gray-500 border border-gray-800 hover:text-gray-300 hover:border-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    randomizeSector(sector.id);
+                    setConfirmingRandomize(false);
+                  }}
+                  className="flex-1 px-4 py-2 rounded-lg text-xs font-medium bg-red-900/50 border border-red-700/60 text-red-300 hover:bg-red-900/70 transition-colors"
+                >
+                  Randomize
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Route category picker popup */}

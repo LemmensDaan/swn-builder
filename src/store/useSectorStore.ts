@@ -333,6 +333,12 @@ export const useSectorStore = create<SectorStore>()(
             : defaults.nebulaShape),
           nsJets: partial.nsJets ?? defaults.nsJets,
           bhDiscInclination: partial.bhDiscInclination ?? defaults.bhDiscInclination,
+          rings: partial.rings ?? defaults.rings,
+          ringInclination: partial.ringInclination ?? defaults.ringInclination,
+          ringCount: partial.ringCount ?? defaults.ringCount,
+          ringSize: partial.ringSize ?? defaults.ringSize,
+          ringColors: partial.ringColors ?? defaults.ringColors,
+          ringBands: partial.ringBands ?? defaults.ringBands,
         };
         set(s => {
           const updatedSystem = { ...s.systems[systemId], objects: [...s.systems[systemId].objects, obj] };

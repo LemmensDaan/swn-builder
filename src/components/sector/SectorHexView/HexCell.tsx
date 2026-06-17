@@ -161,11 +161,12 @@ interface Props {
   zoomProgressRef?: React.MutableRefObject<number>;
   routeMode?: boolean;
   isRouteStart?: boolean;
+  focusMode?: 'hexes' | 'routes';
 }
 
 const EMISSIVE_ROUTE_START = new THREE.Color('#86efac');
 
-export default function HexCell({ cell, system, faction, contestedFactions, hexSize, selected, onSelect, zoomProgressRef, routeMode, isRouteStart }: Props) {
+export default function HexCell({ cell, system, faction, contestedFactions, hexSize, selected, onSelect, zoomProgressRef, routeMode, isRouteStart, focusMode = 'hexes' }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const hexGroupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
@@ -277,7 +278,7 @@ export default function HexCell({ cell, system, faction, contestedFactions, hexS
         <mesh
           ref={meshRef}
           rotation={[-Math.PI / 2, 0, 0]}
-          onClick={e => { e.stopPropagation(); onSelect(); }}
+          onClick={e => { e.stopPropagation(); if (focusMode === 'hexes') onSelect(); }}
           onPointerEnter={e => { e.stopPropagation(); setHovered(true); document.body.style.cursor = routeMode ? 'crosshair' : 'pointer'; }}
           onPointerLeave={() => { setHovered(false); document.body.style.cursor = ''; }}
         >

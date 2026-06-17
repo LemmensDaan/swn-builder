@@ -106,9 +106,9 @@ function makeStar(_cfg: SystemConfig, systemType: SystemType, order: number, rng
   const sharedSeed = 999; // Same seed for both binary companions = consistent 180° opposition
 
   const inclination = order === 0 ? 0 : (rng() - 0.5) * 2 * 15;
-  // Add orbital delay to secondary star so it starts rotating later, and random starting angle
-  const orbitDelay = order === 1 && binaryOrbitRad ? randBetween(2, 8, rng) : 0;
-  const orbitPhaseOffset = order === 1 && binaryOrbitRad ? rng() * Math.PI * 2 : 0;
+  // Secondary star orbits 180° opposite from primary
+  const orbitDelay = 0;
+  const orbitPhaseOffset = order === 1 && binaryOrbitRad ? Math.PI : 0;
 
   return {
     type,
@@ -184,7 +184,7 @@ function makePlanet(
   if (isMoon) {
     rings = false; // moons never have rings
   } else if (isGas) {
-    rings = rng() < 0.7; // gas giants: 70% chance
+    rings = rng() < 0.95; // gas giants: 95% chance
   } else {
     rings = rng() < 0.2; // rocky planets: 20% chance
   }
@@ -197,8 +197,8 @@ function makePlanet(
   const ringBands = rings
     ? Array.from({ length: Math.floor(randBetween(2, 6, rng)) }, (_, i) => ({
         color: pick(RING_TONES, rng),
-        size: 1.4 + i * randBetween(0.35, 0.6, rng),
-        width: randBetween(0.2, 0.5, rng),
+        size: 1.4 + i * randBetween(0.2, 0.35, rng),
+        width: randBetween(0.5, 0.9, rng),
         inclination: ringInclination as number,
       }))
     : undefined;
@@ -221,6 +221,8 @@ function makePlanet(
     iceCaps,
     rings,
     ringInclination,
+    ringCount: rings ? ringBands?.length ?? 3 : undefined,
+    ringSize: rings ? 1 : undefined,
     ringBands,
     seed: Math.floor(rng() * 999983),
     notes: '', tags: [], factionId: null, timeline: [],
@@ -321,8 +323,8 @@ export function randomizeSystem(systemType: SystemType): SystemObject[] {
     const pt = pick(OUTER_PLANETS[systemType], rng);
     const planet = { id: makeId(), ...makePlanet(pt, order++, null, rng) };
     objects.push(planet);
-    // Gas giants: 0–3 moons
-    const moonCount = randInt(0, 3, rng);
+    // Gas giants: 3–5 moons
+    const moonCount = randInt(3, 5, rng);
     let prevMoonOrbit = 0;
     const maxRingRadius = planet.ringBands ? Math.max(...planet.ringBands.map(b => b.size * planet.size)) : undefined;
     for (let m = 0; m < moonCount; m++) {

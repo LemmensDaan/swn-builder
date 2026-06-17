@@ -97,8 +97,7 @@ export default function CollapsableStoryCard({
       {isExpanded && (
         <div className="border-t border-gray-700/50 px-4 py-3 space-y-3">
           {/* Faction + Contested — side by side when contested handler is provided */}
-          {factions.length > 0 && (
-            <div className={onContestedFactionsChange ? 'flex gap-2' : undefined}>
+          <div className={onContestedFactionsChange ? 'flex gap-2' : undefined}>
               {/* Faction */}
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5 font-semibold">Faction</p>
@@ -168,7 +167,6 @@ export default function CollapsableStoryCard({
                 </div>
               )}
             </div>
-          )}
 
           {/* Tags */}
           <div>

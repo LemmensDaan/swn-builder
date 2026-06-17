@@ -125,6 +125,7 @@ export default function SectorHexView() {
   const [routeEditNotes, setRouteEditNotes] = useState('');
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [confirmingRandomize, setConfirmingRandomize] = useState(false);
+  const [focusMode, setFocusMode] = useState<'hexes' | 'routes'>('hexes');
 
   const sectorRoutes = sector?.routes ?? [];
   const selectedRoute = selectedRouteId ? sectorRoutes.find(r => r.id === selectedRouteId) : null;
@@ -142,6 +143,12 @@ export default function SectorHexView() {
     setSelectedQ(null);
     setSelectedR(null);
     setPanelOpen(false);
+    setSelectedRouteId(null);
+    setShowSettingsMenu(false);
+    setRouteMode(false);
+    setRouteStart(null);
+    setPendingRouteEnd(null);
+    setConfirmingRandomize(false);
     pendingSystemId.current = systemId;
     setZoomTarget(new THREE.Vector3(wx, 0, wz));
   }, [isZooming]);
@@ -161,6 +168,17 @@ export default function SectorHexView() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [routeMode]);
+
+  // Clear selections when switching focus mode
+  useEffect(() => {
+    if (focusMode === 'hexes') {
+      setSelectedRouteId(null);
+    } else {
+      setSelectedQ(null);
+      setSelectedR(null);
+      setPanelOpen(false);
+    }
+  }, [focusMode]);
 
   // When returning to sector: reset hex opacity, clear zoom state, restore camera
   useEffect(() => {
@@ -269,6 +287,7 @@ export default function SectorHexView() {
             routeMode={routeMode}
             routeStartQ={routeStart?.q ?? null}
             routeStartR={routeStart?.r ?? null}
+            focusMode={focusMode}
           />
           <SpikeRoutes
             routes={sectorRoutes}
@@ -278,6 +297,7 @@ export default function SectorHexView() {
               setSelectedRouteId(id);
               if (id) setPanelOpen(false);
             }}
+            focusMode={focusMode}
           />
           <CameraZoomController
             target={zoomTarget}
@@ -361,6 +381,23 @@ export default function SectorHexView() {
             <line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 1.5" />
           </svg>
           {routeMode ? 'Drawing Route' : 'Draw Route'}
+        </button>
+
+        {/* Focus toggle button */}
+        <button
+          onClick={() => setFocusMode(focusMode === 'hexes' ? 'routes' : 'hexes')}
+          className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+            focusMode === 'hexes'
+              ? 'bg-blue-900/40 border-blue-700/60 text-blue-300 hover:text-blue-200 hover:border-blue-600'
+              : 'bg-purple-900/40 border-purple-700/60 text-purple-300 hover:text-purple-200 hover:border-purple-600'
+          }`}
+          title={`Currently focusing on ${focusMode}`}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
+            <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1" fill="none" />
+            <circle cx="6" cy="6" r="1.5" fill="currentColor" />
+          </svg>
+          {focusMode === 'hexes' ? 'Hexes' : 'Routes'}
         </button>
 
         {/* Randomize sector button — only shown when sector is empty */}

@@ -12,9 +12,10 @@ interface RouteObjectProps {
   sector: Sector;
   selected: boolean;
   onSelect: (id: string | null) => void;
+  focusMode?: 'hexes' | 'routes';
 }
 
-function RouteObject({ route, selected, onSelect }: RouteObjectProps) {
+function RouteObject({ route, selected, onSelect, focusMode = 'hexes' }: RouteObjectProps) {
   const [hovered, setHovered] = useState(false);
   const color = ROUTE_COLORS[route.category];
   const dashed = ROUTE_DASHED[route.category];
@@ -63,12 +64,12 @@ function RouteObject({ route, selected, onSelect }: RouteObjectProps) {
         position={[mx, LINE_Y + 0.08, mz]}
         center
         distanceFactor={20}
-        style={{ pointerEvents: 'auto' }}
+        style={{ pointerEvents: focusMode === 'routes' ? 'auto' : 'none' }}
       >
         <div
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-          onClick={e => { e.stopPropagation(); onSelect(selected ? null : route.id); }}
+          onMouseEnter={() => focusMode === 'routes' && setHovered(true)}
+          onMouseLeave={() => focusMode === 'routes' && setHovered(false)}
+          onClick={e => { e.stopPropagation(); if (focusMode === 'routes') onSelect(selected ? null : route.id); }}
           style={{
             background: selected ? `${color}25` : `${color}10`,
             border: `1px solid ${color}${selected ? 'aa' : '55'}`,
@@ -111,9 +112,10 @@ function RouteObject({ route, selected, onSelect }: RouteObjectProps) {
           <mesh
             position={[cx, LINE_Y, cz]}
             rotation={[-Math.PI / 2, 0, -angle]}
-            onPointerEnter={e => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
-            onPointerLeave={() => { setHovered(false); document.body.style.cursor = ''; }}
-            onClick={e => { e.stopPropagation(); onSelect(selected ? null : route.id); }}
+            onPointerEnter={e => { e.stopPropagation(); if (focusMode === 'routes') { setHovered(true); document.body.style.cursor = 'pointer'; } }}
+            onPointerLeave={() => { if (focusMode === 'routes') { setHovered(false); document.body.style.cursor = ''; } }}
+            onClick={e => { e.stopPropagation(); if (focusMode === 'routes') onSelect(selected ? null : route.id); }}
+            raycast={focusMode === 'routes' ? undefined : () => null}
           >
             <planeGeometry args={[len, 0.35]} />
             <meshBasicMaterial transparent opacity={0} depthWrite={false} />
@@ -129,9 +131,10 @@ interface Props {
   sector: Sector;
   selectedRouteId: string | null;
   onSelectRoute: (id: string | null) => void;
+  focusMode?: 'hexes' | 'routes';
 }
 
-export default function SpikeRoutes({ routes, sector, selectedRouteId, onSelectRoute }: Props) {
+export default function SpikeRoutes({ routes, sector, selectedRouteId, onSelectRoute, focusMode = 'hexes' }: Props) {
   return (
     <group>
       {routes.map(route => (
@@ -141,6 +144,7 @@ export default function SpikeRoutes({ routes, sector, selectedRouteId, onSelectR
           sector={sector}
           selected={selectedRouteId === route.id}
           onSelect={onSelectRoute}
+          focusMode={focusMode}
         />
       ))}
     </group>

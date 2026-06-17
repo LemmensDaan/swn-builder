@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useOnClickOutside } from '../../../hooks/useOnClickOutside';
-import { ChevronLeft, ChevronRight, Sliders, X, Clock, Tag, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sliders, X, Clock, Tag, FileText, Shield } from 'lucide-react';
 import TimelineEditor from '../shared/TimelineEditor';
 import { sortSystemObjects, getPrimaryObjectTypes } from '../../../types/sector';
 import { useSectorStore } from '../../../store/useSectorStore';
@@ -256,7 +256,7 @@ export default function SystemViewer() {
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: sector?.factions.find(f => f.id === system.factionId)?.color ?? '#888' }} title="Faction assigned" />
                 )}
                 {system.notes.trim().length > 0 && (
-                  <FileText size={11} className="text-amber-700" title="Has notes" />
+                  <FileText size={11} className="text-amber-700"  />
                 )}
                 {system.tags.length > 0 && (
                   <span className="text-[10px] text-amber-700 font-medium">{system.tags.length}T</span>
@@ -306,7 +306,7 @@ export default function SystemViewer() {
           const hasTimeline = (obj.timeline ?? []).length > 0;
 
           const tabs: Array<{ id: 'overview' | 'notes' | 'tags' | 'history'; label: string; icon: React.ReactNode; count?: number; visible: boolean }> = [
-            { id: 'overview', label: 'Overview', icon: '◆', visible: true },
+            { id: 'overview', label: 'Factions', icon: <Shield size={12} />, visible: true },
             { id: 'notes', label: 'Notes', icon: <FileText size={12} />, count: hasNotes ? 1 : 0, visible: true },
             { id: 'tags', label: 'Tags', icon: <Tag size={12} />, count: obj.tags.length, visible: true },
             { id: 'history', label: 'History', icon: <Clock size={12} />, count: (obj.timeline ?? []).length, visible: hasTimeline },
@@ -352,20 +352,36 @@ export default function SystemViewer() {
               {/* Content */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-3">
                 {infoPanelTab === 'overview' && (
-                  <>
-                    {faction && (
-                      <div>
-                        <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium mb-1">Faction</p>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium mb-1.5">Controlled by</p>
+                      {faction ? (
                         <div className="flex items-center gap-1.5">
                           <div className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600" style={{ background: faction.color }} />
                           <span className="text-xs text-gray-300">{faction.name}</span>
                         </div>
+                      ) : (
+                        <p className="text-xs text-gray-600 italic">None</p>
+                      )}
+                    </div>
+                    {(obj.contestedFactionIds ?? []).length > 0 && (
+                      <div className="flex-1">
+                        <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium mb-1.5">Contested By</p>
+                        <div className="flex flex-col gap-1">
+                          {(obj.contestedFactionIds ?? []).map(fid => {
+                            const f = sector?.factions.find(f => f.id === fid);
+                            if (!f) return null;
+                            return (
+                              <div key={fid} className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: f.color }} />
+                                <span className="text-xs text-gray-400">{f.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
-                    {!faction && (
-                      <p className="text-xs text-gray-600 italic">No faction assigned</p>
-                    )}
-                  </>
+                  </div>
                 )}
 
                 {infoPanelTab === 'notes' && (
@@ -413,7 +429,7 @@ export default function SystemViewer() {
           const faction = system.factionId ? sector?.factions.find(f => f.id === system.factionId) : null;
 
           const tabs: Array<{ id: 'overview' | 'notes' | 'tags' | 'history'; label: string; icon: React.ReactNode; count?: number; visible: boolean }> = [
-            { id: 'overview', label: 'Overview', icon: '◆', visible: true },
+            { id: 'overview', label: 'Factions', icon: <Shield size={12} />, visible: true },
             { id: 'notes', label: 'Notes', icon: <FileText size={12} />, count: hasNotes ? 1 : 0, visible: true },
             { id: 'tags', label: 'Tags', icon: <Tag size={12} />, count: system.tags.length, visible: true },
             { id: 'history', label: 'History', icon: <Clock size={12} />, count: (system.timeline ?? []).length, visible: hasTimeline },
@@ -459,20 +475,36 @@ export default function SystemViewer() {
               {/* Content */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-3">
                 {systemInfoTab === 'overview' && (
-                  <>
-                    {faction && (
-                      <div>
-                        <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium mb-1">Faction</p>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium mb-1.5">Controlled by</p>
+                      {faction ? (
                         <div className="flex items-center gap-1.5">
                           <div className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600" style={{ background: faction.color }} />
                           <span className="text-xs text-gray-300">{faction.name}</span>
                         </div>
+                      ) : (
+                        <p className="text-xs text-gray-600 italic">None</p>
+                      )}
+                    </div>
+                    {(system.contestedFactionIds ?? []).length > 0 && (
+                      <div className="flex-1">
+                        <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium mb-1.5">Contested By</p>
+                        <div className="flex flex-col gap-1">
+                          {(system.contestedFactionIds ?? []).map(fid => {
+                            const f = sector?.factions.find(f => f.id === fid);
+                            if (!f) return null;
+                            return (
+                              <div key={fid} className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: f.color }} />
+                                <span className="text-xs text-gray-400">{f.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
-                    {!faction && (
-                      <p className="text-xs text-gray-600 italic">No faction assigned</p>
-                    )}
-                  </>
+                  </div>
                 )}
 
                 {systemInfoTab === 'notes' && (

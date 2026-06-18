@@ -1,20 +1,22 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useOnClickOutside } from '../../../hooks/useOnClickOutside';
-import { ChevronLeft, ChevronRight, Sliders, X, Clock, Tag, FileText, Shield } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sliders, X, Clock, Tag, FileText, Shield, MapPin, Plus } from 'lucide-react';
 import TimelineEditor from '../shared/TimelineEditor';
-import { sortSystemObjects, getPrimaryObjectTypes } from '../../../types/sector';
+import { sortSystemObjects, getPrimaryObjectTypes, POI_TYPES } from '../../../types/sector';
+import type { POIType } from '../../../types/sector';
 import { useSectorStore } from '../../../store/useSectorStore';
 import SystemScene from './SystemScene';
 import SystemPrefsPanel from './SystemPrefsPanel';
 import { loadPrefs, savePrefs } from './systemPrefs';
 import type { SystemPrefs } from './systemPrefs';
+import { SystemViewerContext } from './SystemViewerContext';
+import { POI_COLORS, POI_LABELS } from './PlanetPOIMarkers';
 
 
 function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsRef, orbitControlsRef }: any) {
-  const lastPosRef = useRef<[number, number, number] | null>(null);
   const trackingRef = useRef(false);
   const flyProgressRef = useRef(0);
 
@@ -27,7 +29,6 @@ function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsR
   const v_delta = useRef(new THREE.Vector3());
 
   useEffect(() => {
-    lastPosRef.current = null;
     trackingRef.current = false;
     flyProgressRef.current = 0;
   }, [selectedObjectId]);
@@ -64,27 +65,18 @@ function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsR
 
       if (flyProgressRef.current >= 1) {
         trackingRef.current = true;
-        lastPosRef.current = position;
       }
       return;
     }
 
-    // Tracking phase — keep camera locked onto orbiting object
-    if (!lastPosRef.current) {
-      lastPosRef.current = position;
-      return;
-    }
-
-    v_delta.current.set(
-      position[0] - lastPosRef.current[0],
-      position[1] - lastPosRef.current[1],
-      position[2] - lastPosRef.current[2],
-    );
+    // Tracking phase — keep camera locked onto orbiting object.
+    // Compute delta from controls.target (self-correcting: target is reset to world pos each frame).
+    // Do NOT call controls.update() here — OrbitControls runs at priority -1 (before this) and
+    // handles its own update including damping. Calling it again here would double-apply the
+    // residual panOffset from damping, drifting the target off the object and causing jitter.
+    v_delta.current.subVectors(v_objPos.current, controls.target);
     camera.position.add(v_delta.current);
-    controls.target.add(v_delta.current);
-    controls.update();
-
-    lastPosRef.current = position;
+    controls.target.copy(v_objPos.current);
   });
   return null;
 }
@@ -135,11 +127,13 @@ function CameraIntroAnimator({
 }
 
 export default function SystemViewer() {
-  const { activeSystemId, activeSectorId, systems, sectors, navigateBack, navigateHome } = useSectorStore();
+  const { activeSystemId, activeSectorId, systems, sectors, navigateBack, navigateHome, addPOI, updatePOI, removePOI } = useSectorStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [infoPanelObjectId, setInfoPanelObjectId] = useState<string | null>(null);
-  const [infoPanelTab, setInfoPanelTab] = useState<'overview' | 'notes' | 'tags' | 'history'>('overview');
+  const [infoPanelTab, setInfoPanelTab] = useState<'overview' | 'notes' | 'tags' | 'history' | 'locations'>('overview');
+  const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ objectId: string; x: number; y: number; lat: number; lon: number } | null>(null);
   const [systemInfoOpen, setSystemInfoOpen] = useState(false);
   const [systemInfoTab, setSystemInfoTab] = useState<'overview' | 'notes' | 'tags' | 'history'>('overview');
   const [introComplete, setIntroComplete] = useState(false);
@@ -155,12 +149,22 @@ export default function SystemViewer() {
   const system = activeSystemId ? systems[activeSystemId] : null;
   const sector = sectors.find(s => s.id === activeSectorId);
 
+  const systemViewerCtxValue = useMemo(
+    () => system ? {
+      systemId: system.id,
+      orbitControlsRef,
+      onPlanetContextMenu: (objectId: string, x: number, y: number, lat: number, lon: number) => setContextMenu({ objectId, x, y, lat, lon }),
+    } : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [system?.id],
+  );
+
   const handlePrefsChange = (newPrefs: SystemPrefs) => {
     setPrefs(newPrefs);
     savePrefs(newPrefs);
   };
 
-  if (!system) return null;
+  if (!system || !systemViewerCtxValue) return null;
 
   function handleObjectClick(id: string) {
     if (id === selectedObjectId) {
@@ -185,9 +189,10 @@ export default function SystemViewer() {
   const camDistance = Math.max(60, furthestOrbit * 2.5 + 30);
 
   return (
+    <SystemViewerContext.Provider value={systemViewerCtxValue}>
     <div className="flex h-full relative">
       {/* 3D Canvas */}
-      <div className="flex-1 min-w-0 relative">
+      <div className="flex-1 min-w-0 relative" onContextMenu={e => e.preventDefault()}>
         <Canvas
           camera={{ position: [0, camDistance * 0.4 * 0.4 * 12, camDistance * 0.4 * 12], fov: 60 }}
           shadows
@@ -296,6 +301,32 @@ export default function SystemViewer() {
           />
         )}
 
+        {/* Right-click context menu */}
+        {contextMenu && (
+          <>
+            <div className="absolute inset-0 z-40" onClick={() => setContextMenu(null)} />
+            <div
+              className="absolute z-50 bg-gray-900/95 border border-gray-700/60 rounded-lg shadow-xl py-1 backdrop-blur min-w-[140px]"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+            >
+              <button
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-gray-100 transition-colors"
+                onClick={() => {
+                  const p = addPOI(system.id, contextMenu.objectId, { name: 'New Location', type: 'other', lat: contextMenu.lat, lon: contextMenu.lon });
+                  setContextMenu(null);
+                  // Open the info panel on the Locations tab
+                  setInfoPanelObjectId(contextMenu.objectId);
+                  setInfoPanelTab('locations');
+                  setEditingPoiId(p.id);
+                }}
+              >
+                <MapPin size={11} />
+                Add Location
+              </button>
+            </div>
+          </>
+        )}
+
         {/* Object info panel — shown when a focused object is clicked again */}
         {infoPanelObjectId && (() => {
           const obj = system.objects.find(o => o.id === infoPanelObjectId);
@@ -306,12 +337,15 @@ export default function SystemViewer() {
           const hasTimeline = (obj.timeline ?? []).length > 0;
           const faction = obj.factionId ? sector?.factions.find(f => f.id === obj.factionId) : null;
           const hasOverviewContent = !!faction || (obj.contestedFactionIds ?? []).length > 0;
+          const isPlanetLike = ['Planet', 'Moon', 'GasGiant'].includes(obj.type);
+          const poiList = obj.pois ?? [];
 
-          const tabs: Array<{ id: 'overview' | 'notes' | 'tags' | 'history'; label: string; icon: React.ReactNode; count?: number; visible: boolean }> = [
+          const tabs: Array<{ id: 'overview' | 'notes' | 'tags' | 'history' | 'locations'; label: string; icon: React.ReactNode; count?: number; visible: boolean }> = [
             { id: 'overview', label: 'Factions', icon: <Shield size={12} />, visible: hasOverviewContent },
             { id: 'notes', label: 'Notes', icon: <FileText size={12} />, count: hasNotes ? 1 : 0, visible: hasNotes },
             { id: 'tags', label: 'Tags', icon: <Tag size={12} />, count: obj.tags.length, visible: hasTags },
             { id: 'history', label: 'History', icon: <Clock size={12} />, count: (obj.timeline ?? []).length, visible: hasTimeline },
+            { id: 'locations', label: 'Locations', icon: <MapPin size={12} />, count: poiList.length, visible: isPlanetLike && poiList.length > 0 },
           ];
 
           const visibleTabs = tabs.filter(t => t.visible);
@@ -319,7 +353,7 @@ export default function SystemViewer() {
           const activeTab = currentTabVisible ? infoPanelTab : (visibleTabs[0]?.id ?? 'overview');
 
           return (
-            <div ref={infoPanelRef} className="absolute bottom-16 left-4 w-[420px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
+            <div ref={infoPanelRef} className="absolute bottom-16 left-4 w-[520px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
               {/* Header */}
               <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 flex-shrink-0">
                 <div className="min-w-0">
@@ -423,6 +457,63 @@ export default function SystemViewer() {
 
                     {activeTab === 'history' && hasTimeline && (
                       <TimelineEditor events={obj.timeline ?? []} onChange={() => {}} compact />
+                    )}
+
+                    {activeTab === 'locations' && isPlanetLike && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium">Surface Locations</p>
+                          <button
+                            onClick={() => {
+                              const lat = (Math.random() - 0.5) * 160;
+                              const lon = (Math.random() - 0.5) * 360;
+                              const p = addPOI(system.id, obj.id, { name: 'New Location', type: 'other', lat, lon });
+                              setEditingPoiId(p.id);
+                            }}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 border border-gray-700 transition-colors"
+                          >
+                            <Plus size={9} /> Add
+                          </button>
+                        </div>
+                        {poiList.map(poi => (
+                          editingPoiId === poi.id ? (
+                            <div key={poi.id} className="space-y-1.5 py-2 px-2 rounded bg-gray-800/70 border border-gray-700/50">
+                              <input
+                                autoFocus
+                                className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-gray-500"
+                                value={poi.name}
+                                onChange={e => updatePOI(system.id, obj.id, poi.id, { name: e.target.value })}
+                              />
+                              <select
+                                className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-gray-500"
+                                value={poi.type}
+                                onChange={e => updatePOI(system.id, obj.id, poi.id, { type: e.target.value as POIType })}
+                              >
+                                {POI_TYPES.map(t => <option key={t} value={t}>{POI_LABELS[t]}</option>)}
+                              </select>
+                              <div className="flex justify-between items-center">
+                                <button onClick={() => setEditingPoiId(null)} className="text-[10px] text-blue-400 hover:text-blue-300">Done</button>
+                                <button onClick={() => { removePOI(system.id, obj.id, poi.id); setEditingPoiId(null); }} className="text-[10px] text-red-600 hover:text-red-400">Delete</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              key={poi.id}
+                              className="flex items-center gap-2 py-1 px-2 rounded bg-gray-800/50 hover:bg-gray-800 group cursor-pointer"
+                              onClick={() => setEditingPoiId(poi.id)}
+                            >
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: POI_COLORS[poi.type] }} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-300 truncate">{poi.name}</p>
+                                <p className="text-[10px] text-gray-600">{POI_LABELS[poi.type]}</p>
+                              </div>
+                            </div>
+                          )
+                        ))}
+                        {poiList.length > 0 && !editingPoiId && (
+                          <p className="text-[10px] text-gray-700 italic">Click to edit · Drag in 3D to move</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </>
@@ -622,8 +713,8 @@ export default function SystemViewer() {
                               <div className="w-2 h-2 rounded-full flex-shrink-0 border border-gray-800" style={{ background: fc.color }} title={fc.name} />
                             ) : null;
                           })()}
-                          {(obj.tags.length > 0 || obj.notes.trim()) && (
-                            <div className="w-1.5 h-1.5 rounded-full bg-amber-600/70 flex-shrink-0" title="Has notes or tags" />
+                          {(obj.tags.length > 0 || obj.notes.trim() || (obj.pois ?? []).length > 0) && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-600/70 flex-shrink-0" title="Has notes, tags, or locations" />
                           )}
                         </button>
                         {renderTree(obj.id, depth + 1)}
@@ -646,5 +737,6 @@ export default function SystemViewer() {
         </button>
       )}
     </div>
+    </SystemViewerContext.Provider>
   );
 }

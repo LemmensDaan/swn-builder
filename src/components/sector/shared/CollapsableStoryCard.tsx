@@ -14,6 +14,8 @@ interface Props {
   tags: string[];
   notes: string;
   events: TimelineEvent[];
+  poiCount?: number;
+  extraContent?: React.ReactNode;
   isExpanded: boolean;
   onExpandChange: (id: string | null) => void;
   onFactionChange: (factionId: string | null) => void;
@@ -33,6 +35,8 @@ export default function CollapsableStoryCard({
   tags,
   notes,
   events,
+  poiCount,
+  extraContent,
   isExpanded,
   onExpandChange,
   onFactionChange,
@@ -54,7 +58,7 @@ export default function CollapsableStoryCard({
   const hasNotes = typeof notes === 'string' && notes.trim().length > 0;
   const hasHistory = Array.isArray(events) && events.length > 0;
   const hasContested = (contestedFactionIds?.length ?? 0) > 0;
-  const hasAnyContent = hasFaction || hasTags || hasNotes || hasHistory || hasContested;
+  const hasAnyContent = hasFaction || hasTags || hasNotes || hasHistory || hasContested || (poiCount ?? 0) > 0;
 
   return (
     <div
@@ -83,6 +87,7 @@ export default function CollapsableStoryCard({
               {hasTags && <span>● tags</span>}
               {hasNotes && <span>● notes</span>}
               {hasHistory && <span>● history</span>}
+              {(poiCount ?? 0) > 0 && <span>● locations</span>}
             </div>
           )}
         </div>
@@ -234,6 +239,7 @@ export default function CollapsableStoryCard({
               </button>
             )}
           </div>
+          {extraContent}
         </div>
       )}
     </div>

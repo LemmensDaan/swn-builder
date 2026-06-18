@@ -7,6 +7,8 @@ import OrbitRing from './OrbitRing';
 import PlanetRings, { resolveRingBands } from './PlanetRings';
 import { generatePlanetGeometry, PLANET_PRESETS, mulberry32 } from './planetRenderer';
 import { getOrbitPosition } from './orbitUtils';
+import PlanetPOIMarkers, { posToLatLon } from './PlanetPOIMarkers';
+import { useSafeSystemViewerContext } from './SystemViewerContext';
 
 // Maximum number of ring bands the analytic shadow shader handles.
 const MAX_RING_BANDS = 8;
@@ -143,8 +145,9 @@ interface Props {
 export default function PlanetObject({ obj, children, onPositionUpdate, onClick, showOrbits = true, highQuality = true }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const axisGroupRef = useRef<THREE.Group>(null);
-  const meshRef  = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<THREE.Mesh | null>(null);
   const [hovered, setHovered] = useState(false);
+  const systemViewerCtx = useSafeSystemViewerContext();
   const isGasGiant = obj.planetType === 'GasGiant';
 
   const { mat: planetMat, uniforms: ringUniforms } = useMemo(() => buildPlanetMaterial(), []);
@@ -299,7 +302,27 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
             onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
             onPointerLeave={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
             onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
-          />
+            onContextMenu={(e) => {
+              e.stopPropagation();
+              e.nativeEvent.preventDefault();
+              if (systemViewerCtx?.onPlanetContextMenu && meshRef.current) {
+                const localPt = e.point.clone();
+                meshRef.current.worldToLocal(localPt);
+                const { lat, lon } = posToLatLon(localPt);
+                systemViewerCtx.onPlanetContextMenu(obj.id, e.nativeEvent.offsetX, e.nativeEvent.offsetY, lat, lon);
+              }
+            }}
+          >
+            {systemViewerCtx && (obj.pois ?? []).length > 0 && (
+              <PlanetPOIMarkers
+                pois={obj.pois!}
+                planetSize={obj.size}
+                meshRef={meshRef}
+                systemId={systemViewerCtx.systemId}
+                objectId={obj.id}
+              />
+            )}
+          </mesh>
           {obj.rings && <PlanetRings obj={obj} />}
         </group>
         {/* Hover label — monospace text, no line, no box */}

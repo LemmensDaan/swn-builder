@@ -28,6 +28,18 @@ export interface RingBand {
   inclination: number;  // degrees — tilt of this ring's plane
 }
 
+export const POI_TYPES = ['base', 'ruin', 'city', 'outpost', 'hazard', 'other'] as const;
+export type POIType = typeof POI_TYPES[number];
+
+export interface PlanetPOI {
+  id: string;
+  name: string;
+  type: POIType;
+  lat: number;   // -90 to 90
+  lon: number;   // -180 to 180
+  notes?: string;
+}
+
 export interface SystemObject {
   id: string;
   type: ObjectType;
@@ -75,6 +87,7 @@ export interface SystemObject {
   factionId: string | null;
   contestedFactionIds?: string[];
   timeline: TimelineEvent[];
+  pois?: PlanetPOI[];
 }
 
 export interface StarSystem {

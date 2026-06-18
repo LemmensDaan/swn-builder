@@ -6,6 +6,7 @@ import { useSectorStore } from '../../../store/useSectorStore';
 import { randomizeSystem } from '../SystemViewer/systemRandomizer';
 import ObjectEditor from './ObjectEditor';
 import CollapsableStoryCard from '../shared/CollapsableStoryCard';
+import PlanetPOISection from './PlanetPOISection';
 
 const SYSTEM_TYPES: SystemType[] = ['Standard', 'Binary', 'Hostile', 'Rich', 'Dead', 'Frontier'];
 
@@ -648,32 +649,42 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
             <div className="space-y-3 pt-2">
               {sorted
                 .sort((a, b) => {
-                  const aHasContent = (a.factionId && a.factionId !== '') || (a.tags ?? []).length > 0 || a.notes.trim().length > 0 || (a.timeline ?? []).length > 0;
-                  const bHasContent = (b.factionId && b.factionId !== '') || (b.tags ?? []).length > 0 || b.notes.trim().length > 0 || (b.timeline ?? []).length > 0;
+                  const aHasContent = (a.factionId && a.factionId !== '') || (a.tags ?? []).length > 0 || a.notes.trim().length > 0 || (a.timeline ?? []).length > 0 || (a.pois ?? []).length > 0;
+                  const bHasContent = (b.factionId && b.factionId !== '') || (b.tags ?? []).length > 0 || b.notes.trim().length > 0 || (b.timeline ?? []).length > 0 || (b.pois ?? []).length > 0;
                   return Number(bHasContent) - Number(aHasContent);
                 })
                 .map(obj => {
                   const noFaction = NO_FACTION_TYPES.has(obj.type);
+                  const hasPOIs = ['Planet', 'Moon', 'GasGiant'].includes(obj.type);
                   return (
-                    <CollapsableStoryCard
-                      key={obj.id}
-                      id={obj.id}
-                      title={obj.name}
-                      borderColor={obj.colors[0]}
-                      factionId={obj.factionId}
-                      factions={noFaction ? [] : factions}
-                      contestedFactionIds={obj.contestedFactionIds ?? []}
-                      tags={obj.tags ?? []}
-                      notes={obj.notes}
-                      events={obj.timeline ?? []}
-                      isExpanded={expandedStoryCardId === obj.id}
-                      onExpandChange={setExpandedStoryCardId}
-                      onFactionChange={factionId => updateObject(system.id, obj.id, { factionId })}
-                      onContestedFactionsChange={noFaction ? undefined : ((ids) => updateObject(system.id, obj.id, { contestedFactionIds: ids }))}
-                      onTagsChange={tags => updateObject(system.id, obj.id, { tags })}
-                      onNotesChange={notes => updateObject(system.id, obj.id, { notes })}
-                      onTimelineChange={timeline => updateObject(system.id, obj.id, { timeline })}
-                    />
+                    <div key={obj.id}>
+                      <CollapsableStoryCard
+                        id={obj.id}
+                        title={obj.name}
+                        borderColor={obj.colors[0]}
+                        factionId={obj.factionId}
+                        factions={noFaction ? [] : factions}
+                        contestedFactionIds={obj.contestedFactionIds ?? []}
+                        tags={obj.tags ?? []}
+                        notes={obj.notes}
+                        events={obj.timeline ?? []}
+                        poiCount={(obj.pois ?? []).length}
+                        extraContent={hasPOIs ? (
+                          <PlanetPOISection
+                            systemId={system.id}
+                            objectId={obj.id}
+                            pois={obj.pois ?? []}
+                          />
+                        ) : undefined}
+                        isExpanded={expandedStoryCardId === obj.id}
+                        onExpandChange={setExpandedStoryCardId}
+                        onFactionChange={factionId => updateObject(system.id, obj.id, { factionId })}
+                        onContestedFactionsChange={noFaction ? undefined : ((ids) => updateObject(system.id, obj.id, { contestedFactionIds: ids }))}
+                        onTagsChange={tags => updateObject(system.id, obj.id, { tags })}
+                        onNotesChange={notes => updateObject(system.id, obj.id, { notes })}
+                        onTimelineChange={timeline => updateObject(system.id, obj.id, { timeline })}
+                      />
+                    </div>
                   );
                 })
               }

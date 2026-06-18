@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import localforage from 'localforage';
-import type { Sector, StarSystem, SystemObject, Faction, HexCell, NebulaShape, SpikeRoute, RouteCategory } from '../types/sector';
+import type { Sector, StarSystem, SystemObject, Faction, HexCell, NebulaShape, SpikeRoute, RouteCategory, PlanetPOI } from '../types/sector';
 import { makeEmptyHexGrid, OBJECT_TYPE_DEFAULTS } from '../types/sector';
 import { GALAXY_TRIANGLES } from '../components/sector/GalaxyView/galaxyData';
 import { randomizeSystem, randomizeSectorPlan } from '../components/sector/SystemViewer/systemRandomizer';
@@ -34,6 +34,11 @@ interface SectorActions {
   updateObject: (systemId: string, objId: string, updates: Partial<SystemObject>) => void;
   removeObject: (systemId: string, objId: string) => void;
   reorderObjects: (systemId: string, orderedIds: string[], perObjectUpdates?: Record<string, Partial<SystemObject>>) => void;
+
+  // POI CRUD
+  addPOI: (systemId: string, objectId: string, partial: Omit<PlanetPOI, 'id'>) => PlanetPOI;
+  updatePOI: (systemId: string, objectId: string, poiId: string, updates: Partial<Omit<PlanetPOI, 'id'>>) => void;
+  removePOI: (systemId: string, objectId: string, poiId: string) => void;
 
   // Navigation
   navigateToSector: (sectorId: string) => void;
@@ -396,6 +401,30 @@ export const useSectorStore = create<SectorStore>()(
         }));
       },
 
+      addPOI(systemId, objectId, partial) {
+        const poi: PlanetPOI = { id: crypto.randomUUID(), ...partial };
+        get().updateObject(systemId, objectId, {
+          pois: [...(get().systems[systemId]?.objects.find(o => o.id === objectId)?.pois ?? []), poi],
+        });
+        return poi;
+      },
+
+      updatePOI(systemId, objectId, poiId, updates) {
+        const obj = get().systems[systemId]?.objects.find(o => o.id === objectId);
+        if (!obj) return;
+        get().updateObject(systemId, objectId, {
+          pois: (obj.pois ?? []).map(p => p.id === poiId ? { ...p, ...updates } : p),
+        });
+      },
+
+      removePOI(systemId, objectId, poiId) {
+        const obj = get().systems[systemId]?.objects.find(o => o.id === objectId);
+        if (!obj) return;
+        get().updateObject(systemId, objectId, {
+          pois: (obj.pois ?? []).filter(p => p.id !== poiId),
+        });
+      },
+
       reorderObjects(systemId, orderedIds, perObjectUpdates) {
         set(s => {
           const objs = s.systems[systemId].objects;
@@ -510,7 +539,7 @@ export const useSectorStore = create<SectorStore>()(
     }),
     {
       name: 'swn-sector-data',
-      version: 5,
+      version: 6,
       migrate(persistedState, version) {
         const state = persistedState as { sectors: Sector[]; systems: Record<string, StarSystem> };
         if (version < 1) {
@@ -565,6 +594,15 @@ export const useSectorStore = create<SectorStore>()(
             ...s,
             routes: Array.isArray(s.routes) ? s.routes : [],
           }));
+        }
+        if (version < 6) {
+          const systems = state.systems as Record<string, any>;
+          Object.keys(systems).forEach(k => {
+            systems[k].objects = (systems[k].objects ?? []).map((o: any) => ({
+              ...o,
+              pois: Array.isArray(o.pois) ? o.pois : [],
+            }));
+          });
         }
         return state;
       },

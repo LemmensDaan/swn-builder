@@ -722,6 +722,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   const orbitSpeed = obj.orbitSpeed > 0 ? obj.orbitSpeed : (obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0);
   const orbitDelay = obj.orbitDelay ?? 0;
   const angleRef   = useRef(initialAngle);
+  const _worldPos  = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(({ camera }, delta) => {
     localTimeRef.current += delta;
@@ -736,7 +737,9 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
       const incRad = THREE.MathUtils.degToRad(obj.inclination);
       const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);
       groupRef.current.position.set(x, y, z);
-      onPositionUpdate?.([x, y, z]);
+      groupRef.current.updateWorldMatrix(true, false);
+      groupRef.current.getWorldPosition(_worldPos);
+      onPositionUpdate?.([_worldPos.x, _worldPos.y, _worldPos.z]);
     } else if (groupRef.current && obj.orbitRadius === 0) {
       onPositionUpdate?.([0, 0, 0]);
     }

@@ -256,10 +256,10 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
             const score = attrs[a];
             const mod = attrMod(score);
             return (
-              <div key={a} className="glass rounded-lg p-1 sm:p-2 text-center">
-                <div className="text-[9px] sm:text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">{a}</div>
-                <div className="text-lg sm:text-xl font-bold">{score}</div>
-                <div className={`text-[10px] sm:text-xs font-bold mt-0.5 ${mod > 0 ? 'text-green-400' : mod < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+              <div key={a} className="glass rounded-lg p-0.5 sm:p-2 text-center">
+                <div className="text-[7px] sm:text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">{a}</div>
+                <div className="text-sm sm:text-xl font-bold">{score}</div>
+                <div className={`text-[7px] sm:text-xs font-bold mt-0.5 ${mod > 0 ? 'text-green-400' : mod < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                   {mod >= 0 ? '+' : ''}{mod}
                 </div>
               </div>

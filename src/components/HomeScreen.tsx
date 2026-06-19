@@ -82,7 +82,7 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
 
   return (
     <div className="min-h-screen bg-gray-950/50 text-gray-100 flex flex-col">
-      <div className="bg-gray-900/90 backdrop-blur-sm border-b border-gray-700 px-6 py-4">
+      <div className="bg-gray-900/90 backdrop-blur-sm border-b border-gray-700 px-3 py-3 sm:px-6 sm:py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-amber-400">Stars Without Number</h1>
@@ -164,8 +164,8 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
         </div>
       </div>
 
-      <div className="flex-1 max-w-6xl mx-auto w-full px-6 py-8">
-        <div className="flex gap-4 mb-8 border-b border-gray-800 pb-1">
+      <div className="flex-1 max-w-6xl mx-auto w-full px-3 py-4 sm:px-6 sm:py-8">
+        <div className="flex gap-2 sm:gap-4 mb-6 sm:mb-8 border-b border-gray-800 pb-1 overflow-x-auto">
           <Tab label="Characters" active={activeTab === 'characters'} onClick={() => { setActiveTab('characters'); onTabChange('characters'); }} />
           <Tab label="Ships" active={activeTab === 'ships'} onClick={() => { setActiveTab('ships'); onTabChange('ships'); }} />
           <Tab label="Factions" active={activeTab === 'factions'} onClick={() => { setActiveTab('factions'); onTabChange('factions'); }} />

@@ -299,22 +299,22 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
       <div className="bg-gray-950 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
 
         {/* Header */}
-        <div className="bg-gray-900 rounded-t-2xl px-6 py-4 border-b border-gray-700 flex items-center justify-between flex-shrink-0">
-          <div>
-            <h2 className="text-amber-300 font-bold text-lg">Level Up — Level {newLevel}</h2>
-            <div className="flex gap-3 mt-1">
+        <div className="bg-gray-900 rounded-t-2xl px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-700 flex items-center justify-between flex-shrink-0">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-amber-300 font-bold text-base sm:text-lg">Level Up — Level {newLevel}</h2>
+            <div className="flex flex-wrap gap-1.5 sm:gap-3 mt-1">
               {steps.map((s, i) => (
                 <span key={s} className={`text-xs px-2 py-0.5 rounded ${uiStep === s ? 'bg-amber-700 text-white' : i < stepIndex ? 'text-green-400' : 'text-gray-600'}`}>
-                  {s === 'hp' ? 'Hit Points' : s === 'skills' ? 'Skill Points' : s === 'focus' ? 'New Focus' : 'Confirm'}
+                  {s === 'hp' ? 'HP' : s === 'skills' ? 'Skills' : s === 'focus' ? 'Focus' : 'Confirm'}
                 </span>
               ))}
             </div>
           </div>
-          <button onClick={onCancel} className="text-gray-500 hover:text-gray-300 text-xl">✕</button>
+          <button onClick={onCancel} className="text-gray-500 hover:text-gray-300 text-xl ml-2 flex-shrink-0">✕</button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 space-y-4 sm:space-y-5">
 
           {/* ── HP STEP ─────────────────────────────────────────── */}
           {uiStep === 'hp' && (

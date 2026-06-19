@@ -171,7 +171,43 @@ export default function ShipStep4Fittings({ ship, derived, onChange }: Props) {
           Defenses
         </h3>
 
-        <div className="overflow-x-auto">
+        {/* Mobile cards */}
+        <div className="sm:hidden space-y-2">
+          {eligibleDefenses.map((def) => {
+            const qty = installedQty(ship.defenses, def.id);
+            const scaledMass = scalePowerMass(def.mass, def.massScaled, hullClass);
+            const scaledCost = scaleCost(def.baseCost, def.costScaled, hullClass);
+            const isInstalled = qty > 0;
+            return (
+              <div key={def.id} className={`rounded-lg border p-3 ${isInstalled ? 'border-sky-700/50 bg-sky-900/10' : 'border-gray-700 bg-gray-800/50'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className={`font-medium text-sm ${isInstalled ? 'text-sky-300' : 'text-gray-200'}`}>
+                      {def.name}
+                      {isInstalled && qty > 1 && <span className="ml-1 text-xs text-sky-500 font-mono">×{qty}</span>}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">{def.minClass}+</div>
+                  </div>
+                  <QtyControls id={def.id} qty={qty} repeatable={false}
+                    onDecrement={() => changeDefenseQty(def.id, -1)}
+                    onIncrement={() => changeDefenseQty(def.id, +1)} />
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{def.description}</p>
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  {def.acBonus > 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-800/50 font-mono">+{def.acBonus} AC</span>}
+                  {def.hpBonus > 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800/50 font-mono">+{def.hpBonus} HP</span>}
+                  {def.speedPenalty < 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-orange-900/40 text-orange-400 border border-orange-800/50 font-mono">{def.speedPenalty} spd</span>}
+                  <span className="text-xs text-gray-500 ml-auto">
+                    Pwr {def.power > 0 ? def.power : '—'} · Mass {scaledMass > 0 ? scaledMass : '—'} · {scaledCost > 0 ? scaledCost.toLocaleString() + ' cr' : '—'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-700 text-gray-500 text-xs uppercase tracking-wide">
@@ -197,7 +233,6 @@ export default function ShipStep4Fittings({ ship, derived, onChange }: Props) {
                     className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${isInstalled ? 'bg-sky-900/10' : ''
                       }`}
                   >
-                    {/* Name */}
                     <td className="py-2 pr-3 align-top">
                       <div className={`font-medium ${isInstalled ? 'text-sky-300' : 'text-gray-200'}`}>
                         {def.name}
@@ -207,68 +242,29 @@ export default function ShipStep4Fittings({ ship, derived, onChange }: Props) {
                       </div>
                       <div className="text-xs text-gray-600">{def.minClass}+</div>
                     </td>
-
-                    {/* Description */}
                     <td className="py-2 pr-3 align-top max-w-[14rem]">
-                      <span
-                        className="text-xs text-gray-400 line-clamp-2"
-                        title={def.description}
-                      >
-                        {def.description}
-                      </span>
+                      <span className="text-xs text-gray-400 line-clamp-2" title={def.description}>{def.description}</span>
                     </td>
-
-                    {/* Bonus chips */}
                     <td className="py-2 pr-3 align-top">
                       <div className="flex flex-col items-end gap-1">
-                        {def.acBonus > 0 && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-800/50 whitespace-nowrap font-mono">
-                            +{def.acBonus} AC
-                          </span>
-                        )}
-                        {def.hpBonus > 0 && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800/50 whitespace-nowrap font-mono">
-                            +{def.hpBonus} HP
-                          </span>
-                        )}
-                        {def.speedPenalty < 0 && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-orange-900/40 text-orange-400 border border-orange-800/50 whitespace-nowrap font-mono">
-                            {def.speedPenalty} spd
-                          </span>
-                        )}
+                        {def.acBonus > 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-800/50 whitespace-nowrap font-mono">+{def.acBonus} AC</span>}
+                        {def.hpBonus > 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800/50 whitespace-nowrap font-mono">+{def.hpBonus} HP</span>}
+                        {def.speedPenalty < 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-orange-900/40 text-orange-400 border border-orange-800/50 whitespace-nowrap font-mono">{def.speedPenalty} spd</span>}
                       </div>
                     </td>
-
-                    {/* Power */}
                     <td className="py-2 pr-3 align-top text-right">
-                      <span className={`font-mono text-xs ${def.power > 0 ? 'text-sky-400' : 'text-gray-600'}`}>
-                        {def.power > 0 ? def.power : '—'}
-                      </span>
+                      <span className={`font-mono text-xs ${def.power > 0 ? 'text-sky-400' : 'text-gray-600'}`}>{def.power > 0 ? def.power : '—'}</span>
                     </td>
-
-                    {/* Mass */}
                     <td className="py-2 pr-3 align-top text-right">
-                      <span className={`font-mono text-xs ${scaledMass > 0 ? 'text-amber-400' : 'text-gray-600'}`}>
-                        {scaledMass > 0 ? scaledMass : '—'}
-                      </span>
+                      <span className={`font-mono text-xs ${scaledMass > 0 ? 'text-amber-400' : 'text-gray-600'}`}>{scaledMass > 0 ? scaledMass : '—'}</span>
                     </td>
-
-                    {/* Cost */}
                     <td className="py-2 pr-3 align-top text-right">
-                      <span className="font-mono text-xs text-gray-400">
-                        {scaledCost > 0 ? scaledCost.toLocaleString() + ' cr' : '—'}
-                      </span>
+                      <span className="font-mono text-xs text-gray-400">{scaledCost > 0 ? scaledCost.toLocaleString() + ' cr' : '—'}</span>
                     </td>
-
-                    {/* Qty controls */}
                     <td className="py-2 align-top">
-                      <QtyControls
-                        id={def.id}
-                        qty={qty}
-                        repeatable={false}
+                      <QtyControls id={def.id} qty={qty} repeatable={false}
                         onDecrement={() => changeDefenseQty(def.id, -1)}
-                        onIncrement={() => changeDefenseQty(def.id, +1)}
-                      />
+                        onIncrement={() => changeDefenseQty(def.id, +1)} />
                     </td>
                   </tr>
                 );
@@ -284,7 +280,42 @@ export default function ShipStep4Fittings({ ship, derived, onChange }: Props) {
           Fittings
         </h3>
 
-        <div className="overflow-x-auto">
+        {/* Mobile cards */}
+        <div className="sm:hidden space-y-2">
+          {eligibleFittings.map((def) => {
+            const qty = installedQty(ship.fittings, def.id);
+            const scaledPower = scalePowerMass(def.power, def.powerScaled, hullClass);
+            const scaledMass = scalePowerMass(def.mass, def.massScaled, hullClass);
+            const scaledCost = scaleCost(def.baseCost, def.costScaled, hullClass);
+            const isInstalled = qty > 0;
+            const classRange = def.maxClass ? `${def.minClass}–${def.maxClass}` : `${def.minClass}+`;
+            return (
+              <div key={def.id} className={`rounded-lg border p-3 ${isInstalled ? 'border-amber-700/50 bg-amber-900/10' : 'border-gray-700 bg-gray-800/50'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className={`font-medium text-sm ${isInstalled ? 'text-amber-300' : 'text-gray-200'}`}>
+                      {def.name}
+                      {isInstalled && qty > 1 && <span className="ml-1 text-xs text-amber-500 font-mono">×{qty}</span>}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">{classRange}</div>
+                  </div>
+                  <QtyControls id={def.id} qty={qty} repeatable={def.repeatable}
+                    onDecrement={() => changeFittingQty(def.id, -1)}
+                    onIncrement={() => changeFittingQty(def.id, +1)} />
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{def.description}</p>
+                <div className="flex gap-3 mt-2 text-xs text-gray-500">
+                  <span>Pwr {scaledPower > 0 ? <span className="text-sky-400 font-mono">{scaledPower}</span> : '—'}</span>
+                  <span>Mass {scaledMass > 0 ? <span className="text-amber-400 font-mono">{scaledMass}</span> : '—'}</span>
+                  <span className="ml-auto">{scaledCost > 0 ? scaledCost.toLocaleString() + ' cr' : '—'}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-700 text-gray-500 text-xs uppercase tracking-wide">
@@ -303,67 +334,36 @@ export default function ShipStep4Fittings({ ship, derived, onChange }: Props) {
                 const scaledMass = scalePowerMass(def.mass, def.massScaled, hullClass);
                 const scaledCost = scaleCost(def.baseCost, def.costScaled, hullClass);
                 const isInstalled = qty > 0;
-                const classRange = def.maxClass
-                  ? `${def.minClass}–${def.maxClass}`
-                  : `${def.minClass}+`;
+                const classRange = def.maxClass ? `${def.minClass}–${def.maxClass}` : `${def.minClass}+`;
 
                 return (
                   <tr
                     key={def.id}
-                    className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${isInstalled ? 'bg-amber-900/10' : ''
-                      }`}
+                    className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${isInstalled ? 'bg-amber-900/10' : ''}`}
                   >
-                    {/* Name */}
                     <td className="py-2 pr-3 align-top">
                       <div className={`font-medium ${isInstalled ? 'text-amber-300' : 'text-gray-200'}`}>
                         {def.name}
-                        {isInstalled && qty > 1 && (
-                          <span className="ml-1 text-xs text-amber-500 font-mono">×{qty}</span>
-                        )}
+                        {isInstalled && qty > 1 && <span className="ml-1 text-xs text-amber-500 font-mono">×{qty}</span>}
                       </div>
                       <div className="text-xs text-gray-600">{classRange}</div>
                     </td>
-
-                    {/* Description */}
                     <td className="py-2 pr-3 align-top max-w-[14rem]">
-                      <span
-                        className="text-xs text-gray-400 line-clamp-2"
-                        title={def.description}
-                      >
-                        {def.description}
-                      </span>
+                      <span className="text-xs text-gray-400 line-clamp-2" title={def.description}>{def.description}</span>
                     </td>
-
-                    {/* Power */}
                     <td className="py-2 pr-3 align-top text-right">
-                      <span className={`font-mono text-xs ${scaledPower > 0 ? 'text-sky-400' : 'text-gray-600'}`}>
-                        {scaledPower > 0 ? scaledPower : '—'}
-                      </span>
+                      <span className={`font-mono text-xs ${scaledPower > 0 ? 'text-sky-400' : 'text-gray-600'}`}>{scaledPower > 0 ? scaledPower : '—'}</span>
                     </td>
-
-                    {/* Mass */}
                     <td className="py-2 pr-3 align-top text-right">
-                      <span className={`font-mono text-xs ${scaledMass > 0 ? 'text-amber-400' : 'text-gray-600'}`}>
-                        {scaledMass > 0 ? scaledMass : '—'}
-                      </span>
+                      <span className={`font-mono text-xs ${scaledMass > 0 ? 'text-amber-400' : 'text-gray-600'}`}>{scaledMass > 0 ? scaledMass : '—'}</span>
                     </td>
-
-                    {/* Cost */}
                     <td className="py-2 pr-3 align-top text-right">
-                      <span className="font-mono text-xs text-gray-400">
-                        {scaledCost > 0 ? scaledCost.toLocaleString() + ' cr' : '—'}
-                      </span>
+                      <span className="font-mono text-xs text-gray-400">{scaledCost > 0 ? scaledCost.toLocaleString() + ' cr' : '—'}</span>
                     </td>
-
-                    {/* Qty controls */}
                     <td className="py-2 align-top">
-                      <QtyControls
-                        id={def.id}
-                        qty={qty}
-                        repeatable={def.repeatable}
+                      <QtyControls id={def.id} qty={qty} repeatable={def.repeatable}
                         onDecrement={() => changeFittingQty(def.id, -1)}
-                        onIncrement={() => changeFittingQty(def.id, +1)}
-                      />
+                        onIncrement={() => changeFittingQty(def.id, +1)} />
                     </td>
                   </tr>
                 );

@@ -423,16 +423,16 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
       <div className="w-full max-w-4xl flex flex-col min-h-screen bg-gray-950">
 
         {/* ── Header ───────────────────────────────────────────────────────── */}
-        <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center gap-3 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="bg-gray-900 border-b border-gray-700 px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <button
               onClick={onBack}
               className="text-gray-400 hover:text-gray-200 text-sm flex-shrink-0 flex items-center gap-1"
             >
               <ArrowLeft size={14} />
-              Factions
+              <span className="hidden sm:inline">Factions</span>
             </button>
-            <span className="text-gray-700">|</span>
+            <span className="text-gray-700 hidden sm:inline">|</span>
             <div
               className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
               style={{ backgroundColor: local.color }}
@@ -440,7 +440,7 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
             <span className="text-amber-300 font-bold truncate">
               {local.name || '(unnamed faction)'}
             </span>
-            <span className="text-gray-500 text-sm flex-shrink-0">{sectorName}</span>
+            <span className="text-gray-500 text-sm flex-shrink-0 hidden sm:inline">{sectorName}</span>
           </div>
 
         </div>
@@ -455,7 +455,7 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
         )}
 
         {/* ── Content ──────────────────────────────────────────────────────── */}
-        <div className="px-4 py-6 space-y-4 overflow-y-auto flex-1">
+        <div className="px-3 py-4 sm:px-4 sm:py-6 space-y-4 overflow-y-auto flex-1">
 
           {/* Identity + Stats row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

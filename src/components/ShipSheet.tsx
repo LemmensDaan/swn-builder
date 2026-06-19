@@ -476,43 +476,44 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
       <div className="w-full max-w-6xl flex flex-col min-h-screen bg-gray-950">
 
         {/* ── Header bar ───────────────────────────────────────────────────── */}
-        <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="bg-gray-900 border-b border-gray-700 px-3 py-2 sm:px-4 sm:py-3 flex items-center justify-between gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={onBack}
               className="text-gray-400 hover:text-gray-200 text-sm flex-shrink-0"
             >
-              ← Back
+              <span className="hidden sm:inline">← Back</span>
+              <span className="sm:hidden">←</span>
             </button>
-            <span className="text-gray-700">|</span>
+            <span className="text-gray-700 hidden sm:inline">|</span>
             <span className="text-amber-300 font-bold truncate">{ship.name || 'Unnamed Ship'}</span>
-            <span className="text-gray-500 text-sm flex-shrink-0">
+            <span className="text-gray-500 text-sm flex-shrink-0 hidden sm:inline">
               {hull.name}
             </span>
-            <span className="text-[10px] uppercase tracking-widest bg-gray-800 text-gray-400 border border-gray-700 rounded px-1.5 py-0.5 flex-shrink-0">
+            <span className="text-[10px] uppercase tracking-widest bg-gray-800 text-gray-400 border border-gray-700 rounded px-1.5 py-0.5 flex-shrink-0 hidden sm:inline">
               {hull.class}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <button
               onClick={onOpenHelp}
               title="Rules reference & FAQ"
-              className="w-8 h-8 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors flex items-center justify-center"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors flex items-center justify-center"
             >
-              <HelpCircle size={18} />
+              <HelpCircle size={16} />
             </button>
             <button
               onClick={onOpenRules}
               title="Open SWN Revised Deluxe Edition rulebook"
-              className="p-1.5 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors"
+              className="p-1 sm:p-1.5 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors"
             >
-              <BookOpen size={18} />
+              <BookOpen size={16} />
             </button>
             <button
               onClick={onEdit}
-              className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium flex items-center gap-1.5"
+              className="px-2 py-1.5 sm:px-3 rounded bg-amber-700 hover:bg-amber-600 text-white text-xs sm:text-sm font-medium flex items-center gap-1"
             >
-              <Pencil size={14} /> Edit
+              <Pencil size={13} /> Edit
             </button>
           </div>
         </div>
@@ -525,7 +526,7 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
         )}
 
         {/* ── Main content ─────────────────────────────────────────────────── */}
-        <div className="max-w-5xl mx-auto px-4 py-6 w-full space-y-6">
+        <div className="max-w-5xl mx-auto px-3 py-4 sm:px-4 sm:py-6 w-full space-y-4 sm:space-y-6">
 
           {/* ── Combat Stats ─────────────────────────────────────────────── */}
           <SheetSection title="Combat Stats">

@@ -1,0 +1,25 @@
+{
+  "name": "SWN Deluxe Builder",
+  "short_name": "SWN Builder",
+  "description": "A character and ship builder for Stars Without Number",
+  "start_url": "/swn-app/",
+  "scope": "/swn-app/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1a1a1a",
+  "theme_color": "#2a5f8f",
+  "icons": [
+    {
+      "src": "/swn-app/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/swn-app/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

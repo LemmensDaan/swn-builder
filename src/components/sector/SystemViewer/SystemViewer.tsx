@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useOnClickOutside } from '../../../hooks/useOnClickOutside';
-import { ChevronLeft, ChevronRight, Sliders, X, Clock, Tag, FileText, Shield, MapPin, Plus } from 'lucide-react';
+import { ChevronRight, Sliders, X, Clock, Tag, FileText, Shield, MapPin, Plus, ChevronLeft } from 'lucide-react';
 import TimelineEditor from '../shared/TimelineEditor';
 import { sortSystemObjects, getPrimaryObjectTypes, POI_TYPES } from '../../../types/sector';
 import type { POIType } from '../../../types/sector';
@@ -127,8 +127,8 @@ function CameraIntroAnimator({
 }
 
 export default function SystemViewer() {
-  const { activeSystemId, activeSectorId, systems, sectors, navigateBack, navigateHome, addPOI, updatePOI, removePOI } = useSectorStore();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { activeSystemId, activeSectorId, systems, sectors, addPOI, updatePOI, removePOI } = useSectorStore();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [infoPanelObjectId, setInfoPanelObjectId] = useState<string | null>(null);
   const [infoPanelTab, setInfoPanelTab] = useState<'overview' | 'notes' | 'tags' | 'history' | 'locations'>('overview');
@@ -227,22 +227,6 @@ export default function SystemViewer() {
           />
         </Canvas>
 
-        {/* Nav bar */}
-        <div className="absolute top-4 left-4 flex items-center gap-2">
-          <button
-            onClick={navigateHome}
-            className="px-3 py-1.5 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-500 text-xs transition-colors backdrop-blur"
-          >
-            Galaxy
-          </button>
-          <button
-            onClick={navigateBack}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900/80 hover:bg-gray-800 border border-gray-700/60 text-gray-300 text-xs font-medium transition-colors backdrop-blur"
-          >
-            <ChevronLeft size={14} />
-            {sector?.name ?? 'Sector'}
-          </button>
-        </div>
 
         {/* System name with info indicators */}
         <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
@@ -353,7 +337,7 @@ export default function SystemViewer() {
           const activeTab = currentTabVisible ? infoPanelTab : (visibleTabs[0]?.id ?? 'overview');
 
           return (
-            <div ref={infoPanelRef} className="absolute bottom-16 left-4 w-[520px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
+            <div ref={infoPanelRef} className="absolute bottom-16 left-2 sm:left-4 w-[520px] max-w-[calc(100vw-1rem)] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
               {/* Header */}
               <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 flex-shrink-0">
                 <div className="min-w-0">
@@ -542,7 +526,7 @@ export default function SystemViewer() {
           const activeTab = currentTabVisible ? systemInfoTab : (visibleTabs[0]?.id ?? 'overview');
 
           return (
-            <div ref={systemInfoPanelRef} className="absolute bottom-16 right-4 w-[420px] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
+            <div ref={systemInfoPanelRef} className="absolute bottom-16 right-2 sm:right-4 w-[420px] max-w-[calc(100vw-1rem)] max-h-[65vh] bg-gray-900/95 border border-gray-700/60 rounded-xl shadow-xl backdrop-blur flex flex-col">
               {/* Header */}
               <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 flex-shrink-0">
                 <div className="min-w-0">

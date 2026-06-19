@@ -150,59 +150,62 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
 
   return (
     <div className="min-h-screen text-gray-100 flex justify-center">
-      <div className="w-full max-w-6xl flex flex-col min-h-screen bg-gray-950">
+      <div className="w-full max-w-6xl flex flex-col min-h-screen bg-gray-950 overflow-x-hidden">
       {/* Top bar */}
-      <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <button onClick={onBack} className="text-gray-400 hover:text-gray-200 text-sm flex-shrink-0">← Characters</button>
-          <span className="text-gray-700">|</span>
+      <div className="bg-gray-900 border-b border-gray-700 px-3 py-2 sm:px-4 sm:py-3 flex items-center justify-between gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <button onClick={onBack} className="text-gray-400 hover:text-gray-200 text-sm flex-shrink-0">
+            <span className="hidden sm:inline">← Characters</span>
+            <span className="sm:hidden">←</span>
+          </button>
+          <span className="text-gray-700 hidden sm:inline">|</span>
           <span className="text-amber-300 font-bold truncate">{char.name}</span>
-          <span className="text-gray-500 text-sm flex-shrink-0">{char.class} · Level {char.level}</span>
+          <span className="text-gray-500 text-xs sm:text-sm flex-shrink-0 hidden sm:inline">{char.class} · Level {char.level}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <button
             onClick={onOpenHelp}
             title="Rules reference & FAQ"
-            className="w-8 h-8 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors flex items-center justify-center"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors flex items-center justify-center"
           >
-            <HelpCircle size={18} />
+            <HelpCircle size={16} />
           </button>
           <button
             onClick={onOpenRules}
             title="Open SWN Revised Deluxe Edition rulebook"
-            className="p-1.5 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors"
+            className="p-1 sm:p-1.5 rounded text-gray-500 hover:text-amber-300 hover:bg-gray-700 transition-colors"
           >
-            <BookOpen size={18} />
+            <BookOpen size={16} />
           </button>
           {/* Simple / Detailed view toggle */}
           <div className="flex rounded overflow-hidden border border-gray-700 text-xs">
             <button
               onClick={() => setDetailed(false)}
-              className={`px-2.5 py-1.5 font-medium transition-colors ${!detailed ? 'bg-amber-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+              className={`px-2 py-1.5 sm:px-2.5 font-medium transition-colors ${!detailed ? 'bg-amber-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
             >
               Simple
             </button>
             <button
               onClick={() => setDetailed(true)}
-              className={`px-2.5 py-1.5 font-medium transition-colors ${detailed ? 'bg-amber-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+              className={`px-2 py-1.5 sm:px-2.5 font-medium transition-colors ${detailed ? 'bg-amber-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
             >
-              Detailed
+              Detail
             </button>
           </div>
           {canLevelUp && (
             <button
               onClick={() => setShowLevelUp(true)}
-              className="px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 text-white text-sm font-semibold animate-pulse"
+              className="px-2 py-1.5 sm:px-3 rounded bg-green-700 hover:bg-green-600 text-white text-xs sm:text-sm font-semibold animate-pulse"
             >
-              ↑ Level Up
+              ↑ <span className="hidden sm:inline">Level </span>Up
             </button>
           )}
           <button
             onClick={() => setConfirmEdit(true)}
             title="Edit core character details (locked — may change derived stats)"
-            className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium flex items-center gap-1.5"
+            className="px-2 py-1.5 sm:px-3 rounded bg-amber-700 hover:bg-amber-600 text-white text-xs sm:text-sm font-medium flex items-center gap-1"
           >
-            <LockKeyhole size={14} /> Edit
+            <LockKeyhole size={13} /> Edit
           </button>
         </div>
       </div>
@@ -215,11 +218,11 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
       )}
 
       {detailed ? (
-        <div className="flex-1 overflow-y-auto px-4 py-6 max-w-5xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-4 sm:py-6 max-w-5xl mx-auto w-full">
           <AuditOverview char={char} />
         </div>
       ) : (
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-6xl mx-auto px-3 py-4 sm:px-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Header row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <InfoBlock label="Background" value={char.background || '—'} />
@@ -247,40 +250,32 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
           </div>
         )}
 
-        {/* Attributes + Saving Throws */}
-        <SheetSection title="Attributes">
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
-            {ATTR_ORDER.map(a => {
-              const score = attrs[a];
-              const mod = attrMod(score);
-              return (
-                <div key={a} className="glass rounded-lg p-2 text-center">
-                  <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">{a}</div>
-                  <div className="text-xl font-bold">{score}</div>
-                  <div className={`text-xs font-bold mt-0.5 ${mod > 0 ? 'text-green-400' : mod < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                    {mod >= 0 ? '+' : ''}{mod}
-                  </div>
+        {/* Shared content for attrs and skills */}
+        {(() => {
+          const attrCells = ATTR_ORDER.map(a => {
+            const score = attrs[a];
+            const mod = attrMod(score);
+            return (
+              <div key={a} className="glass rounded-lg p-1 sm:p-2 text-center">
+                <div className="text-[9px] sm:text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">{a}</div>
+                <div className="text-lg sm:text-xl font-bold">{score}</div>
+                <div className={`text-[10px] sm:text-xs font-bold mt-0.5 ${mod > 0 ? 'text-green-400' : mod < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                  {mod >= 0 ? '+' : ''}{mod}
                 </div>
-              );
-            })}
-          </div>
-        </SheetSection>
-
-        {/* Skills (left) + Combat / Psychic / Foci (right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-6">
-
-          {/* ── Left: all skills, one per row, greyed when unowned ── */}
-          <SheetSection title="Skills" fill>
+              </div>
+            );
+          });
+          const skillsList = (
             <div className="space-y-0.5">
               {([...SKILLS] as string[]).sort().map(skillName => {
                 const level: number = (skills as Record<string, number>)[skillName] ?? -1;
                 const owned = level >= 0;
                 return (
-                  <div key={skillName} className="flex items-center justify-between gap-2">
-                    <span className={`text-xs ${owned ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <div key={skillName} className="flex items-center gap-1 min-w-0">
+                    <span className={`text-xs truncate ${owned ? 'text-gray-300' : 'text-gray-700'}`}>
                       {skillName}{owned ? `-${level}` : ''}
                     </span>
-                    <span className="inline-flex gap-0.5 flex-shrink-0">
+                    <span className="inline-flex gap-0.5 flex-shrink-0 ml-auto">
                       {Array.from({ length: 4 }, (_, i) => (
                         <span key={i} className={`w-2 h-2 rounded-sm border ${
                           i < Math.min(4, Math.max(0, level + 1))
@@ -293,7 +288,57 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
                 );
               })}
             </div>
-          </SheetSection>
+          );
+          return (
+            <>
+              {/* Mobile: Skills (left) + Attributes (right) */}
+              <div className="lg:hidden grid grid-cols-2 gap-2 items-start overflow-hidden">
+                <SheetSection title="Skills" fill>{skillsList}</SheetSection>
+                <SheetSection title="Attributes">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">{attrCells}</div>
+                </SheetSection>
+              </div>
+
+              {/* Desktop: Attributes full width */}
+              <div className="hidden lg:block">
+                <SheetSection title="Attributes">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 mb-4">{attrCells}</div>
+                </SheetSection>
+              </div>
+            </>
+          );
+        })()}
+
+        {/* Skills (left) + Combat / Psychic / Foci (right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-6">
+
+          {/* ── Left: all skills — desktop only (mobile shows in 2-col block above) ── */}
+          <div className="hidden lg:block">
+            <SheetSection title="Skills" fill>
+              <div className="space-y-0.5">
+                {([...SKILLS] as string[]).sort().map(skillName => {
+                  const level: number = (skills as Record<string, number>)[skillName] ?? -1;
+                  const owned = level >= 0;
+                  return (
+                    <div key={skillName} className="flex items-center justify-between gap-2">
+                      <span className={`text-xs ${owned ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {skillName}{owned ? `-${level}` : ''}
+                      </span>
+                      <span className="inline-flex gap-0.5 flex-shrink-0">
+                        {Array.from({ length: 4 }, (_, i) => (
+                          <span key={i} className={`w-2 h-2 rounded-sm border ${
+                            i < Math.min(4, Math.max(0, level + 1))
+                              ? 'bg-amber-400 border-amber-500'
+                              : owned ? 'border-gray-600 bg-transparent' : 'border-gray-800 bg-transparent'
+                          }`} />
+                        ))}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </SheetSection>
+          </div>
 
           {/* ── Right: Combat + Psychic (top row) then Foci (bottom) ── */}
           <div className="flex flex-col gap-6">

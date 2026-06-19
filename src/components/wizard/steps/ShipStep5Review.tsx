@@ -101,7 +101,7 @@ export default function ShipStep5Review({ ship, derived, onGoToStep }: Props) {
       )}
 
       {/* ── Stats Grid ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
         {statCells.map((cell) => (
           <div
             key={cell.label}

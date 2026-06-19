@@ -105,6 +105,7 @@ export default function GalaxyView() {
   const [bgOpacity, setBgOpacity] = useState(1);
   const pendingSectorId = useRef<string | null>(null);
   const isZooming = zoomTarget !== null;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   const handleSectorClick = useCallback((id: string, worldPos: THREE.Vector3) => {
     pendingSectorId.current = id;
@@ -150,7 +151,7 @@ export default function GalaxyView() {
   return (
     <div className="relative h-full">
       <Canvas
-        camera={{ position: [-28, 3, -33], fov: 35 }}
+        camera={{ position: isMobile ? [-32, 4, -38] : [-28, 3, -33], fov: isMobile ? 40 : 35 }}
         gl={{ antialias: true }}
         onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#03050d'))}
       >
@@ -178,8 +179,8 @@ export default function GalaxyView() {
           enableZoom
           enableRotate
           maxPolarAngle={Math.PI / 2.1}
-          minDistance={6}
-          maxDistance={120}
+          minDistance={isMobile ? 8 : 6}
+          maxDistance={isMobile ? 140 : 120}
           dampingFactor={0.08}
           enableDamping
         />

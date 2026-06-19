@@ -222,7 +222,7 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
           <AuditOverview char={char} />
         </div>
       ) : (
-      <div className="max-w-6xl mx-auto px-3 py-4 sm:px-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="flex-1 overflow-y-auto max-w-6xl mx-auto px-3 py-4 sm:px-4 sm:py-6 space-y-4 sm:space-y-6 w-full">
         {/* Header row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <InfoBlock label="Background" value={char.background || '—'} />

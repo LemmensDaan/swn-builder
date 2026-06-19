@@ -14,11 +14,11 @@ import SpikeRoutes from './SpikeRoutes';
 import { ROUTE_COLORS, ROUTE_LABELS, ROUTE_DASHED, hexDistance, travelDays } from './routeUtils';
 import { GRID_COLS, GRID_ROWS, type RouteCategory } from '../../../types/sector';
 
-// Centre of the 10×8 grid in the even-q offset layout.
-// x: midpoint of q 0–9  →  HEX_SIZE * 1.5 * 4.5
-// z: r_avg = (even-col centre 3.5 + odd-col centre 4.0) / 2 = 3.75
-const GRID_CX = HEX_SIZE * (3 / 2) * 4.5;                        // ≈  7.43
-const GRID_CZ = -(HEX_SIZE * Math.sqrt(3) * 3.75);                // ≈ -7.14
+// Centre of the GRID_COLS × GRID_ROWS grid in the even-q offset layout.
+// x: midpoint of q 0–(GRID_COLS-1)
+// z: r_avg = (even-col centre + odd-col centre) / 2
+const GRID_CX = HEX_SIZE * (3 / 2) * ((GRID_COLS - 1) / 2);
+const GRID_CZ = -(HEX_SIZE * Math.sqrt(3) * (((GRID_ROWS - 1) / 2) + 0.25));
 const GRID_CENTER = new THREE.Vector3(GRID_CX, 0, GRID_CZ);
 
 // 2.5D: fixed ~30° tilt from above (polarAngle = PI/6)
@@ -115,6 +115,7 @@ export default function SectorHexView() {
   const pendingSystemId = useRef<string | null>(null);
   const zoomProgressRef = useRef(0);
   const isZooming = zoomTarget !== null;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   // Route mode state
   const [routeMode, setRouteMode] = useState(false);
@@ -283,9 +284,9 @@ export default function SectorHexView() {
   return (
     <div className="relative h-full">
       {/* 3D Canvas — always fills full container; panel overlays it absolutely */}
-      <div className="h-full relative">
+      <div className="w-full h-full relative">
         <Canvas
-          camera={{ position: CAM_START.toArray(), fov: 50 }}
+          camera={{ position: isMobile ? [GRID_CX, CAM_DIST * 1.2 * Math.cos(CAM_POLAR), GRID_CZ + CAM_DIST * 1.2 * Math.sin(CAM_POLAR)] : CAM_START.toArray(), fov: isMobile ? 60 : 50 }}
           gl={{ antialias: true, alpha: true }}
         >
           <ambientLight intensity={0.35} />
@@ -327,14 +328,14 @@ export default function SectorHexView() {
             enableRotate={false}
             minPolarAngle={CAM_POLAR}
             maxPolarAngle={CAM_POLAR}
-            minDistance={5}
-            maxDistance={40}
+            minDistance={isMobile ? 7 : 5}
+            maxDistance={isMobile ? 50 : 40}
             mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
           />
         </Canvas>
 
         {/* Sector name */}
-        <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col gap-2 pointer-events-none text-center">
           <div>
             <h2 className="text-amber-400 text-lg font-bold tracking-wide drop-shadow-lg">
               {sector.name}
@@ -352,7 +353,7 @@ export default function SectorHexView() {
         {/* Randomize sector confirmation dialog */}
         {confirmingRandomize && (
           <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm pointer-events-auto">
-            <div className="bg-gray-950 border border-gray-700 rounded-2xl p-6 w-80 shadow-2xl pointer-events-auto">
+            <div className="bg-gray-950 border border-gray-700 rounded-2xl p-5 w-80 max-w-[calc(100vw-2rem)] shadow-2xl pointer-events-auto">
               <h3 className="text-gray-200 text-sm font-semibold mb-2">Randomize Sector?</h3>
               <p className="text-gray-400 text-xs mb-4">
                 This will populate all empty hexes with randomly generated systems and override any existing configuration. This action cannot be undone.
@@ -471,7 +472,7 @@ export default function SectorHexView() {
       {/* Route category picker popup */}
       {pendingRouteEnd && (
         <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm pointer-events-auto">
-          <div className="bg-gray-950 border border-gray-700 rounded-2xl p-5 w-80 shadow-2xl pointer-events-auto">
+          <div className="bg-gray-950 border border-gray-700 rounded-2xl p-5 w-80 max-w-[calc(100vw-2rem)] shadow-2xl pointer-events-auto">
             <h3 className="text-gray-200 text-sm font-semibold mb-1">New Spike Drive Route</h3>
             {routeStart && (
               <p className="text-gray-500 text-xs mb-4 font-mono">
@@ -540,7 +541,7 @@ export default function SectorHexView() {
 
       {/* Right panel — absolute overlay so it never resizes the canvas */}
       {selectedRoute && !panelOpen ? (
-        <div className="absolute right-0 top-0 bottom-0 w-80 flex flex-col border-l border-gray-700/60 bg-gray-900/95 backdrop-blur overflow-y-auto">
+        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-80 flex flex-col border-l border-gray-700/60 bg-gray-900/95 backdrop-blur overflow-y-auto">
           <RouteEditPanel
             route={selectedRoute}
             sector={sector}
@@ -555,7 +556,7 @@ export default function SectorHexView() {
           />
         </div>
       ) : panelOpen ? (
-        <div className="absolute right-0 top-0 bottom-0 w-[480px] flex flex-col border-l border-gray-700/60 bg-gray-900/95 backdrop-blur">
+        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-[480px] flex flex-col border-l border-gray-700/60 bg-gray-900/95 backdrop-blur">
           {selectedSystem ? (
             <SystemPanel
               system={selectedSystem}

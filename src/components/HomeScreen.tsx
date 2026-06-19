@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import { BookOpen, Download, FolderOpen, HelpCircle, PersonStanding, Dna, Sparkles, ArrowBigUp, ScrollText, Ghost, ChevronDown, ChevronRight, Navigation, AlertTriangle, Rocket, Zap } from 'lucide-react';
 import type { Character } from '../types/character';
 import type { Ship } from '../types/ship';
@@ -61,7 +62,21 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
   const [importError, setImportError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [activeTab, setActiveTab] = useState<'characters' | 'ships' | 'factions' | 'sector'>(initialActiveTab);
+  const [showToast, setShowToast] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showToast) {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.5 },
+        colors: ['#fbbf24', '#f59e0b', '#d97706', '#ec4899', '#8b5cf6', '#06b6d4'],
+      });
+      const timer = setTimeout(() => setShowToast(false), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [showToast]);
 
   async function confirmImport() {
     if (!importPending) return;
@@ -85,8 +100,7 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
       <div className="bg-gray-900/90 backdrop-blur-sm border-b border-gray-700 px-3 py-3 sm:px-6 sm:py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-amber-400">SWN Builder</h1>
-            <p className="text-xs text-gray-500">Daan's awesome SWN Full Toolset, you're welcome boys!</p>
+            <h1 className="text-xl font-bold text-amber-400 cursor-pointer" title="Daan's awesome SWN Full Toolset, you're welcome boys!" onClick={() => setShowToast(true)}>SWN Builder</h1>
           </div>
           <div className="flex gap-1 items-center">
             <button
@@ -316,6 +330,17 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
           </>
         )}
       </div>
+
+      {showToast && (
+        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
+          <div className="bg-gray-900 border-2 border-amber-400/40 rounded-2xl px-8 py-6 text-amber-400 shadow-2xl shadow-amber-900/20 animate-in fade-in scale-in duration-300 max-w-md text-center pointer-events-auto backdrop-blur-sm">
+            <div className="text-2xl mb-2">✨ Behold! ✨</div>
+            <div className="text-sm mb-2">I have graciously bestowed upon you</div>
+            <div className="text-lg font-bold">Daan's Magnificent SWN Full Toolset</div>
+            <div className="text-sm mt-4 border-t border-amber-400/20 pt-3 font-semibold">You're welcome boys! 🥂</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

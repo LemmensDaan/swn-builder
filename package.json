@@ -15,6 +15,7 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
+    "canvas-confetti": "^1.9.4",
     "delaunator": "^5.1.0",
     "localforage": "^1.10.0",
     "lucide-react": "^1.17.0",
@@ -29,6 +30,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/delaunator": "^5.0.3",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",

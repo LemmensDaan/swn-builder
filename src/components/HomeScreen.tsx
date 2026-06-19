@@ -85,8 +85,8 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
       <div className="bg-gray-900/90 backdrop-blur-sm border-b border-gray-700 px-3 py-3 sm:px-6 sm:py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-amber-400">Stars Without Number</h1>
-            <p className="text-xs text-gray-500">Revised Deluxe Edition — Character & Ship Builder</p>
+            <h1 className="text-xl font-bold text-amber-400">SWN Builder</h1>
+            <p className="text-xs text-gray-500">Daan's awesome SWN Full Toolset, you're welcome boys!</p>
           </div>
           <div className="flex gap-1 items-center">
             <button

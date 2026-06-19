@@ -11,7 +11,7 @@ export default defineConfig({
       manifest: {
         name: 'SWN Builder',
         short_name: 'SWN',
-        description: 'Stars Without Number sector builder',
+        description: 'Stars Without Number Complete Toolset',
         theme_color: '#2a5f8f',
         background_color: '#2a5f8f',
         display: 'standalone',

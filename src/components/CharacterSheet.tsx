@@ -292,10 +292,14 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
           return (
             <>
               {/* Mobile: Skills (left) + Attributes (right) */}
-              <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-2 items-start overflow-hidden">
-                <SheetSection title="Skills" fill>{skillsList}</SheetSection>
+              <div className="lg:hidden grid grid-cols-2 gap-2 items-start overflow-hidden">
+                <SheetSection title="Skills" fill>
+                  <div className="text-xs space-y-0">
+                    {skillsList}
+                  </div>
+                </SheetSection>
                 <SheetSection title="Attributes">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">{attrCells}</div>
+                  <div className="grid grid-cols-3 gap-1 mb-4">{attrCells}</div>
                 </SheetSection>
               </div>
 

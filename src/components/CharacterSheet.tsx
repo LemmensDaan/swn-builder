@@ -299,7 +299,7 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
                   </div>
                 </SheetSection>
                 <SheetSection title="Attributes">
-                  <div className="grid grid-cols-3 gap-1 mb-4">{attrCells}</div>
+                  <div className="grid grid-cols-1 gap-1 mb-4">{attrCells}</div>
                 </SheetSection>
               </div>
 

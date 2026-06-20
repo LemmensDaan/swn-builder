@@ -108,7 +108,18 @@ function CameraZoomController({
 const ALL_CATEGORIES: RouteCategory[] = ['known', 'experimental', 'crew-traveled', 'crew-discovered', 'hazardous'];
 
 export default function SectorHexView() {
-  const { activeSectorId, sectors, systems, createSystem, addObject, clearHex, navigateToSystem, layer, addRoute, updateRoute, removeRoute, randomizeSector } = useSectorStore();
+  const activeSectorId = useSectorStore(s => s.activeSectorId);
+  const sectors = useSectorStore(s => s.sectors);
+  const systems = useSectorStore(s => s.systems);
+  const layer = useSectorStore(s => s.layer);
+  const createSystem = useSectorStore(s => s.createSystem);
+  const addObject = useSectorStore(s => s.addObject);
+  const clearHex = useSectorStore(s => s.clearHex);
+  const navigateToSystem = useSectorStore(s => s.navigateToSystem);
+  const addRoute = useSectorStore(s => s.addRoute);
+  const updateRoute = useSectorStore(s => s.updateRoute);
+  const removeRoute = useSectorStore(s => s.removeRoute);
+  const randomizeSector = useSectorStore(s => s.randomizeSector);
   const sector = sectors.find(s => s.id === activeSectorId);
   const [selectedQ, setSelectedQ] = useState<number | null>(null);
   const [selectedR, setSelectedR] = useState<number | null>(null);

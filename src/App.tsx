@@ -26,7 +26,7 @@ type View =
 
 export default function App() {
   const { characters, upsert, remove, setAll, loaded, ships, upsertShip, removeShip } = useCharacters();
-  const { sectors } = useSectorStore();
+  const sectors = useSectorStore(s => s.sectors);
   const [view, setView] = useState<View>({ type: 'home', activeTab: 'characters' });
   const [showRules, setShowRules] = useState(false);
   const [showHelp, setShowHelp] = useState(false);

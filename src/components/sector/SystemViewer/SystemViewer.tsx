@@ -150,7 +150,13 @@ function CameraIntroAnimator({
 }
 
 export default function SystemViewer() {
-  const { activeSystemId, activeSectorId, systems, sectors, addPOI, updatePOI, removePOI } = useSectorStore();
+  const activeSystemId = useSectorStore(s => s.activeSystemId);
+  const activeSectorId = useSectorStore(s => s.activeSectorId);
+  const systems = useSectorStore(s => s.systems);
+  const sectors = useSectorStore(s => s.sectors);
+  const addPOI = useSectorStore(s => s.addPOI);
+  const updatePOI = useSectorStore(s => s.updatePOI);
+  const removePOI = useSectorStore(s => s.removePOI);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [infoPanelObjectId, setInfoPanelObjectId] = useState<string | null>(null);

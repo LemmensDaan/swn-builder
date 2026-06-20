@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useMemo } from 'react';
 import type { Sector, StarSystem, Faction } from '../../../types/sector';
 import HexCell from './HexCell';
 
@@ -18,35 +19,47 @@ interface Props {
 }
 
 export default function HexGrid({ sector, systems, selectedQ, selectedR, onSelectHex, zoomProgressRef, routeMode, routeStartQ, routeStartR, focusMode = 'hexes' }: Props) {
-  const factionById: Record<string, Faction> = Object.fromEntries(
-    sector.factions.map(f => [f.id, f])
+  const factionById = useMemo(
+    () => Object.fromEntries(sector.factions.map(f => [f.id, f])),
+    [sector.factions]
   );
+
+  const cellProps = useMemo(() => {
+    return sector.hexes.map(cell => {
+      const system = cell.systemId ? systems[cell.systemId] : undefined;
+      const faction = system?.factionId ? factionById[system.factionId] : undefined;
+      const contestedFactions = system?.contestedFactionIds
+        ?.map(id => factionById[id])
+        .filter((f): f is Faction => !!f);
+      return {
+        cell,
+        system,
+        faction,
+        contestedFactions,
+        selected: cell.q === selectedQ && cell.r === selectedR,
+        isRouteStart: cell.q === routeStartQ && cell.r === routeStartR,
+      };
+    });
+  }, [sector.hexes, systems, factionById, selectedQ, selectedR, routeStartQ, routeStartR]);
 
   return (
     <group>
-      {sector.hexes.map(cell => {
-        const system = cell.systemId ? systems[cell.systemId] : undefined;
-        const faction = system?.factionId ? factionById[system.factionId] : undefined;
-        const contestedFactions = system?.contestedFactionIds
-          ?.map(id => factionById[id])
-          .filter((f): f is Faction => !!f);
-        return (
-          <HexCell
-            key={`${cell.q}-${cell.r}`}
-            cell={cell}
-            system={system}
-            faction={faction}
-            contestedFactions={contestedFactions}
-            hexSize={HEX_SIZE}
-            selected={cell.q === selectedQ && cell.r === selectedR}
-            onSelect={() => onSelectHex(cell.q, cell.r)}
-            zoomProgressRef={zoomProgressRef}
-            routeMode={routeMode}
-            isRouteStart={cell.q === routeStartQ && cell.r === routeStartR}
-            focusMode={focusMode}
-          />
-        );
-      })}
+      {cellProps.map(props => (
+        <HexCell
+          key={`${props.cell.q}-${props.cell.r}`}
+          cell={props.cell}
+          system={props.system}
+          faction={props.faction}
+          contestedFactions={props.contestedFactions}
+          hexSize={HEX_SIZE}
+          selected={props.selected}
+          onSelect={() => onSelectHex(props.cell.q, props.cell.r)}
+          zoomProgressRef={zoomProgressRef}
+          routeMode={routeMode}
+          isRouteStart={props.isRouteStart}
+          focusMode={focusMode}
+        />
+      ))}
     </group>
   );
 }

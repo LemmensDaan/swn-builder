@@ -97,7 +97,11 @@ function CameraZoomController({
 }
 
 export default function GalaxyView() {
-  const { sectors, createSector, navigateToSector, deleteSector, systems } = useSectorStore();
+  const sectors = useSectorStore(s => s.sectors);
+  const systems = useSectorStore(s => s.systems);
+  const createSector = useSectorStore(s => s.createSector);
+  const navigateToSector = useSectorStore(s => s.navigateToSector);
+  const deleteSector = useSectorStore(s => s.deleteSector);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [savedPrefs, setSavedPrefs] = useState<GalaxyPrefs>(loadPrefs);
   const [draftPrefs, setDraftPrefs] = useState<GalaxyPrefs | null>(null);

@@ -38,23 +38,30 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
   const neutronStar = sorted.find(o => o.type === 'NeutronStar');
 
   // Fade group: traverse every frame while intro is running, skip objects tagged isStar
-  const fadeGroupRef = useRef<THREE.Group>(null);
+  const fadeGroupRef  = useRef<THREE.Group>(null);
+  const introDoneRef  = useRef(false);
   useFrame(() => {
-    if (!fadeGroupRef.current || !introOpacityRef) return;
+    if (!fadeGroupRef.current || !introOpacityRef || introDoneRef.current) return;
     const opacity = introOpacityRef.current;
     fadeGroupRef.current.traverse(child => {
       if (child.userData?.isStar) return;
       const c = child as any;
       if (c.material) {
-        const mats: THREE.Material[] = Array.isArray(c.material) ? c.material : [c.material];
-        mats.forEach(m => {
-          // Save each material's authored opacity on first touch so we scale back to it, not 1.0
+        if (Array.isArray(c.material)) {
+          for (const m of c.material as THREE.Material[]) {
+            if (m.userData.originalOpacity === undefined) m.userData.originalOpacity = m.opacity;
+            m.transparent = true;
+            m.opacity = m.userData.originalOpacity * opacity;
+          }
+        } else {
+          const m = c.material as THREE.Material;
           if (m.userData.originalOpacity === undefined) m.userData.originalOpacity = m.opacity;
           m.transparent = true;
           m.opacity = m.userData.originalOpacity * opacity;
-        });
+        }
       }
     });
+    if (opacity >= 1) introDoneRef.current = true;
   });
 
   function renderObject(obj: typeof sorted[0], parentBelt?: typeof sorted[0]): React.ReactNode {

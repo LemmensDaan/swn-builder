@@ -69,8 +69,10 @@ function FactionLines({ group, objectPositionsRef }: {
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   const lineRef = useRef<THREE.LineSegments>(null);
+  const lastMstRef  = useRef<[string, string][]>([]);
+  const mstTimerRef = useRef(0);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const line = lineRef.current;
     if (!line || !objectPositionsRef) return;
     const pos = objectPositionsRef.current;
@@ -89,10 +91,14 @@ function FactionLines({ group, objectPositionsRef }: {
       attr.setXYZ(i * 2 + 1, pb[0], pb[1], pb[2]);
     }
 
-    // Sibling pairs — MST from real positions each frame so nearest neighbors
-    // are always connected, preventing line crossings as planets orbit.
+    // Sibling pairs — MST throttled to ~10 Hz (positions update smoothly between recomputes)
     if (numSiblings > 0) {
-      const mst = primMST(group.rootIds, pos);
+      mstTimerRef.current += delta ?? 0;
+      if (mstTimerRef.current >= 0.1 || lastMstRef.current.length === 0) {
+        mstTimerRef.current = 0;
+        lastMstRef.current = primMST(group.rootIds, pos);
+      }
+      const mst = lastMstRef.current;
       for (let i = 0; i < mst.length; i++) {
         const [a, b] = mst[i];
         const pa = pos[a], pb = pos[b];

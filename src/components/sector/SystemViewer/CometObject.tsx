@@ -173,6 +173,7 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
   const tmpColor = useMemo(() => new THREE.Color(), []);
   const velDirRef = useRef(new THREE.Vector3(0, 0, 1));
   const forwardAxis = useMemo(() => new THREE.Vector3(0, 0, 1), []);
+  const _vel = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((state, delta) => {
     // Clamp delta to prevent animation lurches after tab backgrounding
@@ -193,15 +194,15 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
     onPositionUpdate?.([x, y, z]);
 
     // Velocity for particle spawn direction and oval orientation
-    const velocity = new THREE.Vector3(
+    _vel.set(
       x - prevPosRef.current[0],
       y - prevPosRef.current[1],
       z - prevPosRef.current[2]
     );
     prevPosRef.current = [x, y, z];
 
-    if (velocity.lengthSq() > 0.000001) {
-      velDirRef.current.copy(velocity).normalize();
+    if (_vel.lengthSq() > 0.000001) {
+      velDirRef.current.copy(_vel).normalize();
     }
     groupRef.current.quaternion.setFromUnitVectors(forwardAxis, velDirRef.current);
 
@@ -259,8 +260,8 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
     spawnCounterRef.current += delta * 60;
     const spawnRate = 20;
 
-    if (velocity.length() > 0.0001) {
-      const direction = velocity.normalize();
+    if (_vel.length() > 0.0001) {
+      const direction = _vel.normalize();
       while (spawnCounterRef.current >= spawnRate) {
         spawnCounterRef.current -= spawnRate;
 
@@ -289,13 +290,15 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
       }
     }
 
-    particlesRef.current = particlesRef.current.filter(p => p.age < p.maxAge);
-    particlesRef.current.forEach(p => {
+    for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+      const p = particlesRef.current[i];
+      if (p.age >= p.maxAge) { particlesRef.current.splice(i, 1); continue; }
       p.age += delta;
       p.pos[0] += p.vel[0] * delta;
       p.pos[1] += p.vel[1] * delta;
       p.pos[2] += p.vel[2] * delta;
-    });                                                                                                                                                                                                                                                           });
+    }
+  });
 
   return (
     <>

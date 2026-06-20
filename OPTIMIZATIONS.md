@@ -37,13 +37,13 @@ Touches all three canvases; dominates mobile cost. Confirmed: no `dpr`, no `fram
 
 Each allocates inside `useFrame`. Convert to pre-allocated module/ref scratch objects (the codebase already does this correctly elsewhere, e.g. `_worldPos`).
 
-- [ ] **CometObject** `CometObject.tsx:~192` — `new THREE.Vector3()` every frame (velocity) **+** `particlesRef.filter(...)` allocating a new array every frame. Likely the worst per-frame offender (also 40-vertex ribbon × 6 attribute setters + 3 `needsUpdate` GPU syncs/frame). Pre-allocate the vector; mutate the particle array in place.
-- [ ] **PlanetObject (tidally locked)** `PlanetObject.tsx:~190` — 3× `Vector3` + 1× `Quaternion` allocated every frame. Pre-allocate scratch objects.
-- [ ] **PlanetObject (rings)** `PlanetObject.tsx:~222` — `resolveRingBands(obj)` recomputed every frame for ringed planets. Memoize on `obj`.
-- [ ] **FactionConnectionWeb** `FactionConnectionWeb.tsx:~95` — O(n²) Prim's MST recomputed every frame (with array allocs) while the web is visible. Recompute only when positions change meaningfully, or throttle to a few Hz.
-- [ ] **PlanetPOIMarkers** `PlanetPOIMarkers.tsx:~89` — `new Vector2()` + `new Sphere()` every frame *while dragging a POI*. Pre-allocate.
-- [ ] **CameraFollower** `SystemViewer.tsx:~51` — `scene.getObjectByName()` walks the whole graph every frame when an object is selected. Cache the resolved object ref; re-resolve only when `selectedObjectId` changes.
-- [ ] **SystemScene fadeGroup** `SystemScene.tsx:~48` — `Array.isArray(material)` alloc + `.forEach` closure inside a full `traverse()` each intro frame. Minor (intro only); also `return` early once intro opacity reaches 1.
+- [x] **CometObject** — Pre-allocated `_vel` ref replaces `new THREE.Vector3()` each frame. `filter`+`forEach` (new array + closure) replaced by single reverse-iteration `for` loop with in-place `splice`.
+- [x] **PlanetObject (tidally locked)** — Pre-allocated `_toStar`, `_upVec`, `_rotAxis`, `_rotQuat` refs; TidallyLocked block now mutates these instead of allocating 3 Vectors + 1 Quaternion per frame.
+- [x] **PlanetObject (rings)** — `memoRingBands = useMemo(() => resolveRingBands(obj), [obj])` replaces per-frame call.
+- [x] **FactionConnectionWeb** — MST throttled to ~10 Hz via `mstTimerRef`; cached in `lastMstRef`. Line positions still update every frame from live positions.
+- [x] **PlanetPOIMarkers** — `_mouseVec` + `_sphere` pre-allocated via `useMemo`; no more per-drag-frame `new Vector2/Sphere`.
+- [x] **CameraFollower** — Already implemented: `trackedObjRef` caches the resolved `Object3D`; `scene.getObjectByName()` only called when the cached ref's name doesn't match.
+- [x] **SystemScene fadeGroup** — `introDoneRef` early-exits all frames after the intro completes. `Array.isArray ? [...] : [m]` temp array + `.forEach` closure replaced with direct `if/else` + `for...of`.
 
 ---
 
@@ -62,8 +62,8 @@ Hard-coded counts with no mobile scaling. Gate on the existing `isMobile` flag. 
 
 Correction to the previous audit: browsers already suspend `requestAnimationFrame` on hidden tabs, so `useFrame` loops pause on their own — background battery drain is **not** the real issue. The real issues on returning are:
 
-- [ ] **WebGL context-loss recovery** — no `webglcontextlost` / `webglcontextrestored` handler anywhere. On mobile (esp. iOS Safari / PWA standalone) the GPU discards the context when backgrounded under memory pressure; the canvas then returns **blank/frozen**. Add handlers (r3f exposes this, or attach to `gl.domElement`). Most likely "it broke after I switched apps" bug.
-- [ ] **Delta-spike clamp** — first frame after resuming gets a huge `delta` (seconds), so orbits/animations lurch forward. Clamp in `useFrame` loops: `const dt = Math.min(delta, 0.05)`. Cheap, removes the visible jump.
+- [x] **WebGL context-loss recovery** — no `webglcontextlost` / `webglcontextrestored` handler anywhere. On mobile (esp. iOS Safari / PWA standalone) the GPU discards the context when backgrounded under memory pressure; the canvas then returns **blank/frozen**. Add handlers (r3f exposes this, or attach to `gl.domElement`). Most likely "it broke after I switched apps" bug.
+- [x] **Delta-spike clamp** — first frame after resuming gets a huge `delta` (seconds), so orbits/animations lurch forward. Clamp in `useFrame` loops: `const dt = Math.min(delta, 0.05)`. Cheap, removes the visible jump.
 
 ---
 
@@ -71,11 +71,11 @@ Correction to the previous audit: browsers already suspend `requestAnimationFram
 
 Several components subscribe to the **whole** store (no selector), so any mutation anywhere re-renders them.
 
-- [ ] **Granular selectors** — replace full-store destructures with `useSectorStore(s => s.x)`:
+- [x] **Granular selectors** — replace full-store destructures with `useSectorStore(s => s.x)`:
   - `SectorHexView.tsx:108` (re-renders the canvas owner + all 80 HexCells on any store change)
   - `SystemViewer.tsx:147`, `GalaxyView.tsx:97`, `App.tsx:29`
   - Good pattern already used in `FactionZoneBands.tsx:15`.
-- [ ] **Memoize per-cell props** — `HexGrid.tsx:27` re-maps 80 cells with freshly computed props on every parent render. Moderate impact, but compounds with editing actions.
+- [x] **Memoize per-cell props** — `HexGrid.tsx:27` re-maps 80 cells with freshly computed props on every parent render. Moderate impact, but compounds with editing actions.
 
 ---
 

@@ -58,6 +58,8 @@ export default function PlanetPOIMarkers({ pois, planetSize, meshRef, systemId, 
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const hitPt = useMemo(() => new THREE.Vector3(), []);
   const planetCenter = useMemo(() => new THREE.Vector3(), []);
+  const _mouseVec = useMemo(() => new THREE.Vector2(), []);
+  const _sphere   = useMemo(() => new THREE.Sphere(),  []);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -86,10 +88,11 @@ export default function PlanetPOIMarkers({ pois, planetSize, meshRef, systemId, 
     if (!draggingIdRef.current || !meshRef.current) return;
     const nx = (mouseRef.current.x / size.width) * 2 - 1;
     const ny = -(mouseRef.current.y / size.height) * 2 + 1;
-    raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+    _mouseVec.set(nx, ny);
+    raycaster.setFromCamera(_mouseVec, camera);
     meshRef.current.getWorldPosition(planetCenter);
-    const sphere = new THREE.Sphere(planetCenter, planetSize * 1.01);
-    if (raycaster.ray.intersectSphere(sphere, hitPt)) {
+    _sphere.set(planetCenter, planetSize * 1.01);
+    if (raycaster.ray.intersectSphere(_sphere, hitPt)) {
       meshRef.current.worldToLocal(hitPt);
       const { lat, lon } = posToLatLon(hitPt);
       updatePOI(systemId, objectId, draggingIdRef.current, { lat, lon });

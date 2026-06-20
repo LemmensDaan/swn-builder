@@ -168,6 +168,13 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
 
   const _worldPos = useMemo(() => new THREE.Vector3(), []);
 
+  const _toStar  = useRef(new THREE.Vector3());
+  const _upVec   = useRef(new THREE.Vector3(0, 1, 0));
+  const _rotAxis = useRef(new THREE.Vector3());
+  const _rotQuat = useRef(new THREE.Quaternion());
+
+  const memoRingBands = useMemo(() => resolveRingBands(obj), [obj]);
+
   useFrame((_, delta) => {
     // Clamp delta to prevent animation lurches after tab backgrounding
     delta = Math.min(delta, 0.05);
@@ -188,27 +195,14 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
       }
 
       if (obj.planetType === 'TidallyLocked') {
-        // Tidally locked: always face the star
-        // Calculate direction from planet to star (at origin)
-        const towardsStar = new THREE.Vector3(-x, -y, -z).normalize();
-
-        // The Y-axis in the mesh points toward the dayside
-        // Create a quaternion that aligns the mesh's Y-axis with the star direction
-        const up = new THREE.Vector3(0, 1, 0);
-
-        // If already aligned, don't calculate rotation
-        const dotProduct = up.dot(towardsStar);
+        _toStar.current.set(-x, -y, -z).normalize();
+        const dotProduct = _upVec.current.dot(_toStar.current);
         if (Math.abs(dotProduct) < 0.999) {
-          // Cross product to get rotation axis
-          const axis = new THREE.Vector3().crossVectors(up, towardsStar).normalize();
-          // Angle between vectors
+          _rotAxis.current.crossVectors(_upVec.current, _toStar.current).normalize();
           const angle = Math.acos(Math.max(-1, Math.min(1, dotProduct)));
-          // Apply rotation
-          const quaternion = new THREE.Quaternion();
-          quaternion.setFromAxisAngle(axis, angle);
-          meshRef.current.quaternion.copy(quaternion);
+          _rotQuat.current.setFromAxisAngle(_rotAxis.current, angle);
+          meshRef.current.quaternion.copy(_rotQuat.current);
         } else {
-          // Already facing star, keep orientation
           meshRef.current.quaternion.identity();
         }
       } else {
@@ -222,7 +216,7 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
     if (obj.rings && groupRef.current && axisGroupRef.current) {
       ringUniforms.uRingStarPos.value.set(0, 0, 0);
       groupRef.current.getWorldPosition(ringUniforms.uRingPlanetCenter.value);
-      const bands = resolveRingBands(obj);
+      const bands = memoRingBands;
       const count = Math.min(bands.length, MAX_RING_BANDS);
       ringUniforms.uRingBandCount.value = count;
       const data = ringUniforms.uRingBandData.value;

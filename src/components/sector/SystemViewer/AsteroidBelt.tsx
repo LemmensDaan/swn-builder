@@ -3,7 +3,6 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
 
-const COUNT = 2200;
 const dummy = new THREE.Object3D();
 
 interface Props {
@@ -14,6 +13,8 @@ interface Props {
 }
 
 export default function AsteroidBelt({ obj, onPositionUpdate, onClick, castShadows = false }: Props) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const COUNT = isMobile ? 700 : 3200;
   const meshRef = useRef<THREE.InstancedMesh>(null);
   // groupRef rotates around Y for orbital motion (inner)
   // tiltGroupRef holds the static X-axis tilt for inclination (outer)
@@ -29,7 +30,7 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick, castShado
 
   // Individual asteroids scale with the orbit radius so a small belt gets small rocks
   // and a wide belt gets larger ones — obj.size stays a manual multiplier on top.
-  const asteroidSize = Math.max(0.01, obj.size * obj.orbitRadius * 0.0035);
+  const asteroidSize = Math.max(0.01, obj.size * obj.orbitRadius * 0.002);
   const geo = useMemo(() => new THREE.IcosahedronGeometry(asteroidSize, 0), [asteroidSize]);
   const beltColor = useMemo(() => new THREE.Color(obj.colors[0] ?? '#8C7B6B'), [obj.colors[0]]);
   const mat = useMemo(
@@ -59,7 +60,7 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick, castShado
         Math.sin(angle) * r,
       );
       dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-      dummy.scale.setScalar(0.5 + Math.random() * 1.0);
+      dummy.scale.setScalar(0.3 + Math.random() * 0.7);
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
     }

@@ -174,7 +174,7 @@ export default function GalaxyView() {
       >
         {/* <CameraLogger domRef={camPosRef} /> */}
         <ambientLight intensity={0.08} />
-        <BackgroundGalaxies opacity={bgOpacity} />
+        <BackgroundGalaxies opacity={bgOpacity} count={isMobile ? 60 : 120} />
         <GalaxyMesh
           ref={galaxyMeshRef}
           sectors={sectors}

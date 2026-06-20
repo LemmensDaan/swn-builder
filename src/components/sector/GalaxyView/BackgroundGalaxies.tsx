@@ -167,8 +167,10 @@ function makeGlowTex(size = 64): THREE.Texture {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function BackgroundGalaxies({ count = 120, opacity = 1 }: { count?: number; opacity?: number }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const groupRef = useRef<THREE.Group>(null);
   const glowRef  = useRef<THREE.InstancedMesh>(null);
+  const starsMatRef = useRef<THREE.PointsMaterial>(null);
 
   const glowGeo = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
   const glowMat = useMemo(() => new THREE.MeshBasicMaterial({
@@ -190,20 +192,9 @@ export default function BackgroundGalaxies({ count = 120, opacity = 1 }: { count
   }), []);
 
   useFrame(() => {
-    if (groupRef.current) {
-      groupRef.current.traverse(child => {
-        const c = child as any;
-        if (c.material) {
-          const mats = Array.isArray(c.material) ? c.material : [c.material];
-          mats.forEach((m: any) => {
-            if (m.opacity !== undefined) m.opacity = opacity;
-          });
-        }
-      });
-    }
-    if (glowRef.current) {
-      (glowRef.current.material as any).opacity = opacity * 0.38;
-    }
+    mat.opacity = opacity;
+    if (starsMatRef.current) starsMatRef.current.opacity = opacity;
+    if (glowRef.current) (glowRef.current.material as THREE.MeshBasicMaterial).opacity = opacity * 0.38;
   });
 
   useEffect(() => {
@@ -269,7 +260,7 @@ export default function BackgroundGalaxies({ count = 120, opacity = 1 }: { count
   }, [count, mat]);
 
   const starPos = useMemo(() => {
-    const n = 350, pos = new Float32Array(n * 3);
+    const n = isMobile ? 150 : 350, pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi   = Math.acos(2 * Math.random() - 1);
@@ -289,7 +280,7 @@ export default function BackgroundGalaxies({ count = 120, opacity = 1 }: { count
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[starPos, 3]} />
         </bufferGeometry>
-        <pointsMaterial size={2.2} sizeAttenuation color="#b8ccff" transparent opacity={0.55} depthWrite={false} />
+        <pointsMaterial ref={starsMatRef} size={2.2} sizeAttenuation color="#b8ccff" transparent opacity={0.55} depthWrite={false} />
       </points>
       <instancedMesh ref={glowRef} args={[glowGeo, glowMat, count]} />
     </group>

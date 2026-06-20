@@ -25,6 +25,7 @@ interface Props {
 }
 
 export default function SystemScene({ system, selectedObjectId: _selectedObjectId, onObjectClick, objectPositionsRef, previewMode, introOpacityRef, starfieldOpacity = 0.85, prefs }: Props) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const sorted = sortSystemObjects(system.objects);
   const STELLAR = ['Star', 'BlackHole', 'NeutronStar'];
   const stellarIds = new Set(sorted.filter(o => STELLAR.includes(o.type)).map(o => o.id));
@@ -78,7 +79,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
         onPositionUpdate={positionUpdate}
         onClick={onObjectClick}
         showOrbits={prefs?.showOrbits}
-        highQuality={prefs?.highQuality ?? true}
+        highQuality={prefs?.highQuality ?? !isMobile}
       >
         {children.map(c => renderObject(c))}
       </StarObject>
@@ -89,7 +90,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
         {children.map(c => renderObject(c, obj))}
       </group>
     );
-    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} highQuality={prefs?.highQuality ?? true} castShadows={prefs?.asteroidShadows ?? false} />;
+    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} highQuality={prefs?.highQuality ?? !isMobile} castShadows={prefs?.asteroidShadows ?? false} />;
     if (obj.type === 'Nebula') return <NebulaObject key={obj.id} obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />;
     if (obj.type === 'SpaceStation' || obj.type === 'JumpGate') return <SpaceStation key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
     return (
@@ -99,7 +100,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
         onPositionUpdate={positionUpdate}
         onClick={onObjectClick}
         showOrbits={childShowOrbits}
-        highQuality={prefs?.highQuality ?? true}
+        highQuality={prefs?.highQuality ?? !isMobile}
       >
         {children.map(c => renderObject(c))}
       </PlanetObject>
@@ -110,7 +111,7 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
     <>
       {/* Lights and starfield stay outside the fade group — always fully visible */}
       {!previewMode && <ambientLight intensity={0.2} />}
-      {!previewMode && <Starfield count={900} opacity={starfieldOpacity} />}
+      {!previewMode && <Starfield count={isMobile ? 350 : 900} opacity={starfieldOpacity} />}
       {!previewMode && neutronStar && (
         <SupernovaBackdrop
           color={neutronStar.colors[0] ?? '#A0CFFF'}

@@ -51,10 +51,10 @@ Each allocates inside `useFrame`. Convert to pre-allocated module/ref scratch ob
 
 Hard-coded counts with no mobile scaling. Gate on the existing `isMobile` flag. (Galaxy sparkle count intentionally excluded.)
 
-- [ ] **AsteroidBelt** `AsteroidBelt.tsx:6` — `COUNT = 2200`. Per-frame cost is ~zero (instanced, no matrix updates after setup), so this is a setup/VRAM concern. Drop to ~600–800 on mobile.
-- [ ] **BackgroundGalaxies** — 120 galaxies + 350 stars + 120 instanced halos, **plus** a full `traverse()` with a per-material array alloc every frame for the opacity fade (`~:194`). Reduce counts on mobile and replace the traverse with a cached material list.
-- [ ] **Starfield** `Starfield.tsx` — 900 stars (texture already memoized). Drop to ~300–400 on mobile. Note two Starfields are alive simultaneously during the 400 ms sector↔system crossfade.
-- [ ] **StarObject** — solar prominences ~108 particle updates/frame (3 slots × 36) on a normal star; black holes iterate up to 80 orbiting chunks/frame. Ensure mobile takes the LQ path; consider fewer prominence particles/chunks on mobile.
+- [x] **AsteroidBelt** `AsteroidBelt.tsx` — mobile: 700, desktop: 3200 (increased). Also reduced asteroid base-size multiplier (0.0035→0.002) and per-instance scale range ([0.5,1.5]→[0.3,1.0]) for all devices.
+- [x] **BackgroundGalaxies** — mobile: 60 galaxies / 150 stars, desktop: 120 / 350. Replaced per-frame `traverse()` with direct material refs (no array alloc, no tree walk).
+- [x] **Starfield** — SectorHexView: 400 mobile / 1200 desktop. SystemScene: 350 mobile / 900 desktop.
+- [x] **StarObject** — `highQuality` default changed to `!isMobile` in SystemScene, so mobile uses LQ path (2 prominence slots × 36, 36 BH chunks) instead of HQ (3 slots, 80 chunks).
 
 ---
 

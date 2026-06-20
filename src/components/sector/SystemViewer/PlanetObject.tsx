@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -174,6 +174,9 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
   const _rotQuat = useRef(new THREE.Quaternion());
 
   const memoRingBands = useMemo(() => resolveRingBands(obj), [obj]);
+
+  useEffect(() => () => { glowTex?.dispose(); }, [glowTex]);
+  useEffect(() => () => { geo.dispose(); }, [geo]);
 
   useFrame((_, delta) => {
     // Clamp delta to prevent animation lurches after tab backgrounding

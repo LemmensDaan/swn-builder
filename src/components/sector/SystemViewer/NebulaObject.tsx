@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
@@ -727,6 +727,13 @@ export default function NebulaObject({ obj, onPositionUpdate }: Props) {
 
   const breatheT = useRef(0);
 
+  useEffect(() => () => {
+    const seen = new Set<THREE.Texture>();
+    for (const l of layers) {
+      if (!seen.has(l.tex)) { seen.add(l.tex); l.tex.dispose(); }
+    }
+  }, [layers]);
+
   useFrame(({ camera }, delta) => {
     // Clamp delta to prevent animation lurches after tab backgrounding
     delta = Math.min(delta, 0.05);
@@ -830,6 +837,15 @@ export function SupernovaBackdrop({ color, seed }: { color: string; seed: number
     }
     return { puffs, glow, haze };
   }, [color, seed]);
+
+  useEffect(() => () => {
+    const seen = new Set<THREE.Texture>();
+    seen.add(glow); glow.dispose();
+    seen.add(haze); haze.dispose();
+    for (const p of puffs) {
+      if (!seen.has(p.tex)) { seen.add(p.tex); p.tex.dispose(); }
+    }
+  }, [puffs, glow, haze]);
 
   // Centred on the origin (where the supernova happened) → orbiting gives parallax.
   // A very slow drift keeps it from feeling dead-static.

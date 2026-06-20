@@ -82,24 +82,24 @@ Several components subscribe to the **whole** store (no selector), so any mutati
 ## Tier 6 — Storage & VRAM (correctness, not framerate)
 
 ### Rules PDF (serve it properly)
-- [ ] **Commit the file** — `public/swn-rules.pdf` (11 MB) exists but is **not tracked by git**, so it never deploys. Commit it (consider Git LFS to keep clones small). Workbox `maximumFileSizeToCacheInBytes` is 5 MB, so the SW won't precache it — it'll fetch on demand, which is correct.
-- [ ] **Fix the path** — `PDFViewer.tsx:121` hardcodes `file="/swn-rules.pdf"`. With `base: '/swn-builder/'` this 404s on GitHub Pages. Use `file={import.meta.env.BASE_URL + 'swn-rules.pdf'}`.
+- [x] **Commit the file** — `public/swn-rules.pdf` already tracked by git (confirmed via `git ls-files`). No action needed.
+- [x] **Fix the path** — `PDFViewer.tsx:121` updated to `file={import.meta.env.BASE_URL + 'swn-rules.pdf'}`.
 
 ### Binary blobs out of the store
 Currently images and PDFs are stored as **base64 strings inside the persisted Zustand JSON**, which is re-serialized to IndexedDB on every unrelated edit (base64 also inflates binary ~33%).
 
-- [ ] **Character PDF attachment** — keep PDF as the format (don't make users convert; PDFs don't recompress). Change storage: save the raw `File`/`Blob` under its own localforage key (`pdf:<charId>`), keep only an id on the character (`character.ts:120`, `CharacterSheet.tsx:132`). Display via `URL.createObjectURL(blob)` (react-pdf accepts it directly; `CharacterSheet.tsx:1073`). Add a **size cap (~1–2 MB)** and `try/catch` for `QuotaExceededError` with a visible message.
-- [ ] **Portrait / ship images** — keep the feature (15–25 KB each is fine). Move to the same blob-key pattern so they're out of the hot serialization path (`PortraitEditor.tsx:95`). Optional: quality 0.75 or WebP.
+- [x] **Character PDF attachment** — PDF data stored under `pdf:<charId>` in a separate `swn_blobs` localforage store. Main JSON record keeps only `{ name }`. 2 MB upload cap added. `character.ts` `data` field made optional.
+- [x] **Portrait / ship images** — portraits stored under `portrait:<charId>` / `ship-portrait:<shipId>` in the blob store. Stripped from hot serialization path.
 
 ### Write & quota hygiene
-- [ ] **Debounce persistence** — Zustand `persist` (`useSectorStore.ts:609`) and the `useCharacters` effect (`useCharacters.ts:131`) serialize the entire store to IndexedDB on every mutation (every keystroke in a name/notes field). Debounce ~500 ms.
-- [ ] **QuotaExceededError handling** — `useCharacters.ts:134` only logs. Surface a visible error toast on failed writes.
-- [ ] **Warn at high usage** — use `navigator.storage.estimate()` after saves; warn if `usage/quota > 0.8`.
+- [x] **Debounce persistence** — `useSectorStore.ts` setItem debounced 500 ms via `_sectorSaveTimer`. `useCharacters` save effect debounced 500 ms via `saveTimerRef`.
+- [x] **QuotaExceededError handling** — caught in `useCharacters` save; surfaces as `saveError` toast in App.tsx.
+- [x] **Warn at high usage** — `navigator.storage.estimate()` checked after each save; warns via `saveWarning` toast when `usage/quota > 0.8`.
 
 ### VRAM disposal (system view — distinct from the galaxy)
 The system view does **not** unmount its `<Canvas>` when switching systems, so the context stays alive and un-disposed resources accumulate.
-- [ ] **modelLoader.ts** — caches then `.clone()`s with no disposal. Dispose cloned geometries/materials on `SpaceStation` unmount.
-- [ ] **CanvasTextures** — StarObject / NebulaObject / PlanetObject textures are memoized but never disposed on unmount. Dispose on unmount to bound VRAM growth across many system switches (also reduces context-loss risk from Tier 4).
+- [x] **modelLoader.ts** — `SpaceStation.tsx` cleanup now traverses and disposes all geometries/materials before `bodyRef.current.clear()`.
+- [x] **CanvasTextures** — `StarObject`, `NebulaObject` (incl. `SupernovaBackdrop`), `PlanetObject` all have `useEffect` disposal hooks for their memoized GPU resources (`glowTex`, `bhDisk`, `bhChunks`, `coronaData` slot materials, `nsJets`, `nsGeo`, layer textures, `geo`).
 
 ---
 

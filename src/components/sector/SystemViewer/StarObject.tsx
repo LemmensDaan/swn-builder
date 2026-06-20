@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -718,6 +718,86 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
     const rng = mulberry32(obj.seed ?? obj.id.charCodeAt(0) * 137);
     return (rng() - 0.5) * Math.PI * 0.35;
   }, [obj.bhDiscInclination, obj.seed, obj.id]);
+
+  useEffect(() => () => { glowTex.dispose(); }, [glowTex]);
+
+  useEffect(() => {
+    return () => {
+      const seen = new Set<THREE.BufferGeometry | THREE.Material | THREE.Texture>();
+      bhDisk.traverse(child => {
+        const mesh = child as THREE.Mesh;
+        if (mesh.geometry && !seen.has(mesh.geometry)) {
+          seen.add(mesh.geometry); mesh.geometry.dispose();
+        }
+        if (mesh.material) {
+          const mats: THREE.Material[] = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const m of mats) {
+            if (!seen.has(m)) {
+              seen.add(m);
+              if ((m as THREE.MeshBasicMaterial).map && !seen.has((m as THREE.MeshBasicMaterial).map!)) {
+                seen.add((m as THREE.MeshBasicMaterial).map!);
+                (m as THREE.MeshBasicMaterial).map!.dispose();
+              }
+              m.dispose();
+            }
+          }
+        }
+      });
+    };
+  }, [bhDisk]);
+
+  useEffect(() => {
+    return () => {
+      bhChunks.group.traverse(child => {
+        const mesh = child as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material) {
+          const mats: THREE.Material[] = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const m of mats) m.dispose();
+        }
+      });
+    };
+  }, [bhChunks]);
+
+  useEffect(() => {
+    return () => {
+      if (!coronaData) return;
+      for (const slot of coronaData.slots) {
+        for (const p of slot.particles) {
+          (p.mesh.material as THREE.Material).dispose();
+          (p.poly.material as THREE.Material).dispose();
+        }
+      }
+    };
+  }, [coronaData]);
+
+  useEffect(() => {
+    return () => {
+      if (!nsJets) return;
+      const seen = new Set<THREE.BufferGeometry | THREE.Material | THREE.Texture>();
+      nsJets.traverse(child => {
+        const mesh = child as THREE.Mesh;
+        if (mesh.geometry && !seen.has(mesh.geometry)) {
+          seen.add(mesh.geometry); mesh.geometry.dispose();
+        }
+        if (mesh.material) {
+          const mats: THREE.Material[] = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const m of mats) {
+            if (!seen.has(m)) {
+              seen.add(m);
+              if ((m as THREE.MeshBasicMaterial).map && !seen.has((m as THREE.MeshBasicMaterial).map!)) {
+                seen.add((m as THREE.MeshBasicMaterial).map!);
+                (m as THREE.MeshBasicMaterial).map!.dispose();
+              }
+              m.dispose();
+            }
+          }
+        }
+      });
+    };
+  }, [nsJets]);
+
+  useEffect(() => () => { nsGeo?.dispose(); }, [nsGeo]);
 
   // Binary orbit - use phase offset for starting position (or default to opposite for primary)
   let initialAngle = obj.orbitPhaseOffset ?? (mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2);

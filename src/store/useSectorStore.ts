@@ -6,6 +6,8 @@ import { makeEmptyHexGrid, OBJECT_TYPE_DEFAULTS } from '../types/sector';
 import { GALAXY_TRIANGLES } from '../components/sector/GalaxyView/galaxyData';
 import { randomizeSystem, randomizeSectorPlan } from '../components/sector/SystemViewer/systemRandomizer';
 
+let _sectorSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
 
 interface SectorState {
   sectors: Sector[];
@@ -608,7 +610,11 @@ export const useSectorStore = create<SectorStore>()(
       },
       storage: createJSONStorage(() => ({
         getItem: async (name: string) => localforage.getItem<string>(name),
-        setItem: async (name: string, value: string) => localforage.setItem(name, value),
+        setItem: (name: string, value: string) => {
+          if (_sectorSaveTimer) clearTimeout(_sectorSaveTimer);
+          _sectorSaveTimer = setTimeout(() => localforage.setItem(name, value), 500);
+          return Promise.resolve();
+        },
         removeItem: async (name: string) => { await localforage.removeItem(name); return ''; },
       })),
       partialize: (s) => ({ sectors: s.sectors, systems: s.systems }),

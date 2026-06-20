@@ -47,7 +47,23 @@ export default function SpaceStation({ obj, isInBelt = false, onPositionUpdate, 
       .catch(() => setModelLoaded(false));
 
     return () => {
-      if (bodyRef.current) bodyRef.current.clear();
+      if (bodyRef.current) {
+        const seen = new Set<THREE.BufferGeometry | THREE.Material>();
+        bodyRef.current.traverse(child => {
+          const mesh = child as THREE.Mesh;
+          if (mesh.geometry && !seen.has(mesh.geometry)) {
+            seen.add(mesh.geometry);
+            mesh.geometry.dispose();
+          }
+          if (mesh.material) {
+            const mats: THREE.Material[] = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            for (const m of mats) {
+              if (!seen.has(m)) { seen.add(m); m.dispose(); }
+            }
+          }
+        });
+        bodyRef.current.clear();
+      }
       setModelLoaded(false);
     };
   }, [s, subtype]);

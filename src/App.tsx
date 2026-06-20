@@ -25,7 +25,7 @@ type View =
   | { type: 'faction-sheet'; factionId: string; sectorId: string };
 
 export default function App() {
-  const { characters, upsert, remove, setAll, loaded, ships, upsertShip, removeShip } = useCharacters();
+  const { characters, upsert, remove, setAll, loaded, ships, upsertShip, removeShip, saveError, clearSaveError, saveWarning, clearSaveWarning } = useCharacters();
   const sectors = useSectorStore(s => s.sectors);
   const [view, setView] = useState<View>({ type: 'home', activeTab: 'characters' });
   const [showRules, setShowRules] = useState(false);
@@ -102,6 +102,29 @@ export default function App() {
 
   return (
     <>
+      {(saveError || saveWarning) && (
+        <div
+          style={{
+            position: 'fixed', top: 16, right: 16, zIndex: 9999,
+            maxWidth: 360,
+            background: saveError ? 'rgba(60,10,10,0.96)' : 'rgba(12,20,50,0.96)',
+            border: `1px solid ${saveError ? 'rgba(220,50,50,0.5)' : 'rgba(80,120,220,0.4)'}`,
+            borderRadius: 8,
+            padding: '10px 14px',
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+            color: saveError ? '#fca5a5' : '#93c5fd',
+            fontSize: 13,
+            fontFamily: 'monospace',
+          }}
+        >
+          <span style={{ flex: 1 }}>{saveError ?? saveWarning}</span>
+          <button
+            onClick={() => { clearSaveError(); clearSaveWarning(); }}
+            style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6, color: 'inherit', fontSize: 16, lineHeight: 1, padding: 0 }}
+          >✕</button>
+        </div>
+      )}
       {view.type === 'home' && (
         <HomeScreen
           characters={characters}

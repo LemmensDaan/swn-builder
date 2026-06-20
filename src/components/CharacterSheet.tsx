@@ -126,6 +126,10 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
   }
 
   function handlePdfUpload(file: File) {
+    if (file.size > 2 * 1024 * 1024) {
+      alert('PDF too large — max 2 MB. Try a compressed copy.');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = e => {
       const data = e.target?.result as string;
@@ -871,7 +875,7 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
       )}
 
       {/* PDF viewer modal */}
-      {showPdf && char.pdfAttachment && (
+      {showPdf && char.pdfAttachment?.data && (
         <CharacterPDFViewer
           name={char.pdfAttachment.name}
           data={char.pdfAttachment.data}

@@ -118,7 +118,7 @@ export default function PDFViewer({ onClose }: Props) {
       {/* Scrollable PDF */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto bg-gray-800">
         <Document
-          file="/swn-rules.pdf"
+          file={import.meta.env.BASE_URL + 'swn-rules.pdf'}
           onLoadSuccess={onLoadSuccess}
           className="flex flex-col items-center py-4 gap-3"
         >

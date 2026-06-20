@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import localforage from 'localforage';
 import type { Character } from '../types/character';
 import { emptyCharacter } from '../types/character';
@@ -13,6 +13,11 @@ localforage.config({
   description: 'Stars Without Number builder data',
 });
 
+const BLOB_STORE = localforage.createInstance({
+  name: 'swn-builder',
+  storeName: 'swn_blobs',
+});
+
 // Current storage key — holds the full AppData object
 const APP_DATA_KEY = 'app-data';
 
@@ -22,7 +27,6 @@ const LEGACY_LS_KEY  = 'swn-characters'; // v0.1: Character[] in localStorage
 
 function normalize(raw: Partial<Character>): Character {
   const defaults = emptyCharacter();
-  // Migrate old single assignedShipId → assignedShipIds array
   const anyRaw = raw as Record<string, unknown>;
   const legacyId = typeof anyRaw.assignedShipId === 'string' ? anyRaw.assignedShipId : undefined;
   return {
@@ -75,35 +79,90 @@ function normalizeAppData(raw: unknown): AppData {
   };
 }
 
-async function loadFromStorage(): Promise<AppData> {
-  // 1. Try current key
-  const stored = await localforage.getItem<AppData>(APP_DATA_KEY);
-  if (stored !== null) return normalizeAppData(stored);
+async function saveToStorage(characters: Character[], ships: Ship[]): Promise<void> {
+  // Strip blobs before writing the main JSON record
+  const strippedChars = characters.map(c => {
+    const { image: _img, pdfAttachment, ...rest } = c;
+    return {
+      ...rest,
+      ...(pdfAttachment ? { pdfAttachment: { name: pdfAttachment.name } } : {}),
+    } as Character;
+  });
+  const strippedShips = ships.map(s => {
+    const { image: _img, ...rest } = s;
+    return rest as Ship;
+  });
 
-  // 2. Migrate from v0.2 IDB key (Character[] stored directly)
-  const legacyIDB = await localforage.getItem<Character[]>(LEGACY_IDB_KEY);
-  if (Array.isArray(legacyIDB)) {
-    const appData: AppData = { version: CURRENT_VERSION, characters: legacyIDB.map(normalize), ships: [] };
-    await localforage.setItem(APP_DATA_KEY, appData);
-    await localforage.removeItem(LEGACY_IDB_KEY);
-    return appData;
+  const appData: AppData = { version: CURRENT_VERSION, characters: strippedChars, ships: strippedShips };
+  await localforage.setItem(APP_DATA_KEY, appData);
+
+  await Promise.all([
+    ...characters.map(c =>
+      c.image
+        ? BLOB_STORE.setItem(`portrait:${c.id}`, c.image)
+        : BLOB_STORE.removeItem(`portrait:${c.id}`),
+    ),
+    ...characters.map(c =>
+      c.pdfAttachment?.data
+        ? BLOB_STORE.setItem(`pdf:${c.id}`, c.pdfAttachment.data)
+        : BLOB_STORE.removeItem(`pdf:${c.id}`),
+    ),
+    ...ships.map(s =>
+      s.image
+        ? BLOB_STORE.setItem(`ship-portrait:${s.id}`, s.image)
+        : BLOB_STORE.removeItem(`ship-portrait:${s.id}`),
+    ),
+  ]);
+}
+
+async function loadFromStorage(): Promise<AppData> {
+  let data: AppData = { version: CURRENT_VERSION, characters: [], ships: [] };
+
+  const stored = await localforage.getItem<AppData>(APP_DATA_KEY);
+  if (stored !== null) {
+    data = normalizeAppData(stored);
+  } else {
+    const legacyIDB = await localforage.getItem<Character[]>(LEGACY_IDB_KEY);
+    if (Array.isArray(legacyIDB)) {
+      data = { version: CURRENT_VERSION, characters: legacyIDB.map(normalize), ships: [] };
+      await localforage.setItem(APP_DATA_KEY, data).catch(() => {});
+      await localforage.removeItem(LEGACY_IDB_KEY).catch(() => {});
+    } else {
+      try {
+        const raw = localStorage.getItem(LEGACY_LS_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            data = { version: CURRENT_VERSION, characters: parsed.map(normalize), ships: [] };
+            await localforage.setItem(APP_DATA_KEY, data).catch(() => {});
+            localStorage.removeItem(LEGACY_LS_KEY);
+          }
+        }
+      } catch { /* nothing to migrate */ }
+    }
   }
 
-  // 3. Migrate from v0.1 localStorage key
-  try {
-    const raw = localStorage.getItem(LEGACY_LS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const appData: AppData = { version: CURRENT_VERSION, characters: parsed.map(normalize), ships: [] };
-        await localforage.setItem(APP_DATA_KEY, appData);
-        localStorage.removeItem(LEGACY_LS_KEY);
-        return appData;
+  // Reattach blobs from the blob store (migration-safe: only fills in if not already present)
+  await Promise.all([
+    ...data.characters.map(async c => {
+      if (!c.image) {
+        const p = await BLOB_STORE.getItem<string>(`portrait:${c.id}`).catch(() => null);
+        if (p) c.image = p;
       }
-    }
-  } catch { /* nothing to migrate */ }
+      if (c.pdfAttachment && !c.pdfAttachment.data) {
+        const d = await BLOB_STORE.getItem<string>(`pdf:${c.id}`).catch(() => null);
+        if (d) c.pdfAttachment = { ...c.pdfAttachment, data: d };
+      }
+    }),
+    ...data.ships.map(async s => {
+      if (!s.image) {
+        const p = await BLOB_STORE.getItem<string>(`ship-portrait:${s.id}`).catch(() => null);
+        if (p) s.image = p;
+      }
+    }),
+  ]);
 
-  return { version: CURRENT_VERSION, characters: [], ships: [] };
+  return data;
 }
 
 export { normalizeAppData };
@@ -112,6 +171,9 @@ export function useCharacters() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [ships, setShips] = useState<Ship[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveWarning, setSaveWarning] = useState<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load on mount
   useEffect(() => {
@@ -127,13 +189,32 @@ export function useCharacters() {
       .finally(() => setLoaded(true));
   }, []);
 
-  // Persist on every change (skip initial empty state before load completes)
+  // Persist on change — debounced 500 ms, blobs stored separately
   useEffect(() => {
     if (!loaded) return;
-    const appData: AppData = { version: CURRENT_VERSION, characters, ships };
-    localforage.setItem(APP_DATA_KEY, appData).catch(err => {
-      console.error('[swn-builder] save failed:', err);
-    });
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        await saveToStorage(characters, ships);
+        if (navigator.storage?.estimate) {
+          const { usage = 0, quota = 1 } = await navigator.storage.estimate();
+          if (quota > 0 && usage / quota > 0.8) {
+            setSaveWarning(`Storage ${Math.round((usage / quota) * 100)}% full — consider removing unused attachments.`);
+          } else {
+            setSaveWarning(null);
+          }
+        }
+      } catch (err: unknown) {
+        const name = (err as { name?: string })?.name ?? '';
+        const msg  = String(err);
+        if (name === 'QuotaExceededError' || msg.includes('QuotaExceeded')) {
+          setSaveError('Storage full — try removing PDF attachments or old characters.');
+        } else {
+          console.error('[swn-builder] save failed:', err);
+        }
+      }
+    }, 500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [characters, ships, loaded]);
 
   function upsert(char: Character) {
@@ -146,6 +227,8 @@ export function useCharacters() {
 
   function remove(id: string) {
     setCharacters(prev => prev.filter(c => c.id !== id));
+    BLOB_STORE.removeItem(`portrait:${id}`).catch(() => {});
+    BLOB_STORE.removeItem(`pdf:${id}`).catch(() => {});
   }
 
   function upsertShip(ship: Ship) {
@@ -158,6 +241,7 @@ export function useCharacters() {
 
   function removeShip(id: string) {
     setShips(prev => prev.filter(s => s.id !== id));
+    BLOB_STORE.removeItem(`ship-portrait:${id}`).catch(() => {});
     setCharacters(prev => prev.map(c =>
       c.assignedShipIds?.includes(id)
         ? { ...c, assignedShipIds: (c.assignedShipIds ?? []).filter(sid => sid !== id) }
@@ -165,7 +249,6 @@ export function useCharacters() {
     ));
   }
 
-  /** Replace the entire character list and optionally the ship list — used by the import feature. */
   function setAll(data: { characters: Character[]; ships?: Ship[] }) {
     setCharacters(data.characters.map(normalize));
     if (data.ships !== undefined) {
@@ -173,5 +256,9 @@ export function useCharacters() {
     }
   }
 
-  return { characters, ships, upsert, remove, upsertShip, removeShip, setAll, loaded };
+  return {
+    characters, ships, upsert, remove, upsertShip, removeShip, setAll, loaded,
+    saveError, clearSaveError: () => setSaveError(null),
+    saveWarning, clearSaveWarning: () => setSaveWarning(null),
+  };
 }

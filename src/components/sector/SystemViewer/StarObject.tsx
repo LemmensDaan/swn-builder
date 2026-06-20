@@ -728,6 +728,9 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   const _worldPos  = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(({ camera }, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     localTimeRef.current += delta;
     const time = localTimeRef.current;
 

@@ -49,6 +49,9 @@ function CameraZoomController({
   }, [target]);
 
   useFrame((_, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     if (!target || done.current) return;
 
     // Capture camera state on the very first frame so it's always accurate
@@ -154,7 +157,16 @@ export default function GalaxyView() {
         camera={{ position: isMobile ? [-32, 4, -38] : [-28, 3, -33], fov: isMobile ? 40 : 35 }}
         dpr={[1, isMobile ? 1.5 : 2]}
         gl={{ antialias: !isMobile }}
-        onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#03050d'))}
+        onCreated={({ gl }) => {
+          gl.setClearColor(new THREE.Color('#03050d'));
+          // WebGL context loss recovery for mobile tab switching
+          gl.domElement.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault();
+          });
+          gl.domElement.addEventListener('webglcontextrestored', () => {
+            // Context is automatically restored by r3f; just ensure continuity
+          });
+        }}
       >
         {/* <CameraLogger domRef={camPosRef} /> */}
         <ambientLight intensity={0.08} />

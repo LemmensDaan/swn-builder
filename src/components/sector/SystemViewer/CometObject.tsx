@@ -175,6 +175,9 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
   const forwardAxis = useMemo(() => new THREE.Vector3(0, 0, 1), []);
 
   useFrame((state, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     if (!groupRef.current) return;
 
     const [x, y, z] = getEllipticalOrbitPosition(angleRef.current, semiMajor, eccentricity, obj.inclination);

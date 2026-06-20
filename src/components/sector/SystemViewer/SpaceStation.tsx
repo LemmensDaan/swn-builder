@@ -53,6 +53,9 @@ export default function SpaceStation({ obj, isInBelt = false, onPositionUpdate, 
   }, [s, subtype]);
 
   useFrame((_, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     angleRef.current += delta * orbitSpeed;
     const incRad = THREE.MathUtils.degToRad(obj.inclination);
     const [x, y, z] = getOrbitPosition(angleRef.current, obj.orbitRadius, incRad);

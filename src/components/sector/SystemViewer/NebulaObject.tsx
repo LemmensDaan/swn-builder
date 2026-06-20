@@ -728,6 +728,9 @@ export default function NebulaObject({ obj, onPositionUpdate }: Props) {
   const breatheT = useRef(0);
 
   useFrame(({ camera }, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     if (!groupRef.current) return;
     groupRef.current.position.copy(camera.position).addScaledVector(dir, dist);
     groupRef.current.quaternion.copy(fixedQuat);
@@ -831,6 +834,9 @@ export function SupernovaBackdrop({ color, seed }: { color: string; seed: number
   // Centred on the origin (where the supernova happened) → orbiting gives parallax.
   // A very slow drift keeps it from feeling dead-static.
   useFrame((_, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     if (groupRef.current) groupRef.current.rotation.y += delta * 0.006;
   });
 

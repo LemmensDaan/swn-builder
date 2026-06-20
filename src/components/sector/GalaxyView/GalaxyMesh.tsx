@@ -277,6 +277,9 @@ function SectorTriangle({
   }, [dots]);
 
   useFrame(({ clock }, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     const mat = matRef.current;
     if (mat) {
       const speed = delta * 5;

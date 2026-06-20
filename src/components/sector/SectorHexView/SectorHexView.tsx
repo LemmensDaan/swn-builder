@@ -62,6 +62,9 @@ function CameraZoomController({
   }, [target]);
 
   useFrame((_, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     if (!target || done.current) return;
 
     if (!startPos.current) {
@@ -289,6 +292,15 @@ export default function SectorHexView() {
           camera={{ position: isMobile ? [GRID_CX, CAM_DIST * 1.2 * Math.cos(CAM_POLAR), GRID_CZ + CAM_DIST * 1.2 * Math.sin(CAM_POLAR)] : CAM_START.toArray(), fov: isMobile ? 60 : 50 }}
           dpr={[1, isMobile ? 1.5 : 2]}
           gl={{ antialias: !isMobile, alpha: true }}
+          onCreated={({ gl }) => {
+            // WebGL context loss recovery for mobile tab switching
+            gl.domElement.addEventListener('webglcontextlost', (e) => {
+              e.preventDefault();
+            });
+            gl.domElement.addEventListener('webglcontextrestored', () => {
+              // Context is automatically restored by r3f; just ensure continuity
+            });
+          }}
         >
           <ambientLight intensity={0.35} />
           <pointLight position={[0, 20, 0]} intensity={0.6} color="#8899cc" />

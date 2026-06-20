@@ -38,6 +38,9 @@ function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsR
   }, [selectedObjectId]);
 
   useFrame((_, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     if (!selectedObjectId || !orbitControlsRef.current) return;
     const controls = orbitControlsRef.current;
     const camera = controls.object;
@@ -119,6 +122,9 @@ function CameraIntroAnimator({
   const startPos = endPos.clone().multiplyScalar(12);
 
   useFrame((_, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     if (done.current) return;
     progress.current = Math.min(1, progress.current + delta * 0.55);
     const t = progress.current;
@@ -216,6 +222,15 @@ export default function SystemViewer() {
           dpr={[1, isMobile ? 1.5 : 2]}
           shadows
           gl={{ antialias: !isMobile, alpha: true }}
+          onCreated={({ gl }) => {
+            // WebGL context loss recovery for mobile tab switching
+            gl.domElement.addEventListener('webglcontextlost', (e) => {
+              e.preventDefault();
+            });
+            gl.domElement.addEventListener('webglcontextrestored', () => {
+              // Context is automatically restored by r3f; just ensure continuity
+            });
+          }}
         >
           {!introComplete && (
             <CameraIntroAnimator

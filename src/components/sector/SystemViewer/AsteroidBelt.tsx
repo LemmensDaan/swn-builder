@@ -68,6 +68,9 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick, castShado
   }, [obj.orbitRadius]);
 
   useFrame((_, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     if (!groupRef.current) return;
     groupRef.current.rotation.y -= delta * orbitSpeedValue;
     focusMarker.current.updateWorldMatrix(true, false);

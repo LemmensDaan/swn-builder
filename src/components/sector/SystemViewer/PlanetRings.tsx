@@ -88,6 +88,9 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
   const orbitSpeed = 0.12 / Math.sqrt(Math.max(0.5, band.size));
 
   useFrame(({ camera }, delta) => {
+    // Clamp delta to prevent animation lurches after tab backgrounding
+    delta = Math.min(delta, 0.05);
+
     if (spinRef.current) spinRef.current.rotation.y += delta * orbitSpeed;
 
     // LOD: ramp disc opacity from 70 % (close) to 100 % (far) so rings read as

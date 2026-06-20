@@ -152,7 +152,8 @@ export default function GalaxyView() {
     <div className="relative h-full">
       <Canvas
         camera={{ position: isMobile ? [-32, 4, -38] : [-28, 3, -33], fov: isMobile ? 40 : 35 }}
-        gl={{ antialias: true }}
+        dpr={[1, isMobile ? 1.5 : 2]}
+        gl={{ antialias: !isMobile }}
         onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#03050d'))}
       >
         {/* <CameraLogger domRef={camPosRef} /> */}

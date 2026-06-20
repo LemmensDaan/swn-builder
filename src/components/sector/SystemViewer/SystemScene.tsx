@@ -85,11 +85,11 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
     );
     if (obj.type === 'AsteroidBelt') return (
       <group key={obj.id}>
-        {!previewMode && <AsteroidBelt obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />}
+        {!previewMode && <AsteroidBelt obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} castShadows={prefs?.asteroidShadows ?? false} />}
         {children.map(c => renderObject(c, obj))}
       </group>
     );
-    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} highQuality={prefs?.highQuality ?? true} />;
+    if (obj.type === 'Comet') return <CometObject key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} highQuality={prefs?.highQuality ?? true} castShadows={prefs?.asteroidShadows ?? false} />;
     if (obj.type === 'Nebula') return <NebulaObject key={obj.id} obj={obj} onPositionUpdate={positionUpdate} onClick={onObjectClick} />;
     if (obj.type === 'SpaceStation' || obj.type === 'JumpGate') return <SpaceStation key={obj.id} obj={effectiveObj} isInBelt={isInBelt} onPositionUpdate={positionUpdate} onClick={onObjectClick} showOrbits={childShowOrbits} />;
     return (

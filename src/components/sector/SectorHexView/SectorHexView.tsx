@@ -287,7 +287,8 @@ export default function SectorHexView() {
       <div className="w-full h-full relative">
         <Canvas
           camera={{ position: isMobile ? [GRID_CX, CAM_DIST * 1.2 * Math.cos(CAM_POLAR), GRID_CZ + CAM_DIST * 1.2 * Math.sin(CAM_POLAR)] : CAM_START.toArray(), fov: isMobile ? 60 : 50 }}
-          gl={{ antialias: true, alpha: true }}
+          dpr={[1, isMobile ? 1.5 : 2]}
+          gl={{ antialias: !isMobile, alpha: true }}
         >
           <ambientLight intensity={0.35} />
           <pointLight position={[0, 20, 0]} intensity={0.6} color="#8899cc" />

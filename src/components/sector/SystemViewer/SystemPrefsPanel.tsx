@@ -164,6 +164,13 @@ export default function SystemPrefsPanel({ prefs, onChange, onClose }: Props) {
         value={prefs.showFactionZones}
         onToggle={() => onChange({ ...prefs, showFactionZones: !prefs.showFactionZones })}
       />
+
+      <ToggleRow
+        label="Asteroid shadows"
+        sublabel="High performance impact"
+        value={prefs.asteroidShadows}
+        onToggle={() => onChange({ ...prefs, asteroidShadows: !prefs.asteroidShadows })}
+      />
     </div>
   );
 }

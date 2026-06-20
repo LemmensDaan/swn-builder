@@ -10,9 +10,10 @@ interface Props {
   obj: SystemObject;
   onPositionUpdate?: (pos: [number, number, number]) => void;
   onClick?: (id: string) => void;
+  castShadows?: boolean;
 }
 
-export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) {
+export default function AsteroidBelt({ obj, onPositionUpdate, onClick, castShadows = false }: Props) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   // groupRef rotates around Y for orbital motion (inner)
   // tiltGroupRef holds the static X-axis tilt for inclination (outer)
@@ -80,8 +81,8 @@ export default function AsteroidBelt({ obj, onPositionUpdate, onClick }: Props) 
         <instancedMesh
           ref={meshRef}
           args={[geo, mat, COUNT]}
-          castShadow
-          receiveShadow
+          castShadow={castShadows}
+          receiveShadow={castShadows}
           onClick={(e) => { e.stopPropagation(); onClick?.(obj.id); }}
           onPointerEnter={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
           onPointerLeave={() => { document.body.style.cursor = 'auto'; }}

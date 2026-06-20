@@ -28,6 +28,7 @@ interface Props {
   showOrbits?: boolean;
   isInBelt?: boolean;
   highQuality?: boolean;
+  castShadows?: boolean;
 }
 
 function getEllipticalOrbitPosition(
@@ -79,7 +80,7 @@ const fragmentShader = `
 
 const TAIL_COLOR = new THREE.Color('#110022');
 
-export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits = true, isInBelt = false, highQuality = true }: Props) {
+export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits = true, isInBelt = false, highQuality = true, castShadows = false }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const particleTrailRef = useRef<THREE.InstancedMesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -337,7 +338,7 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
       <mesh geometry={ribbonGeo} material={ribbonMat} frustumCulled={false} />
 
       {/* Particle trail */}
-      <instancedMesh ref={particleTrailRef} args={[trailGeo, trailMat, TRAIL_COUNT]} frustumCulled={false} castShadow receiveShadow />
+      <instancedMesh ref={particleTrailRef} args={[trailGeo, trailMat, TRAIL_COUNT]} frustumCulled={false} castShadow={castShadows} receiveShadow={castShadows} />
     </>
   );
 }

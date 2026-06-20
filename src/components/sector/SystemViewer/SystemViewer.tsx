@@ -204,6 +204,7 @@ export default function SystemViewer() {
     ...system.objects.filter(o => !o.parentId && !o.isDeepSpace).map(o => o.orbitRadius)
   );
   const camDistance = Math.max(60, furthestOrbit * 2.5 + 30);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   return (
     <SystemViewerContext.Provider value={systemViewerCtxValue}>
@@ -212,8 +213,9 @@ export default function SystemViewer() {
       <div className="flex-1 min-w-0 relative" onContextMenu={e => e.preventDefault()}>
         <Canvas
           camera={{ position: [0, camDistance * 0.4 * 0.4 * 12, camDistance * 0.4 * 12], fov: 60 }}
+          dpr={[1, isMobile ? 1.5 : 2]}
           shadows
-          gl={{ antialias: true, alpha: true }}
+          gl={{ antialias: !isMobile, alpha: true }}
         >
           {!introComplete && (
             <CameraIntroAnimator

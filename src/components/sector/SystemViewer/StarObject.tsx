@@ -655,6 +655,9 @@ interface Props {
 }
 
 export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true, highQuality = true }: Props) {
+  // Cap shadow map on mobile (1024) to keep shadows affordable; desktop honours quality (2048 HQ / 512 LQ).
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const shadowMapSize = isMobile ? 1024 : (highQuality ? 2048 : 512);
   const groupRef        = useRef<THREE.Group>(null);
   const axisGroupRef    = useRef<THREE.Group>(null);
   const meshRef         = useRef<THREE.Mesh>(null);
@@ -809,8 +812,8 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
             distance={isBlackHole ? 400 : isNeutron ? 700 : 500}
             decay={1}
             castShadow
-            shadow-mapSize-width={highQuality ? 2048 : 512}
-            shadow-mapSize-height={highQuality ? 2048 : 512}
+            shadow-mapSize-width={shadowMapSize}
+            shadow-mapSize-height={shadowMapSize}
           />
         )}
 

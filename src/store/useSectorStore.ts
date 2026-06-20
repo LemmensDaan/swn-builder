@@ -615,7 +615,7 @@ export const useSectorStore = create<SectorStore>()(
           _sectorSaveTimer = setTimeout(() => localforage.setItem(name, value), 500);
           return Promise.resolve();
         },
-        removeItem: async (name: string) => { await localforage.removeItem(name); return ''; },
+        removeItem: async (name: string) => { await localforage.removeItem(name); },
       })),
       partialize: (s) => ({ sectors: s.sectors, systems: s.systems }),
     }

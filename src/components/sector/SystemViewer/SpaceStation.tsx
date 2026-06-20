@@ -134,7 +134,7 @@ export default function SpaceStation({ obj, isInBelt = false, onPositionUpdate, 
   return (
     <>
       {showOrbits && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
-      <group ref={groupRef}>
+      <group ref={groupRef} name={obj.id}>
         <group
           ref={bodyRef}
           onPointerEnter={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}

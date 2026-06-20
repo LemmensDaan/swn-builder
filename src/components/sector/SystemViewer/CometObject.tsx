@@ -297,7 +297,7 @@ export default function CometObject({ obj, onPositionUpdate, onClick, showOrbits
     <>
       {showOrbits && <OrbitRing radius={semiMajor} inclination={obj.inclination} eccentricity={eccentricity} />}
 
-      <group ref={groupRef}>
+      <group ref={groupRef} name={obj.id}>
         {/* Coma glow (high quality only) */}
         {comaGlowTex && (
           <sprite scale={[obj.size * 2, obj.size * 2, 1]} renderOrder={-1}>

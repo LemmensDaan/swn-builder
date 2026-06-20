@@ -801,7 +801,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
       {showOrbits && obj.parentId !== null && obj.orbitRadius > 0 && (
         <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />
       )}
-      <group ref={groupRef}>
+      <group ref={groupRef} name={obj.id}>
         {!previewMode && (
           <pointLight
             color={color}

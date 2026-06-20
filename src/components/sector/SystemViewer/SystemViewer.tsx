@@ -17,8 +17,11 @@ import { POI_COLORS, POI_LABELS } from './PlanetPOIMarkers';
 
 
 function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsRef, orbitControlsRef }: any) {
+  const scene = useThree((s) => s.scene);
   const trackingRef = useRef(false);
   const flyProgressRef = useRef(0);
+  // Cached live Object3D for the focused object, re-resolved on selection change.
+  const trackedObjRef = useRef<THREE.Object3D | null>(null);
 
   // Pre-allocated vectors — avoids per-frame GC pressure
   const flyStartCamPos = useRef(new THREE.Vector3());
@@ -31,16 +34,30 @@ function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsR
   useEffect(() => {
     trackingRef.current = false;
     flyProgressRef.current = 0;
+    trackedObjRef.current = null;
   }, [selectedObjectId]);
 
   useFrame((_, delta) => {
     if (!selectedObjectId || !orbitControlsRef.current) return;
     const controls = orbitControlsRef.current;
     const camera = controls.object;
-    const position = objectPositionsRef.current[selectedObjectId];
-    if (!position) return;
 
-    v_objPos.current.set(position[0], position[1], position[2]);
+    // Read the focused object's world position FRESH this frame. Each object writes
+    // objectPositionsRef from inside its own useFrame, but a child (e.g. a moon) runs
+    // BEFORE its parent planet moves — so that stored value lags the parent by one
+    // frame and makes the camera jitter while following it. Resolving the live object
+    // here, after every object's useFrame has run, gives the exact rendered position.
+    if (trackedObjRef.current?.name !== selectedObjectId) {
+      trackedObjRef.current = scene.getObjectByName(selectedObjectId) ?? null;
+    }
+    if (trackedObjRef.current) {
+      trackedObjRef.current.getWorldPosition(v_objPos.current);
+    } else {
+      // Fallback: object not in the scene graph yet (or unnamed) — use the stored value.
+      const position = objectPositionsRef.current[selectedObjectId];
+      if (!position) return;
+      v_objPos.current.set(position[0], position[1], position[2]);
+    }
     const closeDistance = Math.max(1, (selectedObjectSize ?? 1) * 4);
 
     if (!trackingRef.current) {

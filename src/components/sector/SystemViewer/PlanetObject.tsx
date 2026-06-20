@@ -247,7 +247,7 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
     <>
       {/* Orbit ring for planets and moons */}
       {showOrbits && obj.orbitRadius > 0 && <OrbitRing radius={obj.orbitRadius} inclination={obj.inclination} />}
-      <group ref={groupRef}>
+      <group ref={groupRef} name={obj.id}>
         {/* Gas giant glow hazes — baseline plus size-scaled layers */}
         {glowTex && (
           <>

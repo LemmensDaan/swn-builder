@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Character } from '../../../types/character';
-import { EQUIPMENT_PACKAGES, ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../../../data/equipment';
+import { EQUIPMENT_PACKAGES, ARMOR_TABLE, RANGED_WEAPONS, HEAVY_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../../../data/equipment';
 import type { EquipCategory } from '../../../data/equipment';
 import { computeEncumbrance } from '../../../data/derivation';
 import PageRef from '../../ui/PageRef';
@@ -12,7 +12,7 @@ interface Props {
   postCreation?: boolean;
 }
 
-type EquipTab = 'packages' | 'armor' | 'ranged' | 'melee' | 'items';
+type EquipTab = 'packages' | 'armor' | 'ranged' | 'heavy' | 'melee' | 'items';
 
 const ITEM_CATEGORIES: EquipCategory[] = [
   'Ammo & Power', 'Communications', 'Computing', 'Medical', 'Field Equipment', 'Pharmaceuticals', 'Lifestyle',
@@ -24,6 +24,7 @@ function itemCost(name: string): number {
   return (
     ARMOR_TABLE.find(a => a.name === name)?.cost ??
     RANGED_WEAPONS.find(w => w.name === name)?.cost ??
+    HEAVY_WEAPONS.find(w => w.name === name)?.cost ??
     MELEE_WEAPONS.find(w => w.name === name)?.cost ??
     GENERAL_EQUIPMENT.find(g => g.name === name)?.cost ??
     0
@@ -231,6 +232,7 @@ export default function Step8Equipment({ char, onChange, postCreation }: Props) 
     ...(postCreation ? [] : [{ key: 'packages' as EquipTab, label: 'Packages' }]),
     { key: 'armor', label: 'Armor' },
     { key: 'ranged', label: 'Ranged' },
+    { key: 'heavy', label: 'Heavy' },
     { key: 'melee', label: 'Melee' },
     { key: 'items', label: 'Items' },
   ];
@@ -441,6 +443,79 @@ export default function Step8Equipment({ char, onChange, postCreation }: Props) 
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Heavy weapons ──────────────────────────────────────────── */}
+      {tab === 'heavy' && (
+        <div className="space-y-2">
+          <p className="text-xs text-gray-500">
+            Vehicle- and emplacement-scale weapons (p.73). Most need a mount or firing position; many count as Heavy weapons for armor penetration.
+            <PageRef page={73} note="Heavy weapons require a vehicle mount or prepared emplacement for effective use. # weapons can fire to suppress: double ammo fired, every target in front not in hard cover is automatically hit for half damage (Evasion save negates)." />
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-700 text-gray-400 text-xs uppercase tracking-wide">
+                  <th className="text-left py-2 pr-4">Weapon</th>
+                  <th className="text-right py-2 pr-3">Dmg</th>
+                  <th className="text-right py-2 pr-3">Range</th>
+                  <th className="text-right py-2 pr-3">Cost</th>
+                  <th className="text-right py-2 pr-3">Mag</th>
+                  <th className="text-right py-2 pr-3">Enc</th>
+                  <th className="text-right py-2 pr-3">TL</th>
+                  <th className="py-2 w-24"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {HEAVY_WEAPONS.map(w => {
+                  const isSelected = char.weapons.some(x => x.name === w.name);
+                  const canAfford = remaining >= w.cost;
+                  return (
+                    <tr key={w.name} className={`border-b border-gray-800 hover:bg-gray-800/50 ${isSelected ? 'bg-amber-900/10' : ''}`}>
+                      <td className="py-2 pr-4">
+                        <div className={`font-medium ${isSelected ? 'text-amber-300' : 'text-gray-200'}`}>{w.name}</div>
+                        {w.notes && <div className="text-xs text-gray-500">{w.notes}</div>}
+                      </td>
+                      <td className="py-2 pr-3 text-right font-mono text-red-400">{w.damage}</td>
+                      <td className="py-2 pr-3 text-right text-gray-500 text-xs">{w.range}m</td>
+                      <td className={`py-2 pr-3 text-right font-mono text-xs ${!isSelected && !canAfford ? 'text-red-500' : 'text-gray-400'}`}>
+                        {w.cost.toLocaleString()}
+                      </td>
+                      <td className="py-2 pr-3 text-right text-gray-500 text-xs">{w.magazine}</td>
+                      <td className="py-2 pr-3 text-right text-gray-500 text-xs">{w.enc || '—'}</td>
+                      <td className="py-2 pr-3 text-right text-gray-600 text-xs">TL{w.tl}</td>
+                      <td className="py-2">
+                        <button
+                          onClick={() => {
+                            if (isSelected) {
+                              removeWeapon(w.name);
+                            } else {
+                              const magMax = parseInt(w.magazine, 10);
+                              addWeapon({
+                                name: w.name, damage: w.damage, range: w.range + 'm', attackBonus: 0,
+                                ammo: Number.isFinite(magMax) && magMax > 0 ? { current: magMax, max: magMax } : undefined,
+                              });
+                            }
+                          }}
+                          className={`text-xs px-2 py-1 rounded w-full ${
+                            isSelected
+                              ? 'bg-red-900/40 text-red-400 hover:bg-red-900'
+                              : canAfford
+                              ? 'bg-gray-700 text-gray-300 hover:bg-amber-900/40 hover:text-amber-300'
+                              : 'bg-gray-800 text-gray-600 hover:bg-red-900/20 hover:text-red-400'
+                          }`}
+                          title={!isSelected && !canAfford ? `Need ${(w.cost - char.credits).toLocaleString()} more credits` : undefined}
+                        >
+                          {isSelected ? 'Remove' : canAfford ? 'Add' : 'Add ⚠'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

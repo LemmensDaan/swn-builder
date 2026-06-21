@@ -2,9 +2,9 @@ import { useState } from 'react';
 import type { Character, FocusSelection, LevelRecord, PsychicTechniqueSelection } from '../types/character';
 import { attrMod, calcSaves, calcAttackBonus } from '../types/character';
 import { FOCI } from '../data/foci';
-import { SKILLS } from '../data/skills';
+import { SKILLS, PSYCHIC_SKILLS } from '../data/skills';
 import { PSYCHIC_DISCIPLINES } from '../data/psychics';
-import { effectiveSkills, psychicSkillLevels, deriveEffort } from '../data/derivation';
+import { effectiveSkills, psychicSkillLevels, deriveEffort, focusNeedsSkillChoice } from '../data/derivation';
 import { SKILL_INFO } from '../data/skillInfo';
 import {
   spPerLevel, skillRaiseCost, maxSkillLevel,
@@ -20,6 +20,24 @@ interface Props {
 type Step = 'hp' | 'skills' | 'focus' | 'confirm';
 
 const ALL_ATTRS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
+const COMBAT_SKILLS = ['Stab', 'Shoot', 'Punch'] as const;
+const NONCOMBAT_SKILLS = SKILLS.filter(s => !(COMBAT_SKILLS as readonly string[]).includes(s));
+
+/** Default + option list for a focus that grants a player-chosen bonus skill (mirrors Step6Foci). */
+function focusChoiceDefault(name: string): string | undefined {
+  const kind = focusNeedsSkillChoice(name);
+  if (kind === 'noncombat') return 'Administer';
+  if (kind === 'combat') return name === 'Shocking Assault' ? 'Punch' : 'Stab';
+  if (kind === 'psychic') return PSYCHIC_SKILLS[0];
+  return undefined;
+}
+function focusChoiceOptions(name: string): readonly string[] {
+  const kind = focusNeedsSkillChoice(name);
+  if (kind === 'noncombat') return NONCOMBAT_SKILLS;
+  if (kind === 'combat') return name === 'Shocking Assault' ? ['Punch', 'Stab'] : COMBAT_SKILLS;
+  if (kind === 'psychic') return PSYCHIC_SKILLS;
+  return [];
+}
 
 export default function LevelUp({ char, onConfirm, onCancel }: Props) {
   const newLevel = char.level + 1;
@@ -207,7 +225,7 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
         setPickedFocus({ ...existing, level: 2 });
       }
     } else {
-      setPickedFocus({ name, level: 1 });
+      setPickedFocus({ name, level: 1, specialistSkill: focusChoiceDefault(name) });
     }
   }
 
@@ -552,9 +570,23 @@ export default function LevelUp({ char, onConfirm, onCancel }: Props) {
                 Pick one new focus level. You can take a new focus at level 1, or upgrade an existing focus to level 2.
               </p>
               {pickedFocus && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-900/30 border border-amber-700 text-amber-300 text-sm">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-900/30 border border-amber-700 text-amber-300 text-sm flex-wrap">
                   <span className="font-medium">{pickedFocus.name}</span>
                   <span className="text-amber-500">Level {pickedFocus.level}</span>
+                  {focusNeedsSkillChoice(pickedFocus.name) && pickedFocus.level === 1 && (
+                    <label className="flex items-center gap-1.5 text-xs text-gray-300">
+                      <span>Bonus skill:</span>
+                      <select
+                        value={pickedFocus.specialistSkill ?? ''}
+                        onChange={e => setPickedFocus({ ...pickedFocus, specialistSkill: e.target.value })}
+                        className="input py-0.5 text-xs"
+                      >
+                        {focusChoiceOptions(pickedFocus.name).map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   <button onClick={() => setPickedFocus(null)} className="ml-auto text-amber-500 hover:text-red-400">×</button>
                 </div>
               )}

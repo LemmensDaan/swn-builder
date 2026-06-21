@@ -57,7 +57,7 @@ export const FOCI: Focus[] = [
     description: 'You are extremely skilled at avoiding injury in melee combat.',
     isCombat: true,
     levels: [
-      { description: 'Gain any combat skill as a bonus skill. Use pistol-sized ranged weapons in melee without penalty. Ignore Shock damage from melee assailants, even if unarmored.', bonusSkill: 'Stab' },
+      { description: 'Gain any combat skill as a bonus skill. Use pistol-sized ranged weapons in melee without penalty. Ignore Shock damage from melee assailants, even if unarmored.' },
       { description: 'Shock damage from your melee attacks treats all targets as AC 10. Fighting Withdrawal is an On Turn action for you.' },
     ],
   },
@@ -120,7 +120,7 @@ export const FOCI: Focus[] = [
     description: 'You have a distinct knack for picking up lost souls who willingly do your bidding.',
     isCombat: false,
     levels: [
-      { description: 'Gain Lead as a bonus skill. Acquire henchmen within 24 hours of arriving in a community. Have one henchman per 3 character levels rounded up. They won\'t fight except to save their own lives.', bonusSkill: 'Lead' },
+      { description: 'Gain Lead as a bonus skill. Acquire henchmen within 24 hours of arriving in a community. Have one henchman per 3 character levels rounded up. Base henchmen are treated as Peaceful Humans; they won\'t fight except to save their own lives.', bonusSkill: 'Lead' },
       { description: 'Your henchmen are remarkably loyal and will fight for you. They\'re treated as Martial Humans. You can make faithful henchmen of skilled NPCs you\'ve done real favors for.' },
     ],
   },
@@ -157,7 +157,7 @@ export const FOCI: Focus[] = [
     description: 'You are extremely dangerous to enemies around you. The ferocity of your melee attacks stresses foes even when blows don\'t draw blood.',
     isCombat: true,
     levels: [
-      { description: 'Gain Punch or Stab as a bonus skill. The Shock damage of your weapon treats all targets as AC 10 (assuming the weapon can harm them).', bonusSkill: 'Punch' },
+      { description: 'Gain Punch or Stab as a bonus skill. The Shock damage of your weapon treats all targets as AC 10 (assuming the weapon can harm them).' },
       { description: 'You gain +2 to Shock damage of all melee weapons and unarmed attacks. Regular hits never do less damage than this Shock would.' },
     ],
   },

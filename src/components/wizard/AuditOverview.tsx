@@ -9,7 +9,7 @@ import { BACKGROUNDS } from '../../data/backgrounds';
 import { FOCI } from '../../data/foci';
 import { PSYCHIC_DISCIPLINES } from '../../data/psychics';
 import { effectiveSkills, psychicSkillLevels, deriveEffort, deriveAC, dieHardBonus, focusBonusSkill, computeEncumbrance } from '../../data/derivation';
-import { ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../../data/equipment';
+import { ARMOR_TABLE, RANGED_WEAPONS, HEAVY_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../../data/equipment';
 import { SKILL_INFO } from '../../data/skillInfo';
 
 interface Props {
@@ -133,6 +133,7 @@ export default function AuditOverview({ char }: Props) {
   const gearCost = (name: string): number =>
     ARMOR_TABLE.find(a => a.name === name)?.cost
     ?? RANGED_WEAPONS.find(w => w.name === name)?.cost
+    ?? HEAVY_WEAPONS.find(w => w.name === name)?.cost
     ?? MELEE_WEAPONS.find(w => w.name === name)?.cost
     ?? GENERAL_EQUIPMENT.find(g => g.name === name)?.cost
     ?? 0;

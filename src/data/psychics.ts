@@ -23,7 +23,7 @@ export const PSYCHIC_DISCIPLINES: PsychicDiscipline[] = [
     coreTechnique: {
       name: 'Psychic Succor',
       levels: [
-        'Level 0: Automatically stabilize a mortally-wounded target as a Main Action (within 6 rounds of collapse, not decapitated/Heavy weapon killed).',
+        'Level 0: Automatically stabilize a mortally-wounded target as a Main Action (within 6 rounds of collapse, not decapitated/Heavy weapon killed). Each use adds 1 System Strain to the target (2 if mortally wounded at the time).',
         'Level 1: As level-0, and heal 1d6+1 hit points. Mortally-wounded targets revive with rolled HP.',
         'Level 2: As level-1, but healing 2d6+2 hit points.',
         'Level 3: As level-2, but healing 2d6+6 hit points.',
@@ -39,7 +39,7 @@ export const PSYCHIC_DISCIPLINES: PsychicDiscipline[] = [
       { name: 'Tissue Integrity Field', level: 2, description: 'Psychic Succor may affect all allies within 10 meters of the target (each may decline). Extra Effort for the day.' },
       { name: 'Accelerated Succor', level: 3, description: 'Psychic Succor can be used as an On Turn action (once per round). With extra Effort, as an Instant action.' },
       { name: 'Metamorph', level: 3, description: 'Transform a touched willing target into any humanoid form (within 50% mass). Impersonate to DNA level with a sample. Commit Effort while maintained.' },
-      { name: 'Teratic Overload', level: 3, description: 'Touched target suffers 1d6 damage per Biopsionics skill and must Physical save or be afflicted with a lethal cancer (1d6 months to kill). Commit Effort for the scene.' },
+      { name: 'Teratic Overload', level: 3, description: 'Touched target suffers 1d6 damage per Biopsionics skill and must make a Physical save; on a failure the damage is tripled and they are afflicted with a lethal cancer (1d6 months to kill, treatable at a TL4 hospital within a month). Commit Effort for the scene. Committing Effort for the day instead does no HP damage but creates subtle tumors. Usable on a given target only once per scene.' },
       { name: 'Holistic Optimization Patterning', level: 4, description: 'Boost self or touched ally for rest of scene: +2 STR/DEX checks, hit rolls, damage rolls; 20 extra hit points. Costs 2 System Strain. Commit Effort for the day.' },
       { name: 'Quintessential Reconstruction', level: 4, description: 'If killed, regenerate from largest body fragment over 24 hours. Each use inflicts 1 permanent attribute point loss.' },
     ],
@@ -119,7 +119,7 @@ export const PSYCHIC_DISCIPLINES: PsychicDiscipline[] = [
       { name: 'Pressure Field', level: 1, description: 'As an Instant, manifest a protective force skin equivalent to a vacc suit. Ignore temperatures ±100°C, auto-pressurize thin atmospheres. Commit Effort for scene to extend to 6 comrades.' },
       { name: 'Telekinetic Armory', level: 1, description: 'As an On Turn, create weapons (TL4, any advanced melee or rifle; use Dex/Wis/Con modifier and Telekinesis as combat skill) and armor (AC 15 + Telekinesis skill) out of telekinetic force.' },
       { name: 'Impact Sump', level: 2, description: 'As an Instant, Commit Effort for the day to negate a single instance of physical damage (can trigger after damage is rolled). Once per day.' },
-      { name: 'Slip Field', level: 2, description: 'As a Main Action, Commit Effort for the scene. Decrease friction in a visible 10-meter diameter area. Targets must Evasion save or fall prone and can barely move.' },
+      { name: 'Slip Field', level: 2, description: 'As a Main Action, Commit Effort for the scene. Decrease friction in a visible 10-meter diameter area. Targets must Evasion save or fall prone and can barely move. Targets who save are immune to this technique for the scene.' },
       { name: 'Telekinetic Expertise', level: 2, description: 'You may now use Telekinetic Manipulation without Committing Effort.' },
       { name: 'Thermokinesis', level: 2, description: 'As a Main Action, Commit Effort for scene to melt, burn, freeze, or chill an inanimate object. Objects with hit points take 1d12 per Telekinesis skill.' },
       { name: 'Tangible Force Construct', level: 3, description: 'As an On Turn, Commit Effort for the scene to create a telekinetic force construct (up to 3-meter cube). Lasts until end of scene, 20 HP vs AC 15, as sturdy as TL4 construction.' },
@@ -151,7 +151,7 @@ export const PSYCHIC_DISCIPLINES: PsychicDiscipline[] = [
       { name: 'Reflex Response', level: 3, description: 'As a Main Action, Commit Effort for the day. Force a sudden irrational impulse into the contact target. Mental save to resist; on failure, they carry out the impulse on their next action.' },
       { name: 'Telepathic Assault', level: 3, description: 'As a Main Action, Commit Effort for the day. Send a wave of MES energy through the contact target — 6d6 damage (9d6 at Telepathy-4). Mental save for half. Cannot kill; renders unconscious at 0 HP for 1 hour.' },
       { name: 'Memory Editing', level: 4, description: 'As a Main Action, Commit Effort for the day. Make simple edits to contact target\'s memory — erase/create/change events of up to 24 hours. Mental save to resist editing for the scene.' },
-      { name: 'Unity of Thought', level: 4, description: 'Weave up to 6 willing participants into a Telepathic Contact. Instant exchange of thoughts, sensory impressions, and location. All use best initiative. Once per round, one gestalt member (not you) gets an extra action.' },
+      { name: 'Unity of Thought', level: 4, description: 'Weave up to 6 willing participants into a Telepathic Contact. Instant exchange of thoughts, sensory impressions, and location. All use best initiative. Each combat turn, one gestalt member of your choice (not you) gets an extra round of action.' },
     ],
   },
   {

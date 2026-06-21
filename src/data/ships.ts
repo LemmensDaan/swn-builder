@@ -74,10 +74,11 @@ export interface FittingDef {
 
 export interface DriveUpgrade {
   rating: number;         // 2–6 (drive-1 is included in hull)
-  cost: number;           // flat credits (not scaled)
+  cost: number;           // base credits; cost-scaled by COST_MULT[class] (book marks all drives with *)
   power: number;          // base value; multiply by PM_MULT[class]
   mass: number;           // base value; multiply by PM_MULT[class]
   minClass: HullClass;
+  costScaled: true;
   powerScaled: true;
   massScaled: true;
 }
@@ -99,6 +100,8 @@ export interface DerivedShip {
   overPower: boolean;
   overMass: boolean;
   overHardpoints: boolean;
+  /** Class/crew build-constraint violations (drive minClass, fitting min/maxClass, crew bounds). */
+  buildErrors: string[];
 
   // Combat stats
   ac: number;
@@ -122,15 +125,16 @@ export interface DerivedShip {
 export const HULL_CLASS_ORDER: HullClass[] = ['Fighter', 'Frigate', 'Cruiser', 'Capital'];
 
 /**
- * Cost scaling multiplier indexed by hull class.
+ * Cost scaling multiplier indexed by hull class (the book's `*` rule, p.100–101).
  * Used for items marked costScaled = true.
- * Frigate = 2×, Cruiser = 4×, Capital = 8× (fighter baseline = 1×).
+ * Frigate = 10×, Cruiser = 25×, Capital = 100× (fighter baseline = 1×).
+ * (Worked example p.101: a frigate Drill Course Regulator pays 250,000, not 25,000.)
  */
 export const COST_MULT: Record<HullClass, number> = {
   Fighter: 1,
-  Frigate: 2,
-  Cruiser: 4,
-  Capital: 8,
+  Frigate: 10,
+  Cruiser: 25,
+  Capital: 100,
 };
 
 /**
@@ -364,37 +368,41 @@ export const HULL_TYPES: HullType[] = [
 export const DRIVE_UPGRADES: DriveUpgrade[] = [
   {
     rating: 2,
-    cost: 25_000,
+    cost: 10_000,
     power: 1,
     mass: 1,
     minClass: 'Fighter',
+    costScaled: true,
     powerScaled: true,
     massScaled: true,
   },
   {
     rating: 3,
-    cost: 40_000,
+    cost: 20_000,
     power: 2,
     mass: 2,
     minClass: 'Fighter',
+    costScaled: true,
     powerScaled: true,
     massScaled: true,
   },
   {
     rating: 4,
-    cost: 100_000,
+    cost: 40_000,
     power: 2,
     mass: 3,
     minClass: 'Frigate',
+    costScaled: true,
     powerScaled: true,
     massScaled: true,
   },
   {
     rating: 5,
-    cost: 200_000,
+    cost: 100_000,
     power: 3,
     mass: 3,
     minClass: 'Frigate',
+    costScaled: true,
     powerScaled: true,
     massScaled: true,
   },
@@ -404,6 +412,7 @@ export const DRIVE_UPGRADES: DriveUpgrade[] = [
     power: 3,
     mass: 4,
     minClass: 'Cruiser',
+    costScaled: true,
     powerScaled: true,
     massScaled: true,
   },
@@ -618,8 +627,8 @@ export const WEAPONS: WeaponDef[] = [
     name: 'Vortex Tunnel Inductor',
     cost: 5_000_000,
     damage: '3d20',
-    power: 15,
-    mass: 5,
+    power: 20,
+    mass: 10,
     hardpoints: 4,
     minClass: 'Capital',
     minTL: 4,
@@ -631,9 +640,9 @@ export const WEAPONS: WeaponDef[] = [
     name: 'Mass Cannon',
     cost: 5_000_000,
     ammoCost: 50_000,
-    damage: '3d20',
-    power: 20,
-    mass: 10,
+    damage: '2d20',
+    power: 10,
+    mass: 5,
     hardpoints: 4,
     minClass: 'Capital',
     minTL: 4,
@@ -657,9 +666,9 @@ export const WEAPONS: WeaponDef[] = [
     id: 'singularity-gun',
     name: 'Singularity Gun',
     cost: 20_000_000,
-    damage: '1d20',
-    power: 15,
-    mass: 5,
+    damage: '5d20',
+    power: 25,
+    mass: 10,
     hardpoints: 5,
     minClass: 'Capital',
     minTL: 5,
@@ -1085,11 +1094,11 @@ export const FITTINGS: FittingDef[] = [
     id: 'mobile-extractor',
     name: 'Mobile Extractor',
     baseCost: 50_000,
-    costScaled: true,
+    costScaled: false,
     power: 2,
     powerScaled: false,
     mass: 1,
-    massScaled: true,
+    massScaled: false,
     minClass: 'Frigate',
     repeatable: false,
     description: 'Mine asteroids or planets; refine 1 ton/day (~500 cr). Requires 5 crew.',
@@ -1097,13 +1106,13 @@ export const FITTINGS: FittingDef[] = [
   {
     id: 'mobile-factory',
     name: 'Mobile Factory',
-    baseCost: 100_000,
+    baseCost: 50_000,
     costScaled: true,
     power: 3,
     powerScaled: false,
     mass: 2,
     massScaled: true,
-    minClass: 'Frigate',
+    minClass: 'Cruiser',
     repeatable: false,
     description: 'TL4 fabrication; builds at 10,000 cr/day; requires 100 trained crew.',
   },
@@ -1227,15 +1236,107 @@ export const FITTINGS: FittingDef[] = [
   {
     id: 'workshop',
     name: 'Workshop',
-    baseCost: 10_000,
+    baseCost: 500,
     costScaled: true,
     power: 1,
+    powerScaled: false,
+    mass: 0.5,
+    massScaled: true,
+    minClass: 'Frigate',
+    repeatable: false,
+    description: 'TL4 fabrication: frigate = personal gear, cruiser = vehicles, capital = ships.',
+  },
+  // ── Fittings added from p.101 (were previously missing) ──────────────────────
+  {
+    id: 'cargo-lighter',
+    name: 'Cargo Lighter',
+    baseCost: 25_000,
+    costScaled: false,
+    power: 0,
+    powerScaled: false,
+    mass: 2,
+    massScaled: false,
+    minClass: 'Frigate',
+    repeatable: true,
+    description: 'Orbit-to-surface shuttle for cruiser+ hulls; carries a container of up to 200 tons each way (~20 min).',
+  },
+  {
+    id: 'colony-core',
+    name: 'Colony Core',
+    baseCost: 100_000,
+    costScaled: true,
+    power: 4,
     powerScaled: false,
     mass: 2,
     massScaled: true,
     minClass: 'Frigate',
     repeatable: false,
-    description: 'TL4 fabrication: frigate = personal gear, cruiser = vehicles, capital = ships.',
+    description: 'One-time deconstruction into a colony base for up to 5× max crew. Once activated the ship can never fly again.',
+  },
+  {
+    id: 'exodus-bay',
+    name: 'Exodus Bay',
+    baseCost: 50_000,
+    costScaled: true,
+    power: 1,
+    powerScaled: true,
+    mass: 2,
+    massScaled: true,
+    minClass: 'Cruiser',
+    repeatable: true,
+    description: 'Cold-sleep berths for 1,000 colonists (cruiser) / 5,000 (capital); doubles per selection. Rated for 100 years.',
+  },
+  {
+    id: 'psionic-anchorpoint',
+    name: 'Psionic Anchorpoint',
+    baseCost: 0,
+    costScaled: false,
+    power: 3,
+    powerScaled: false,
+    mass: 0,
+    massScaled: false,
+    minClass: 'Frigate',
+    repeatable: false,
+    description: 'Pretech relic (rarely available). Imprinted psychics can sense/affect anything within 10 m of it across the system.',
+  },
+  {
+    id: 'system-drive',
+    name: 'System Drive',
+    baseCost: 0,
+    costScaled: false,
+    power: 0,
+    powerScaled: false,
+    mass: 0,
+    massScaled: false,
+    minClass: 'Fighter',
+    repeatable: false,
+    description: 'Replaces the drive-1 spike drive: no interstellar drills, but lowers hull cost 10% and grants +1/+2/+3/+4 power (×2 free mass) by class.',
+  },
+  {
+    id: 'teleportation-pads',
+    name: 'Teleportation Pads',
+    baseCost: 200_000,
+    costScaled: false,
+    power: 1,
+    powerScaled: false,
+    mass: 1,
+    massScaled: false,
+    minClass: 'Frigate',
+    repeatable: false,
+    description: 'Pretech (rarely available). Teleports up to a dozen people or 1,200 kg to/from a surface or ship within tens of thousands of km; once per 5 min.',
+  },
+  {
+    id: 'tractor-beams',
+    name: 'Tractor Beams',
+    baseCost: 10_000,
+    costScaled: true,
+    power: 2,
+    powerScaled: false,
+    mass: 1,
+    massScaled: false,
+    minClass: 'Frigate',
+    repeatable: false,
+    description: 'Push/pull objects up to one hull class smaller in low gravity; can haul them into cargo bays. Useless near planetary gravity.',
   },
 ];
 
@@ -1268,7 +1369,7 @@ export function deriveShip(ship: Ship): DerivedShip {
     if (drive) {
       drivePower = scalePowerMass(drive.power, true, hullClass);
       driveMass  = scalePowerMass(drive.mass,  true, hullClass);
-      driveCost  = drive.cost;
+      driveCost  = scaleCost(drive.cost, drive.costScaled, hullClass);
     }
   }
 
@@ -1338,6 +1439,45 @@ export function deriveShip(ship: Ship): DerivedShip {
   const hpMax = hull.hp    + hpBonus;
   const speed = hull.speed === null ? null : hull.speed + speedPenalty;
 
+  // ── Build-constraint checks (hull-class & crew minimums, p.99–101) ─────────
+  const classIdx = HULL_CLASS_ORDER.indexOf(hullClass);
+  const buildErrors: string[] = [];
+
+  if (ship.driveRating >= 2) {
+    const drive = DRIVE_UPGRADES.find((d) => d.rating === ship.driveRating);
+    if (drive && classIdx < HULL_CLASS_ORDER.indexOf(drive.minClass)) {
+      buildErrors.push(`Drive-${drive.rating} requires a ${drive.minClass}-class hull or larger.`);
+    }
+  }
+  for (const installed of ship.weapons) {
+    const def = WEAPONS.find((w) => w.id === installed.id);
+    if (def && classIdx < HULL_CLASS_ORDER.indexOf(def.minClass)) {
+      buildErrors.push(`${def.name} requires a ${def.minClass}-class hull or larger.`);
+    }
+  }
+  for (const installed of ship.defenses) {
+    const def = DEFENSES.find((d) => d.id === installed.id);
+    if (def && classIdx < HULL_CLASS_ORDER.indexOf(def.minClass)) {
+      buildErrors.push(`${def.name} requires a ${def.minClass}-class hull or larger.`);
+    }
+  }
+  for (const installed of ship.fittings) {
+    const def = FITTINGS.find((f) => f.id === installed.id);
+    if (!def) continue;
+    if (classIdx < HULL_CLASS_ORDER.indexOf(def.minClass)) {
+      buildErrors.push(`${def.name} requires a ${def.minClass}-class hull or larger.`);
+    }
+    if (def.maxClass && classIdx > HULL_CLASS_ORDER.indexOf(def.maxClass)) {
+      buildErrors.push(`${def.name} cannot be fitted to a hull larger than ${def.maxClass}-class.`);
+    }
+  }
+  if (ship.currentCrew < hull.crewMin) {
+    buildErrors.push(`Crew ${ship.currentCrew} is below the minimum of ${hull.crewMin} for this hull.`);
+  }
+  if (ship.currentCrew > hull.crewMax) {
+    buildErrors.push(`Crew ${ship.currentCrew} exceeds the maximum of ${hull.crewMax} for this hull.`);
+  }
+
   return {
     hull,
     powerUsed,
@@ -1349,6 +1489,7 @@ export function deriveShip(ship: Ship): DerivedShip {
     overPower:      powerFree      < 0,
     overMass:       massFree       < 0,
     overHardpoints: hardpointsFree < 0,
+    buildErrors,
     ac,
     hpMax,
     speed,

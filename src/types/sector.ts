@@ -121,6 +121,13 @@ export interface FactionAsset {
   attack: string;
   counter: string;
   notes: string;
+  // Reference data copied from the rulebook asset (optional for older saves).
+  category?: string;     // book "Type": Military Unit / Special Forces / Facility / …
+  cost?: number;         // FacCreds to purchase
+  tl?: number;           // tech level required
+  maintenance?: number;  // FacCreds/turn upkeep
+  note?: string;         // P / A / S footnote codes
+  special?: string;      // special ability text
 }
 
 export interface FactionGoal {

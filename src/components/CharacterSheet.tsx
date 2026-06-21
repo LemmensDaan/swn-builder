@@ -4,7 +4,7 @@ import type { Character } from '../types/character';
 import { attrMod } from '../types/character';
 import type { Ship as ShipType } from '../types/ship';
 import { HULL_TYPES } from '../data/ships';
-import { ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../data/equipment';
+import { ARMOR_TABLE, RANGED_WEAPONS, HEAVY_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../data/equipment';
 import { SKILLS } from '../data/skills';
 import { FOCI } from '../data/foci';
 import { xpForLevel } from '../data/leveling';
@@ -26,6 +26,7 @@ function gearCost(name: string): number {
   return (
     ARMOR_TABLE.find(a => a.name === name)?.cost ??
     RANGED_WEAPONS.find(w => w.name === name)?.cost ??
+    HEAVY_WEAPONS.find(w => w.name === name)?.cost ??
     MELEE_WEAPONS.find(w => w.name === name)?.cost ??
     GENERAL_EQUIPMENT.find(g => g.name === name)?.cost ??
     0

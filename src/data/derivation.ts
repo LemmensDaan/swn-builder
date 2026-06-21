@@ -16,7 +16,7 @@ import type { Character, FocusSelection } from '../types/character';
 import { attrMod } from '../types/character';
 import { FOCI } from './foci';
 import { PSYCHIC_SKILLS } from './skills';
-import { ARMOR_TABLE, RANGED_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from './equipment';
+import { ARMOR_TABLE, RANGED_WEAPONS, HEAVY_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from './equipment';
 
 const PSYCHIC_SET = new Set<string>(PSYCHIC_SKILLS);
 const COMBAT_SKILLS = ['Stab', 'Shoot', 'Punch'];
@@ -124,6 +124,12 @@ export function deriveEffort(char: Character): number {
   const attrBonus = Math.max(attrMod(char.attributes.WIS), attrMod(char.attributes.CON));
   let effort = Math.max(1, 1 + highest + attrBonus);
 
+  // Metapsionics core "Psychic Refinement": +1 max Effort at Metapsionics skill 1,
+  // another +1 at skill 3 (p.38).
+  const meta = psy['Metapsionics'] ?? -1;
+  if (meta >= 1) effort += 1;
+  if (meta >= 3) effort += 1;
+
   // Psychic Training focus: maximum Effort increases by 1 (p.22)
   if (char.foci.some(f => f.name === 'Psychic Training')) effort += 1;
 
@@ -196,6 +202,7 @@ export function computeEncumbrance(char: Character): Encumbrance {
   for (const w of char.weapons) {
     if (w.notCarried) continue;
     const enc = RANGED_WEAPONS.find(x => x.name === w.name)?.enc
+      ?? HEAVY_WEAPONS.find(x => x.name === w.name)?.enc
       ?? MELEE_WEAPONS.find(x => x.name === w.name)?.enc ?? 1;
     if (w.readied === false) stowed += enc; else readied += enc;
   }

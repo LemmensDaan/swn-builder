@@ -148,7 +148,10 @@ export default function Step7Psychics({ char, onChange }: Props) {
                     .filter(t => t.level <= 1 || skillLevel >= t.level)
                     .map(tech => {
                       const picked = hasTechnique(disc.skill, tech.name);
-                      const available = tech.level <= skillLevel + 1;
+                      const pickedCount = char.psychicTechniques.filter(t => t.discipline === disc.skill).length;
+                      // Rule (p.34): a technique pick is earned only when you improve a skill level, and you
+                      // can't pick a technique above your mastered level. A level-0 discipline earns none.
+                      const available = tech.level <= skillLevel && (picked || pickedCount < freeTechPicks);
                       return (
                         <div
                           key={tech.name}

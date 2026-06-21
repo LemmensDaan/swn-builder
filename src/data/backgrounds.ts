@@ -3,13 +3,16 @@ import type { Skill } from './skills';
 export type GrowthEntry =
   | '+1 Any Stat' | '+2 Physical' | '+2 Mental' | 'Any Skill' | Skill;
 
-export type LearningEntry = 'Any Combat' | 'Any Skill' | Skill;
+/** Some learning/quick-skill cells list an either/or choice (book p.10–15). */
+export type SkillChoice = 'Shoot or Trade' | 'Stab or Shoot';
+
+export type LearningEntry = 'Any Combat' | 'Any Skill' | SkillChoice | Skill;
 
 export interface Background {
   name: string;
   description: string;
   freeSkill: Skill;
-  quickSkills: (Skill | 'Any Combat')[];
+  quickSkills: (Skill | 'Any Combat' | SkillChoice)[];
   growth: GrowthEntry[];
   learning: LearningEntry[];
 }
@@ -36,7 +39,7 @@ export const BACKGROUNDS: Background[] = [
     description: 'Your career was one of proffered pleasure — from simple companionship to artistry of conversation and grace.',
     freeSkill: 'Perform',
     quickSkills: ['Perform', 'Notice', 'Connect'],
-    growth: ['+1 Any Stat', '+2 Mental', '+2 Physical', '+2 Mental', 'Connect', 'Any Skill'],
+    growth: ['+1 Any Stat', '+2 Mental', '+2 Mental', '+2 Physical', 'Connect', 'Any Skill'],
     learning: ['Any Combat', 'Connect', 'Exert', 'Notice', 'Perform', 'Survive', 'Talk', 'Trade'],
   },
   {
@@ -85,7 +88,7 @@ export const BACKGROUNDS: Background[] = [
     freeSkill: 'Administer',
     quickSkills: ['Administer', 'Talk', 'Connect'],
     growth: ['+1 Any Stat', '+2 Mental', '+2 Mental', '+2 Mental', 'Connect', 'Any Skill'],
-    learning: ['Administer', 'Connect', 'Know', 'Lead', 'Notice', 'Talk', 'Talk', 'Trade'],
+    learning: ['Administer', 'Any Skill', 'Connect', 'Know', 'Lead', 'Notice', 'Talk', 'Trade'],
   },
   {
     name: 'Peasant',
@@ -107,7 +110,7 @@ export const BACKGROUNDS: Background[] = [
     name: 'Pilot',
     description: 'A vehicle operator — spaceship navigator, intra-system shuttle pilot, long-haul trucker, or sailor.',
     freeSkill: 'Pilot',
-    quickSkills: ['Pilot', 'Fix', 'Shoot'],
+    quickSkills: ['Pilot', 'Fix', 'Shoot or Trade'],
     growth: ['+1 Any Stat', '+2 Physical', '+2 Physical', '+2 Mental', 'Connect', 'Any Skill'],
     learning: ['Connect', 'Exert', 'Fix', 'Notice', 'Pilot', 'Pilot', 'Shoot', 'Trade'],
   },
@@ -140,7 +143,7 @@ export const BACKGROUNDS: Background[] = [
     description: 'A worker who toils in the sky or a native void-born man or woman who has spent their life in space.',
     freeSkill: 'Fix',
     quickSkills: ['Fix', 'Pilot', 'Program'],
-    growth: ['+1 Any Stat', '+2 Physical', '+2 Mental', '+2 Mental', 'Connect', 'Any Skill'],
+    growth: ['+1 Any Stat', '+2 Physical', '+2 Physical', '+2 Mental', 'Exert', 'Any Skill'],
     learning: ['Administer', 'Connect', 'Exert', 'Fix', 'Know', 'Pilot', 'Program', 'Talk'],
   },
   {
@@ -157,7 +160,7 @@ export const BACKGROUNDS: Background[] = [
     freeSkill: 'Any Combat' as Skill,
     quickSkills: ['Any Combat', 'Talk', 'Connect'],
     growth: ['+1 Any Stat', '+2 Mental', '+2 Physical', '+2 Physical', 'Connect', 'Any Skill'],
-    learning: ['Any Combat', 'Connect', 'Exert', 'Notice', 'Sneak', 'Stab', 'Survive', 'Talk'],
+    learning: ['Any Combat', 'Connect', 'Exert', 'Notice', 'Sneak', 'Stab or Shoot', 'Survive', 'Talk'],
   },
   {
     name: 'Vagabond',

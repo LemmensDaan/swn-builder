@@ -2,13 +2,12 @@ import { useState } from 'react';
 import { Plus, Shield, Eye, DollarSign, Heart, Star, Target, BookOpen, Swords, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSectorStore } from '../../store/useSectorStore';
 import ItemActions from '../ItemActions';
+import { factionMaxHp } from '../../data/faction-assets';
 import type { Faction, FactionAssetType } from '../../types/sector';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function derivedMaxHp(force: number, cunning: number, wealth: number): number {
-  return force + cunning + wealth + 3;
-}
+const derivedMaxHp = factionMaxHp;
 
 const STAT_ICON: Record<FactionAssetType, typeof Shield> = {
   Force:   Shield,

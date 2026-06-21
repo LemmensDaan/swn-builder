@@ -100,6 +100,21 @@ export default function ShipStep5Review({ ship, derived, onGoToStep }: Props) {
         </div>
       )}
 
+      {/* ── Build-Constraint Errors ─────────────────────────────────────── */}
+      {derived.buildErrors.length > 0 && (
+        <div className="space-y-2">
+          {derived.buildErrors.map((err, i) => (
+            <div
+              key={i}
+              className="bg-red-900/25 border border-red-600/60 rounded-lg px-4 py-3 flex items-center gap-2"
+            >
+              <span className="text-red-400 font-bold text-lg">!</span>
+              <span className="text-red-300 text-sm">{err}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Stats Grid ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
         {statCells.map((cell) => (

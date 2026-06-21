@@ -8,6 +8,15 @@ import PageRef from '../../ui/PageRef';
 
 type SkillMode = 'quick' | 'pick' | 'roll';
 const COMBAT_SKILLS: Skill[] = ['Stab', 'Shoot', 'Punch'];
+
+/** Background table cells that present an either/or skill choice (book p.10–15). */
+const CHOICE_OPTIONS: Record<string, Skill[]> = {
+  'Any Combat': ['Stab', 'Shoot', 'Punch'],
+  'Shoot or Trade': ['Shoot', 'Trade'],
+  'Stab or Shoot': ['Stab', 'Shoot'],
+};
+const isChoiceEntry = (e: string): boolean => e in CHOICE_OPTIONS;
+const choiceOptions = (e: string): Skill[] => CHOICE_OPTIONS[e] ?? [];
 const PHYSICAL_ATTRS: AttributeName[] = ['STR', 'DEX', 'CON'];
 const MENTAL_ATTRS: AttributeName[] = ['INT', 'WIS', 'CHA'];
 const ALL_ATTRS: AttributeName[] = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
@@ -63,7 +72,7 @@ function parseRollEntry(entry: string, id: number, table: 'growth' | 'learning',
   if (entry === 'Any Skill') {
     return { id, table, rollValue, rawEntry: entry, needsChoice: true };
   }
-  if (entry === 'Any Combat') {
+  if (isChoiceEntry(entry)) {
     return { id, table, rollValue, rawEntry: entry, needsChoice: true };
   }
   // Regular skill — auto-resolved
@@ -79,7 +88,8 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
   const baseAttrs = useRef<Record<AttributeName, number>>({ ...char.attributes });
 
   const hasFreeAnyCombat = bg && (bg.freeSkill as string) === 'Any Combat';
-  const hasQuickAnyCombat = bg ? bg.quickSkills.includes('Any Combat') : false;
+  // The quick-skill cell (if any) that is an either/or choice — e.g. 'Any Combat', 'Shoot or Trade'.
+  const quickChoiceEntry = bg ? (bg.quickSkills.find(s => isChoiceEntry(s)) ?? null) : null;
 
   const [mode, setMode] = useState<SkillMode>('quick');
   const [freeCombat, setFreeCombat] = useState<Skill | null>(null);
@@ -91,7 +101,7 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
     if (!bg || Object.keys(char.skills).length === 0) return null;
     const bgSourceSkills = new Set<string>([
       ...((bg.freeSkill as string) !== 'Any Combat' ? [bg.freeSkill as string] : []),
-      ...bg.quickSkills.filter(s => s !== 'Any Combat'),
+      ...bg.quickSkills.filter(s => !isChoiceEntry(s)),
     ]);
     // A skill not from background sources is likely the bonus pick
     const extra = Object.keys(char.skills).find(s => !bgSourceSkills.has(s));
@@ -136,7 +146,7 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
 
     if (m === 'quick' && bg) {
       bg.quickSkills.forEach(qs => {
-        if (qs === 'Any Combat') { if (qc) add(qc); }
+        if (isChoiceEntry(qs)) { if (qc) add(qc); }
         else add(qs as string);
       });
     } else if (m === 'pick') {
@@ -178,7 +188,7 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
     if (!b) return false;
 
     if (m === 'quick') {
-      if (hasQuickAnyCombat && !qc) return false;
+      if (quickChoiceEntry && !qc) return false;
       return true;
     }
 
@@ -238,7 +248,7 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
     const newPick: PickEntry = {
       id: nextId++,
       rawEntry,
-      resolvedSkill: rawEntry === 'Any Combat' ? null : rawEntry as Skill,
+      resolvedSkill: isChoiceEntry(rawEntry) ? null : rawEntry as Skill,
     };
     const next = [...picks, newPick];
     setPicks(next);
@@ -420,14 +430,14 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
             The three pre-selected skills for your background (including the free skill) are granted
             automatically at level-0 — see the <span className="text-gray-300">Current Skills</span> list below.
           </p>
-          {/* Quick combat choice if needed */}
-          {hasQuickAnyCombat && (
+          {/* Quick choice cell if needed (e.g. "Any Combat", "Shoot or Trade") */}
+          {quickChoiceEntry && (
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
               <p className="text-sm font-medium text-gray-300 mb-2">
-                Quick Skills includes "Any Combat" — choose one:
+                Quick Skills includes "{quickChoiceEntry}" — choose one:
               </p>
               <div className="flex gap-2">
-                {COMBAT_SKILLS.map(s => (
+                {choiceOptions(quickChoiceEntry).map(s => (
                   <button
                     key={s}
                     onClick={() => {
@@ -463,7 +473,7 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
           <div className="flex flex-wrap gap-2 items-center">
             {picks.map(p => (
               <div key={p.id} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-900/40 border border-amber-700 text-amber-300 text-sm">
-                <span>{p.rawEntry === 'Any Combat' ? (p.resolvedSkill ?? 'Any Combat') : p.rawEntry}</span>
+                <span>{isChoiceEntry(p.rawEntry) ? (p.resolvedSkill ?? p.rawEntry) : p.rawEntry}</span>
                 <button onClick={() => removePick(p.id)} className="text-amber-500 hover:text-red-400 ml-1">×</button>
               </div>
             ))}
@@ -474,12 +484,12 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
             )}
           </div>
 
-          {/* Unresolved Any Combat picks */}
-          {picks.filter(p => p.rawEntry === 'Any Combat' && !p.resolvedSkill).map(p => (
+          {/* Unresolved choice picks (e.g. "Any Combat", "Stab or Shoot") */}
+          {picks.filter(p => isChoiceEntry(p.rawEntry) && !p.resolvedSkill).map(p => (
             <div key={p.id} className="bg-gray-800 border border-gray-700 rounded-lg p-3">
-              <p className="text-sm text-gray-400 mb-2">Resolve "Any Combat" pick — choose one:</p>
+              <p className="text-sm text-gray-400 mb-2">Resolve "{p.rawEntry}" pick — choose one:</p>
               <div className="flex gap-2">
-                {COMBAT_SKILLS.map(s => (
+                {choiceOptions(p.rawEntry).map(s => (
                   <button
                     key={s}
                     onClick={() => resolvePickCombat(p.id, s)}
@@ -624,9 +634,9 @@ export default function Step4Skills({ char, onChange, onComplete }: Props) {
                 {/* Any Skill / Any Combat resolution */}
                 {!r.statBoost && r.needsChoice && (
                   <div className="mt-2">
-                    {r.rawEntry === 'Any Combat' ? (
+                    {isChoiceEntry(r.rawEntry) ? (
                       <div className="flex gap-2 flex-wrap">
-                        {COMBAT_SKILLS.map(s => (
+                        {choiceOptions(r.rawEntry).map(s => (
                           <button
                             key={s}
                             onClick={() => resolveRollSkill(r.id, s)}

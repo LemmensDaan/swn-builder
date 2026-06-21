@@ -109,7 +109,7 @@ export interface Armor {
 }
 
 export const ARMOR_TABLE: Armor[] = [
-  { name: 'Shield', ac: 13, cost: 10, enc: 1, tl: 0, type: 'Primitive', notes: '+1 bonus if already ≥13 AC; immune to first Shock per round' },
+  { name: 'Shield', ac: 13, cost: 10, enc: 2, tl: 0, type: 'Primitive', notes: '+1 bonus if already ≥13 AC; immune to first Shock per round' },
   { name: 'Leather/Quilted', ac: 13, cost: 10, enc: 1, tl: 0, type: 'Primitive' },
   { name: 'Cuirass/Half-plate', ac: 15, cost: 50, enc: 1, tl: 1, type: 'Primitive' },
   { name: 'Full Plate', ac: 17, cost: 100, enc: 2, tl: 1, type: 'Primitive' },
@@ -171,6 +171,20 @@ export const RANGED_WEAPONS: RangedWeapon[] = [
   { name: 'Distortion Cannon', damage: '2d12', range: '100/300', cost: 1250, magazine: '6 (Type A cell)', attr: 'Dex', enc: 2, tl: 5, energyWeapon: true, notes: 'Ignores up to 1m of solid cover between gun and target' },
 ];
 
+// ── Heavy Weapons (p.73) ───────────────────────────────────────────────────────
+// Vehicle/emplacement-scale personal weapons. Reuses the RangedWeapon shape; an
+// encumbrance of 0 represents the book's "*" (no significant personal encumbrance).
+export const HEAVY_WEAPONS: RangedWeapon[] = [
+  { name: 'Heavy Machine Gun', damage: '3d6', range: '500/2000', cost: 5_000, magazine: '10', attr: 'Dex', enc: 3, tl: 3, notes: 'Suppression fire; ~25 cr ammo per round of firing; needs a vehicle mount or emplacement' },
+  { name: 'Rocket Launcher', damage: '3d10', range: '2000/4000', cost: 4_000, magazine: '1', attr: 'Dex', enc: 2, tl: 3, notes: 'Tracking sensors; −4 to hit human-sized or smaller targets; can be shoulder-fired' },
+  { name: 'Demolition Charge', damage: '3d10', range: '20/40', cost: 250, magazine: 'N/A', attr: '—', enc: 1, tl: 3, notes: 'Full dmg within 20 m (Evasion half), half to 40 m; 4 m breach; shapeable with Fix-0; counts as Heavy for armor' },
+  { name: 'Railgun', damage: '3d8', range: '4000/8000', cost: 8_000, magazine: '20', attr: 'Dex', enc: 0, tl: 4, notes: 'Suppression fire; hypervelocity slugs; ~50 cr ammo per round of firing' },
+  { name: 'Anti-Vehicle Laser', damage: '3d10', range: '2000/4000', cost: 10_000, magazine: '15', attr: 'Dex', enc: 0, tl: 4, energyWeapon: true, notes: 'Type B cell; vs vehicles/hard targets roll damage twice and use the better' },
+  { name: 'Hydra Array', damage: '3d6', range: '4000/8000', cost: 20_000, magazine: '10', attr: 'Dex', enc: 0, tl: 4, notes: 'Suppression fire; designate up to 3 targets, 3 to-hit rolls; ~150 cr per volley; uses missiles' },
+  { name: 'Wheatcutter Belt', damage: '2d12', range: '10/20', cost: 10_000, magazine: '5', attr: 'Dex', enc: 0, tl: 4, notes: 'Antipersonnel scything blast to one side; Evasion save for half; ignores vehicle Armor not; 200 cr/round reload' },
+  { name: 'Vortex Cannon', damage: '5d12', range: '1000/2000', cost: 75_000, magazine: '5', attr: 'Dex', enc: 0, tl: 5, notes: 'Silent gravitic shear; mountable only on gravtanks/dedicated fighting vehicles' },
+];
+
 export interface MeleeWeapon {
   name: string;
   damage: string;
@@ -227,7 +241,7 @@ export const GENERAL_EQUIPMENT: GeneralItem[] = [
 
   // Communications
   { name: 'Compad', category: 'Communications', cost: 100, enc: 0, tl: 4, notes: 'Hand-held communicator; works on any world with a comm grid' },
-  { name: 'Field Radio', category: 'Communications', cost: 200, enc: 1, tl: 3, notes: 'Range: 2 km urban / 30 km plains; works without a comm grid' },
+  { name: 'Field Radio', category: 'Communications', cost: 200, enc: 1, tl: 4, notes: 'Range: 2 km urban / 30 km plains; works without a comm grid' },
   { name: 'Comm Server', category: 'Communications', cost: 1000, enc: 3, tl: 4, notes: 'Provides comm coverage for 36 compads within 300 km' },
   { name: 'Translator Torc', category: 'Communications', cost: 200, enc: 0, tl: 4, notes: 'Translates between 2 keyed languages; –2 to social checks through it' },
 
@@ -239,16 +253,27 @@ export const GENERAL_EQUIPMENT: GeneralItem[] = [
   { name: 'Toolkit, Pretech', category: 'Computing', cost: 1000, enc: 1, tl: 5, notes: 'Required for working on TL5 artifacts' },
   { name: 'Line Shunt', category: 'Computing', cost: 100, enc: 0, tl: 4, notes: 'Single-use; required for certain hacking operations' },
   { name: 'Dataslab, Black', category: 'Computing', cost: 10000, enc: 1, tl: 4, notes: '+1 to all hacking attempts; illegal on most worlds' },
+  { name: 'Data Phase Tap', category: 'Computing', cost: 5000, enc: 1, tl: 4, notes: 'Detects data lines within 5 m through 10 cm of wall; taps a line for hacking without damaging the wall' },
+  { name: 'Data Protocol', category: 'Computing', cost: 1000, enc: 0, tl: 4, notes: 'Manuals on a world\'s data formats/security; price is for black-market copies on restrictive worlds' },
+  { name: 'Remote Link Unit', category: 'Computing', cost: 250, enc: 1, tl: 4, notes: 'Pair maintains a stealthy link to remote storage; −2 to hack through it; pro security may detect the broadcast' },
+  { name: 'Tightbeam Link Unit', category: 'Computing', cost: 1000, enc: 1, tl: 4, notes: 'Line-of-sight laser link; almost undetectable but needs clear sight; no indoor use' },
+  { name: 'Storage Unit', category: 'Computing', cost: 500, enc: 3, tl: 4, notes: 'Hardened portable case holding immense data; can absorb a small corporation\'s complete files' },
+  { name: 'Stiletto Charge', category: 'Computing', cost: 0, enc: 1, tl: 5, notes: 'Single-use Mandate-era intrusion charge: a hack vs a TL4 system auto-succeeds. Almost never available for purchase' },
 
   // Medical
   { name: 'Bioscanner', category: 'Medical', cost: 300, enc: 1, tl: 4, notes: 'Heal-0 required for full diagnostics; DNA sequencing in minutes' },
   { name: 'Lazarus Patch', category: 'Medical', cost: 30, enc: 1, tl: 4, notes: 'Stabilize a dying character (0 HP); must be used within 6 rounds' },
   { name: 'Medkit', category: 'Medical', cost: 100, enc: 2, tl: 4, notes: 'Supplies for long-term recuperative care; roll 2d6/day, depleted on 12' },
+  { name: 'Tailored Antiallergens', category: 'Medical', cost: 5, enc: 0, tl: 4, notes: 'One dose makes a world\'s organics edible and atmosphere breathable for 24 hrs' },
   { name: 'Lift (stim)', category: 'Pharmaceuticals', cost: 50, enc: 0, tl: 4, notes: 'Heals 1d8 + Heal skill HP after 5 min rest; +1 System Strain' },
   { name: 'Hush (stim)', category: 'Pharmaceuticals', cost: 200, enc: 0, tl: 4, notes: 'Heavy tranquilizer; subject is compliant but non-communicative for ~1 hr' },
   { name: 'Psych (stim)', category: 'Pharmaceuticals', cost: 25, enc: 0, tl: 4, notes: 'Morale 12, +1 skill checks; ignores cover; 15 min duration; psychologically addictive' },
   { name: 'Tsunami (stim)', category: 'Pharmaceuticals', cost: 50, enc: 0, tl: 4, notes: '+10 temp HP, +2 hit rolls; crash after 10 min; +2 System Strain' },
   { name: 'Pretech Cosmetic (stim)', category: 'Pharmaceuticals', cost: 1000, enc: 0, tl: 5, notes: 'Heals 1d6 HP; +1 System Strain' },
+  { name: 'Bezoar', category: 'Pharmaceuticals', cost: 200, enc: 0, tl: 4, notes: 'Heal-1. Cures most infectious diseases in 24 hrs (1-in-6 fails); +1 System Strain; not cancers/bioweapons/congenital' },
+  { name: 'Brainwave', category: 'Pharmaceuticals', cost: 1000, enc: 0, tl: 5, notes: 'Heal-2. +2 max Effort to a psychic for 1 hr, then 4 System Strain (unconscious 1 hr if maxed); one dose at a time' },
+  { name: 'Reverie', category: 'Pharmaceuticals', cost: 100, enc: 0, tl: 4, notes: 'Combat drug: act only on even rounds, damage doubled; melee always hits, ranged ignores AC; lasts 10 min; +2 System Strain' },
+  { name: 'Squeal', category: 'Pharmaceuticals', cost: 300, enc: 0, tl: 4, notes: 'Truth serum: immobilized/willing target answers questions for 5 min (Physical save to refuse one topic); passes out 1d6 hrs after' },
 
   // Field Equipment
   { name: 'Backpack (TL0)', category: 'Field Equipment', cost: 5, enc: 1, tl: 0, notes: 'Basic pack; no encumbrance bonus' },
@@ -263,17 +288,21 @@ export const GENERAL_EQUIPMENT: GeneralItem[] = [
   { name: 'Climbing Harness', category: 'Field Equipment', cost: 50, enc: 1, tl: 3, notes: '+1 to Exert climbing checks; –2 to Sneak while climbing' },
   { name: 'Grapnel Launcher', category: 'Field Equipment', cost: 200, enc: 1, tl: 3, notes: 'Fires rope up to 40 m; 6 shots per Type A cell' },
   { name: 'Grav Chute', category: 'Field Equipment', cost: 300, enc: 1, tl: 4, notes: 'Slows falls up to 1000 m; single use; up to 300 kg' },
+  { name: 'Grav Chute (Orbital, TL5)', category: 'Field Equipment', cost: 1000, enc: 1, tl: 5, notes: 'As Grav Chute but operates from orbital heights; single use; up to 300 kg' },
   { name: 'Grav Harness', category: 'Field Equipment', cost: 5000, enc: 3, tl: 5, notes: 'Flight at 20 m/round; 5 min per Type B cell; up to 200 kg' },
   { name: 'Survey Scanner', category: 'Field Equipment', cost: 250, enc: 1, tl: 4, notes: 'Atmospheric/gravitic readings, chemical analysis, 200 hrs video recording' },
   { name: 'Navcomp', category: 'Field Equipment', cost: 500, enc: 1, tl: 4, notes: '+1 to navigation checks; never lost on worlds with GPS satellites' },
   { name: 'Atmofilter', category: 'Field Equipment', cost: 100, enc: 1, tl: 4, notes: 'Face mask filters most atmospheric toxins' },
   { name: 'Rations, 1 day', category: 'Field Equipment', cost: 5, enc: 1, tl: 1 },
   { name: 'Rope, 20 m (TL4)', category: 'Field Equipment', cost: 40, enc: 1, tl: 4 },
+  { name: 'Rope, 20 m (TL0)', category: 'Field Equipment', cost: 4, enc: 2, tl: 0, notes: 'Heavy natural-fiber rope' },
+  { name: 'Portabox', category: 'Field Equipment', cost: 50, enc: 1, tl: 4, notes: 'Type A cell unfolds it into a 1.5×1×1 m airtight locker; keycard or DC 8 Sneak/Fix to open' },
+  { name: 'Telescoping Pole', category: 'Field Equipment', cost: 10, enc: 0, tl: 4, notes: 'Extends from a 30 cm baton to a 3 m pole bearing up to 1000 kg; makeshift club' },
   { name: 'Glowbug', category: 'Field Equipment', cost: 5, enc: 0, tl: 3, notes: 'Adhesive light disc; 10 m radius for 24 hrs; 100 recharged per Type A cell' },
   { name: 'Thermal Flare', category: 'Field Equipment', cost: 5, enc: 0, tl: 3, notes: 'Burns 2 hrs bright light OR fires 200 m as signal/weapon (1d6 dmg)' },
   { name: 'Instapanel', category: 'Field Equipment', cost: 50, enc: 1, tl: 4, notes: 'Expands into a 2×2 m rigid ceraplast sheet; takes 5 min to harden' },
   { name: 'Scout Report', category: 'Field Equipment', cost: 200, enc: 0, tl: 4, notes: 'Maps, cultural info, and taboos for a specific world' },
-  { name: 'Vacc Fresher', category: 'Field Equipment', cost: 400, enc: 3, tl: 4, notes: 'Refills vacc suit O2 tanks; 10 min + 1 Type A cell per refill' },
+  { name: 'Vacc Fresher', category: 'Field Equipment', cost: 400, enc: 1, tl: 4, notes: 'Refills vacc suit O2 tanks; 10 min + 1 Type A cell per refill' },
 
   // Lifestyle
   { name: 'Lifestyle: Slum', category: 'Lifestyle', cost: 5, enc: 0, tl: 0, notes: 'Per day — bare survival, squat, scraps' },

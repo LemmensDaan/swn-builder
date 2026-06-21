@@ -4,14 +4,12 @@ import {
   Plus, X, Check, Heart, Target, Swords, Shield, Eye, DollarSign,
 } from 'lucide-react';
 import { useSectorStore } from '../../store/useSectorStore';
-import { REFERENCE_ASSETS, FACTION_TAGS, FACTION_GOALS } from '../../data/faction-assets';
+import { REFERENCE_ASSETS, FACTION_TAGS, FACTION_GOALS, factionMaxHp } from '../../data/faction-assets';
 import type { Faction, FactionAsset, FactionGoal, FactionAssetType, TimelineEvent } from '../../types/sector';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function derivedMaxHp(force: number, cunning: number, wealth: number) {
-  return force + cunning + wealth + 3;
-}
+const derivedMaxHp = factionMaxHp;
 
 function assetTypeColor(type: FactionAssetType) {
   switch (type) {
@@ -120,6 +118,12 @@ function AssetPickerModal({
       attack: ref.attack,
       counter: ref.counter,
       notes: '',
+      category: ref.category,
+      cost: ref.cost,
+      tl: ref.tl,
+      maintenance: ref.maintenance,
+      note: ref.note,
+      special: ref.special,
     });
   }
 
@@ -181,13 +185,20 @@ function AssetPickerModal({
                     <span className={`font-semibold text-sm ${unlocked ? '' : 'text-gray-600'}`}>{ref.name}</span>
                   </div>
                   <div className="flex items-center gap-3 text-xs">
-                    <span className={unlocked ? 'text-gray-400' : 'text-gray-700'}>HP {ref.maxHp}</span>
-                    <span className={unlocked ? 'text-gray-400' : 'text-gray-700'}>Atk {ref.attack}</span>
-                    <span className={unlocked ? 'text-gray-400' : 'text-gray-700'}>Ctr {ref.counter}</span>
+                    <span className={unlocked ? 'text-amber-400' : 'text-gray-700'}>{ref.cost} FC</span>
+                    <span className={unlocked ? 'text-gray-400' : 'text-gray-700'}>HP {ref.maxHp || '—'}</span>
+                    <span className={unlocked ? 'text-gray-400' : 'text-gray-700'}>TL{ref.tl}</span>
                   </div>
                 </div>
+                <div className="flex items-center gap-3 text-xs mt-1">
+                  <span className={`uppercase tracking-wide ${unlocked ? 'text-gray-500' : 'text-gray-700'}`}>{ref.category}</span>
+                  <span className={unlocked ? 'text-gray-400' : 'text-gray-700'}>Atk {ref.attack}</span>
+                  <span className={unlocked ? 'text-gray-400' : 'text-gray-700'}>Ctr {ref.counter}</span>
+                  {ref.maintenance ? <span className="text-orange-400">{ref.maintenance} FC/turn upkeep</span> : null}
+                  {ref.note ? <span className="text-gray-600">[{ref.note}]</span> : null}
+                </div>
                 <p className={`text-xs mt-1 ${unlocked ? 'text-gray-400' : 'text-gray-700'}`}>
-                  {ref.description}
+                  {ref.special ?? ref.description}
                   {!unlocked && (
                     <span className="ml-2 text-red-500 font-medium">
                       (requires {ref.type} {ref.rating})
@@ -670,10 +681,18 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
                         </button>
                       </div>
                     </div>
-                    <div className="flex gap-4 mt-1.5 text-xs text-gray-400">
+                    <div className="flex gap-4 mt-1.5 text-xs text-gray-400 flex-wrap">
                       <span>Atk: <span className="text-gray-300 font-mono">{asset.attack}</span></span>
                       <span>Ctr: <span className="text-gray-300 font-mono">{asset.counter}</span></span>
+                      {asset.category && <span className="text-gray-500 uppercase tracking-wide">{asset.category}</span>}
+                      {asset.cost != null && <span className="text-amber-400">{asset.cost} FC</span>}
+                      {asset.tl != null && <span className="text-gray-500">TL{asset.tl}</span>}
+                      {asset.maintenance ? <span className="text-orange-400">{asset.maintenance} FC/turn</span> : null}
+                      {asset.note && <span className="text-gray-600">[{asset.note}]</span>}
                     </div>
+                    {asset.special && (
+                      <p className="text-xs text-gray-500 mt-1 italic">{asset.special}</p>
+                    )}
                     <input
                       className="mt-2 w-full bg-transparent border-b border-gray-700 text-xs text-gray-400 placeholder-gray-700 focus:outline-none focus:border-amber-500"
                       placeholder="Notes…"

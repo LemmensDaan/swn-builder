@@ -591,7 +591,7 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
                     <button onClick={() => setCrew(ship.currentCrew + 1)}
                       className="w-5 h-5 rounded bg-gray-700/80 hover:bg-green-900/60 text-gray-300 text-xs flex items-center justify-center">+</button>
                   </div>
-                  <div className="text-[10px] text-gray-600 mt-0.5">min {hull.minCrew}</div>
+                  <div className="text-[10px] text-gray-600 mt-0.5">min {hull.crewMin}</div>
                 </div>
 
                 <StatCell label="Drive" value={`${ship.driveRating}`} />
@@ -601,8 +601,8 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
             {/* ── Resource Usage ─────────────────────────────────────────── */}
             <SheetSection title="Resource Usage">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <ResourceBar label="Power" used={derived.powerUsed} total={hull.power} danger={derived.powerUsed > hull.power} color="bg-yellow-500"/>
-                <ResourceBar label="Mass"  used={derived.massUsed}  total={hull.mass}  danger={derived.massUsed  > hull.mass}  color="bg-blue-500"/>
+                <ResourceBar label="Power" used={derived.powerUsed} total={hull.powerFree} danger={derived.powerUsed > hull.powerFree} color="bg-yellow-500"/>
+                <ResourceBar label="Mass"  used={derived.massUsed}  total={hull.massFree}  danger={derived.massUsed  > hull.massFree}  color="bg-blue-500"/>
                 <ResourceBar label="Hardpoints" used={derived.hardpointsUsed} total={hull.hardpoints} danger={derived.hardpointsUsed > hull.hardpoints} color="bg-red-500"/>
               </div>
             </SheetSection>
@@ -1088,10 +1088,10 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
                     const broken = ship.brokenModules.some(m => m.type === 'weapon' && m.id === def.id);
                     const wId = def.id;
                     const ammoEntry = ship.weaponAmmo.find(a => a.weaponId === wId);
-                    const hasAmmo = def.ammo !== undefined && def.ammo !== null;
+                    const hasAmmo = def.ammoCost !== undefined;
 
                     if (hasAmmo && !ammoEntry) {
-                      initializeWeaponAmmo(wId, def.ammo as number);
+                      initializeWeaponAmmo(wId, 100);
                     }
 
                     const readied = ammoEntry?.readied ?? 0;

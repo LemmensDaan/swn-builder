@@ -37,7 +37,7 @@ export default function ShipWizard({ initial, onSave, onCancel, onOpenRules, onO
   const [ship, setShip] = useState<Ship>(() => {
     const base = initial ?? emptyShip();
     // Ensure mods field exists for older saved ships
-    return { mods: [], ...base };
+    return { ...base, mods: base.mods ?? [] };
   });
   const [confirmCancel, setConfirmCancel] = useState(false);
 

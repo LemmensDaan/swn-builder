@@ -44,6 +44,14 @@ export interface CustomCrewMember {
   role?: string;
 }
 
+/** An installed starship modification (p.109). */
+export interface InstalledMod {
+  id: string;
+  /** aftermarket = requires weekly maintenance (Fix slots); redesigned = built-in, no maintenance. */
+  status: 'aftermarket' | 'redesigned';
+  broken?: boolean;
+}
+
 export interface Ship {
   id: string;
   name: string;
@@ -52,6 +60,7 @@ export interface Ship {
   weapons: InstalledItem[];
   defenses: InstalledItem[];
   fittings: InstalledItem[];
+  mods: InstalledMod[];
   hitPoints: { current: number; max: number };
   notes: string;
   currentCrew: number;
@@ -89,6 +98,7 @@ export function emptyShip(): Ship {
     weapons: [],
     defenses: [],
     fittings: [],
+    mods: [],
     hitPoints: { current: 20, max: 20 },
     notes: '',
     currentCrew: 1,

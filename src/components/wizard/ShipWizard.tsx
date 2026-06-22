@@ -7,7 +7,8 @@ import ShipStep1Hull from './steps/ShipStep1Hull';
 import ShipStep2Drive from './steps/ShipStep2Drive';
 import ShipStep3Weapons from './steps/ShipStep3Weapons';
 import ShipStep4Fittings from './steps/ShipStep4Fittings';
-import ShipStep5Review from './steps/ShipStep5Review';
+import ShipStep5Mods from './steps/ShipStep5Mods';
+import ShipStep6Review from './steps/ShipStep5Review';
 
 interface Props {
   initial?: Ship;
@@ -17,13 +18,14 @@ interface Props {
   onOpenHelp: () => void;
 }
 
-const TOTAL_STEPS = 5;
-const STEP_NAMES = ['Hull', 'Drive', 'Weapons', 'Fittings', 'Review'];
+const TOTAL_STEPS = 6;
+const STEP_NAMES = ['Hull', 'Drive', 'Weapons', 'Fittings', 'Mods', 'Review'];
 const STEP_META = [
   { title: 'Ship Hull',            subtitle: 'Name your vessel and choose a hull type.' },
   { title: 'Spike Drive',          subtitle: 'Select the drive rating for interstellar travel.' },
   { title: 'Weapons',              subtitle: 'Arm your ship with weapons within hardpoint and power limits.' },
   { title: 'Defenses & Fittings',  subtitle: 'Install defenses and special fittings.' },
+  { title: 'Modifications',        subtitle: 'Install after-market mods or design them into the hull.' },
   { title: 'Review',               subtitle: 'Review your complete ship before saving.' },
 ];
 
@@ -32,14 +34,16 @@ export default function ShipWizard({ initial, onSave, onCancel, onOpenRules, onO
 
   const [step, setStep] = useState(1);
   const [maxVisited, setMaxVisited] = useState(isEditing ? TOTAL_STEPS : 1);
-  const [ship, setShip] = useState<Ship>(() => initial ?? emptyShip());
+  const [ship, setShip] = useState<Ship>(() => {
+    const base = initial ?? emptyShip();
+    // Ensure mods field exists for older saved ships
+    return { mods: [], ...base };
+  });
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   function patch(updates: Partial<Ship>) {
     setShip(prev => ({ ...prev, ...updates }));
   }
-
-  // ── Validation ────────────────────────────────────────────────────────────────
 
   function stepValid(s: number): boolean {
     switch (s) {
@@ -49,9 +53,7 @@ export default function ShipWizard({ initial, onSave, onCancel, onOpenRules, onO
   }
 
   const stepValidity = Array.from({ length: TOTAL_STEPS }, (_, i) => stepValid(i + 1));
-  const canFinish = stepValidity[0]; // only step 1 has a hard requirement
-
-  // ── Navigation ────────────────────────────────────────────────────────────────
+  const canFinish = stepValidity[0];
 
   function goToStep(s: number) {
     setStep(s);
@@ -95,24 +97,14 @@ export default function ShipWizard({ initial, onSave, onCancel, onOpenRules, onO
         finishDisabled={!canFinish}
         nextDisabled={false}
       >
-        {step === 1 && (
-          <ShipStep1Hull ship={ship} onChange={patch} />
-        )}
-        {step === 2 && (
-          <ShipStep2Drive ship={ship} hull={currentHull} onChange={patch} />
-        )}
-        {step === 3 && (
-          <ShipStep3Weapons ship={ship} derived={deriveShip(ship)} onChange={patch} />
-        )}
-        {step === 4 && (
-          <ShipStep4Fittings ship={ship} derived={deriveShip(ship)} onChange={patch} />
-        )}
-        {step === 5 && (
-          <ShipStep5Review ship={ship} derived={deriveShip(ship)} onGoToStep={goToStep} />
-        )}
+        {step === 1 && <ShipStep1Hull ship={ship} onChange={patch} />}
+        {step === 2 && <ShipStep2Drive ship={ship} hull={currentHull} onChange={patch} />}
+        {step === 3 && <ShipStep3Weapons ship={ship} derived={deriveShip(ship)} onChange={patch} />}
+        {step === 4 && <ShipStep4Fittings ship={ship} derived={deriveShip(ship)} onChange={patch} />}
+        {step === 5 && <ShipStep5Mods ship={ship} derived={deriveShip(ship)} onChange={patch} />}
+        {step === 6 && <ShipStep6Review ship={ship} derived={deriveShip(ship)} onGoToStep={goToStep} />}
       </WizardLayout>
 
-      {/* Cancel confirmation */}
       {confirmCancel && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full shadow-2xl space-y-4">

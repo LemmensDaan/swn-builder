@@ -72,6 +72,20 @@ export interface FittingDef {
   description: string;
 }
 
+export interface ModDef {
+  id: string;
+  name: string;
+  /** Minimum Fix skill to install and maintain. */
+  fixRequired: number;
+  /** Cost as a percent of base hull cost (e.g. 10 = 10%). */
+  costPct: number;
+  /** Pretech components required per hull class (0 = none). */
+  componentsPerClass: number;
+  /** Can be installed multiple times. */
+  repeatable: boolean;
+  description: string;
+}
+
 export interface DriveUpgrade {
   rating: number;         // 2–6 (drive-1 is included in hull)
   cost: number;           // base credits; cost-scaled by COST_MULT[class] (book marks all drives with *)
@@ -619,7 +633,7 @@ export const WEAPONS: WeaponDef[] = [
     hardpoints: 3,
     minClass: 'Cruiser',
     minTL: 4,
-    ap: 20,
+    ap: 15,
     qualities: [],
   },
   {
@@ -653,7 +667,7 @@ export const WEAPONS: WeaponDef[] = [
     id: 'lightning-charge-mantle',
     name: 'Lightning Charge Mantle',
     cost: 4_000_000,
-    damage: '2d20',
+    damage: '1d20',
     power: 10,
     mass: 5,
     hardpoints: 2,
@@ -1119,13 +1133,13 @@ export const FITTINGS: FittingDef[] = [
   {
     id: 'precognitive-nav-chamber',
     name: 'Precognitive Nav Chamber',
-    baseCost: 50_000,
-    costScaled: false,
-    power: 2,
+    baseCost: 100_000,
+    costScaled: true,
+    power: 1,
     powerScaled: false,
-    mass: 1,
+    mass: 0,
     massScaled: false,
-    minClass: 'Cruiser',
+    minClass: 'Frigate',
     repeatable: false,
     description: 'Precog-2 psychic auto-succeeds on drills with difficulty below 9; +2 to mishap roll.',
   },
@@ -1149,9 +1163,9 @@ export const FITTINGS: FittingDef[] = [
     costScaled: false,
     power: 0,
     powerScaled: false,
-    mass: 4,
+    mass: 2,
     massScaled: false,
-    minClass: 'Capital',
+    minClass: 'Cruiser',
     repeatable: true,
     description: 'Holds one fighter-class ship in a hangar bay.',
   },
@@ -1162,7 +1176,7 @@ export const FITTINGS: FittingDef[] = [
     costScaled: false,
     power: 1,
     powerScaled: false,
-    mass: 1,
+    mass: 4,
     massScaled: false,
     minClass: 'Capital',
     repeatable: true,
@@ -1337,6 +1351,175 @@ export const FITTINGS: FittingDef[] = [
     minClass: 'Frigate',
     repeatable: false,
     description: 'Push/pull objects up to one hull class smaller in low gravity; can haul them into cargo bays. Useless near planetary gravity.',
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Ship Mods  (p.109 SWN Revised Deluxe)
+// ---------------------------------------------------------------------------
+
+export const SHIP_MODS: ModDef[] = [
+  {
+    id: 'cargo-efficiency-bays',
+    name: 'Cargo Efficiency Bays',
+    fixRequired: 1,
+    costPct: 10,
+    componentsPerClass: 1,
+    repeatable: false,
+    description: 'Free Mass −10% (round up), but each Mass spent on Cargo Space counts as 2.',
+  },
+  {
+    id: 'compact-magazines',
+    name: 'Compact Magazines',
+    fixRequired: 1,
+    costPct: 5,
+    componentsPerClass: 0,
+    repeatable: false,
+    description: 'The ship can carry twice as much ammunition as normal.',
+  },
+  {
+    id: 'drill-velocity-upgrade',
+    name: 'Drill Velocity Upgrade',
+    fixRequired: 2,
+    costPct: 10,
+    componentsPerClass: 1,
+    repeatable: false,
+    description: 'Spike drive counts as one level better for transit speed and maximum drill range (max drive-6).',
+  },
+  {
+    id: 'emergency-drill-activation',
+    name: 'Emergency Drill Activation',
+    fixRequired: 3,
+    costPct: 20,
+    componentsPerClass: 2,
+    repeatable: false,
+    description: 'Can engage spike drives near a planet. Drill difficulty +2 in-system, +4 if landed. Destroys everything within 200 m. Once per 4 weeks.',
+  },
+  {
+    id: 'emergency-thruster-boost',
+    name: 'Emergency Thruster Boost',
+    fixRequired: 1,
+    costPct: 10,
+    componentsPerClass: 0,
+    repeatable: false,
+    description: 'Once per space combat, gain +2 Speed for three rounds.',
+  },
+  {
+    id: 'engine-optimization',
+    name: 'Engine Optimization',
+    fixRequired: 2,
+    costPct: 10,
+    componentsPerClass: 1,
+    repeatable: false,
+    description: 'Ship Speed increases by 1.',
+  },
+  {
+    id: 'eternal-reactor',
+    name: 'Eternal Reactor',
+    fixRequired: 2,
+    costPct: 5,
+    componentsPerClass: 2,
+    repeatable: false,
+    description: 'Replaces fuel tanks with pretech energy cores. No longer needs to refuel for drills or operation.',
+  },
+  {
+    id: 'extended-mass-support',
+    name: 'Extended Mass Support',
+    fixRequired: 1,
+    costPct: 10,
+    componentsPerClass: 1,
+    repeatable: true,
+    description: 'Lose up to 10 free Power; gain half as many free Mass (rounded down). Can be installed multiple times.',
+  },
+  {
+    id: 'low-emissions',
+    name: 'Low Emissions',
+    fixRequired: 1,
+    costPct: 10,
+    componentsPerClass: 1,
+    repeatable: false,
+    description: 'Any sensor checks to detect the ship have their difficulty increased by +2.',
+  },
+  {
+    id: 'nemesis-tracker',
+    name: 'Nemesis Tracker',
+    fixRequired: 3,
+    costPct: 5,
+    componentsPerClass: 2,
+    repeatable: false,
+    description: 'Once per ship combat, a gunner can take an Instant action to cause a weapon shot to hit, regardless of the hit roll.',
+  },
+  {
+    id: 'oversized-mountings',
+    name: 'Oversized Mountings',
+    fixRequired: 2,
+    costPct: 15,
+    componentsPerClass: 1,
+    repeatable: false,
+    description: 'Mount one specific weapon or fitting that normally requires a hull size one step larger.',
+  },
+  {
+    id: 'power-trunk-streamlining',
+    name: 'Power Trunk Streamlining',
+    fixRequired: 1,
+    costPct: 10,
+    componentsPerClass: 1,
+    repeatable: true,
+    description: 'Lose up to 5 free Mass; gain twice as many free Power. Can be installed multiple times.',
+  },
+  {
+    id: 'q-ship-cladding',
+    name: 'Q-Ship Cladding',
+    fixRequired: 1,
+    costPct: 5,
+    componentsPerClass: 0,
+    repeatable: false,
+    description: 'Weapons concealed from observation and standard scans when not deployed. Ship appears as a merchant or freighter of its size class.',
+  },
+  {
+    id: 'regenerative-armor',
+    name: 'Regenerative Armor',
+    fixRequired: 3,
+    costPct: 15,
+    componentsPerClass: 2,
+    repeatable: false,
+    description: 'Ship Armor score increases by 5 points.',
+  },
+  {
+    id: 'reinforced-armor',
+    name: 'Reinforced Armor',
+    fixRequired: 1,
+    costPct: 5,
+    componentsPerClass: 0,
+    repeatable: false,
+    description: "Ship Armor score increases by the installing engineer's Fix skill. Loses 1 Power and 1 Mass.",
+  },
+  {
+    id: 'specialized-mountings',
+    name: 'Specialized Mountings',
+    fixRequired: 1,
+    costPct: 10,
+    componentsPerClass: 0,
+    repeatable: false,
+    description: 'One chosen weapon or fitting requires only half normal Power and Mass (rounded down, minimum 1).',
+  },
+  {
+    id: 'volley-capacitors',
+    name: 'Volley Capacitors',
+    fixRequired: 2,
+    costPct: 10,
+    componentsPerClass: 0,
+    repeatable: false,
+    description: 'Once per combat, the ship\'s gunner gets 4 Command Points that must be spent on gunnery actions.',
+  },
+  {
+    id: 'weapon-overcharge',
+    name: 'Weapon Overcharge',
+    fixRequired: 2,
+    costPct: 5,
+    componentsPerClass: 0,
+    repeatable: true,
+    description: 'One chosen weapon requires 50% more Power but rolls damage twice and takes the better result. Can be installed multiple times.',
   },
 ];
 

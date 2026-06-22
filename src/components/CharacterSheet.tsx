@@ -359,9 +359,9 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
                     ...char,
                     effort: { ...char.effort, committed: 0 },
                     systemStrain: { ...char.systemStrain, current: Math.max(0, char.systemStrain.current - 1) },
-                    weapons: char.weapons.map(w => w.ammo ? { ...w, ammo: { ...w.ammo, current: w.ammo.max } } : w),
+                    weapons: char.weapons.map(w => w.ammo ? { ...w, ammo: { ...w.ammo, current: w.ammo.max, readied: 0, stowed: w.ammo.max * 3 } } : w),
                   })}
-                  title="Night's Rest — refresh Effort, recover 1 System Strain, reload weapons"
+                  title="Night's Rest — refresh Effort, recover 1 System Strain, reload weapons, resupply ammo"
                   className="px-2.5 py-1 rounded bg-indigo-700/50 hover:bg-indigo-700 text-indigo-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
                 >
                   <Orbit size={16} className="text-yellow-400" /> Night's Rest
@@ -553,6 +553,26 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
                         i === wi && x.ammo ? { ...x, ammo: { ...x.ammo, current: Math.max(0, Math.min(x.ammo.max, cur)) } } : x);
                       onUpdate({ ...char, weapons: next });
                     };
+                    const reload = () => {
+                      if (!w.ammo) return;
+                      const availableAmmo = w.ammo.readied + w.ammo.stowed;
+                      if (availableAmmo === 0) return;
+                      const ammoToLoad = Math.min(w.ammo.max, availableAmmo);
+                      let newReadied = w.ammo.readied;
+                      let newStowed = w.ammo.stowed;
+                      let toLoad = ammoToLoad;
+                      if (newReadied >= toLoad) {
+                        newReadied -= toLoad;
+                      } else {
+                        toLoad -= newReadied;
+                        newStowed -= toLoad;
+                        newReadied = 0;
+                      }
+                      const next = char.weapons.map((x, i) =>
+                        i === wi && x.ammo ? { ...x, ammo: { ...x.ammo, current: ammoToLoad, readied: newReadied, stowed: newStowed } } : x);
+                      onUpdate({ ...char, weapons: next });
+                    };
+                    const hasAmmo = w.ammo && (w.ammo.readied > 0 || w.ammo.stowed > 0);
                     return (
                       <tr key={`${w.name}-${wi}`} className={`border-b border-gray-800 ${w.notCarried ? 'opacity-40' : w.readied === false ? 'opacity-60' : ''}`}>
                         <td className="py-2 pr-4 font-medium text-gray-200">
@@ -568,14 +588,44 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
                         <td className="py-2 pr-4 text-right text-gray-500 text-xs">{w.range ?? 'Melee'}</td>
                         <td className="py-2 pr-4">
                           {!w.notCarried && w.ammo ? (
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button onClick={() => setAmmo(w.ammo!.current - 1)} disabled={w.ammo.current <= 0}
-                                className="w-6 h-6 rounded bg-gray-700 hover:bg-red-900/50 disabled:opacity-20 text-gray-300 text-xs" title="Fire (−1)">−</button>
-                              <span className={`font-mono text-sm w-12 text-center ${w.ammo.current === 0 ? 'text-red-400' : 'text-gray-200'}`}>
-                                {w.ammo.current}/{w.ammo.max}
-                              </span>
-                              <button onClick={() => setAmmo(w.ammo!.max)}
-                                className="px-1.5 h-6 rounded bg-gray-700 hover:bg-amber-900/50 text-gray-300 text-xs" title="Reload">⟳</button>
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button onClick={() => setAmmo(w.ammo!.current - 1)} disabled={w.ammo.current <= 0}
+                                  className="w-6 h-6 rounded bg-gray-700 hover:bg-red-900/50 disabled:opacity-20 text-gray-300 text-xs" title="Fire (−1)">−</button>
+                                <span className={`font-mono text-sm w-12 text-center ${w.ammo.current === 0 ? 'text-red-400' : 'text-gray-200'}`}>
+                                  {w.ammo.current}/{w.ammo.max}
+                                </span>
+                                <button onClick={reload} disabled={!hasAmmo}
+                                  className={`px-1.5 h-6 rounded text-gray-300 text-xs transition-colors ${hasAmmo ? 'bg-gray-700 hover:bg-amber-900/50' : 'bg-gray-800 opacity-40'}`}
+                                  title={hasAmmo ? 'Reload' : 'No ammo available'}>⟳</button>
+                              </div>
+                              <div className="text-xs flex items-center gap-1">
+                                {w.ammo.readied > 0 && (
+                                  <div className="flex items-center gap-0.5">
+                                    <span className="text-blue-400">r:{w.ammo.readied}</span>
+                                    <button onClick={() => {
+                                      const next = char.weapons.map((x, i) =>
+                                        i === wi && x.ammo ? { ...x, ammo: { ...x.ammo, readied: Math.max(0, x.ammo.readied - 1), stowed: x.ammo.stowed + 1 } } : x);
+                                      onUpdate({ ...char, weapons: next });
+                                    }}
+                                      className="w-4 h-4 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs" title="Stow 1">→</button>
+                                  </div>
+                                )}
+                                {w.ammo.stowed > 0 && (
+                                  <div className="flex items-center gap-0.5">
+                                    <button onClick={() => {
+                                      const next = char.weapons.map((x, i) =>
+                                        i === wi && x.ammo ? { ...x, ammo: { ...x.ammo, stowed: Math.max(0, x.ammo.stowed - 1), readied: x.ammo.readied + 1 } } : x);
+                                      onUpdate({ ...char, weapons: next });
+                                    }}
+                                      className="w-4 h-4 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs" title="Ready 1">←</button>
+                                    <span className="text-amber-600">s:{w.ammo.stowed}</span>
+                                  </div>
+                                )}
+                                {w.ammo.readied === 0 && w.ammo.stowed === 0 && (
+                                  <span className="text-red-500">no ammo</span>
+                                )}
+                              </div>
                             </div>
                           ) : (
                             <div className="text-center text-xs text-gray-600">—</div>

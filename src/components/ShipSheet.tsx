@@ -341,15 +341,39 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
         a.weaponId === weaponId ? { ...a, current: Math.max(0, Math.min(a.max, current)) } : a
       );
     } else {
-      updated = [...ship.weaponAmmo, { weaponId, current: Math.max(0, current), max: 100 }];
+      updated = [...ship.weaponAmmo, { weaponId, current: Math.max(0, current), max: 100, readied: 0, stowed: 300 }];
     }
+    onUpdate({ ...ship, weaponAmmo: updated });
+  }
+
+  function reloadWeaponAmmo(weaponId: string) {
+    const ammo = ship.weaponAmmo.find(a => a.weaponId === weaponId);
+    if (!ammo || ammo.readied === 0 && ammo.stowed === 0) return;
+
+    const availableAmmo = ammo.readied + ammo.stowed;
+    const ammoToLoad = Math.min(ammo.max, availableAmmo);
+    let newReadied = ammo.readied;
+    let newStowed = ammo.stowed;
+    let toLoad = ammoToLoad;
+
+    if (newReadied >= toLoad) {
+      newReadied -= toLoad;
+    } else {
+      toLoad -= newReadied;
+      newStowed -= toLoad;
+      newReadied = 0;
+    }
+
+    const updated = ship.weaponAmmo.map(a =>
+      a.weaponId === weaponId ? { ...a, current: ammoToLoad, readied: newReadied, stowed: newStowed } : a
+    );
     onUpdate({ ...ship, weaponAmmo: updated });
   }
 
   function initializeWeaponAmmo(weaponId: string, max: number) {
     const existing = ship.weaponAmmo.find(a => a.weaponId === weaponId);
     if (!existing) {
-      const updated = [...ship.weaponAmmo, { weaponId, current: max, max }];
+      const updated = [...ship.weaponAmmo, { weaponId, current: max, max, readied: 0, stowed: max * 3 }];
       onUpdate({ ...ship, weaponAmmo: updated });
     }
   }
@@ -667,15 +691,48 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
                             </div>
                           )}
                           {ammo && (
-                            <div className="flex items-center gap-2 ml-5">
-                              <span className="text-xs text-gray-400">Ammo:</span>
-                              <input
-                                type="number"
-                                value={ammo.current}
-                                onChange={e => setWeaponAmmo(def.id, Math.round(Number(e.target.value)))}
-                                className="w-12 bg-gray-900/60 border border-gray-700 rounded px-1.5 py-0.5 text-xs text-gray-200 text-center focus:outline-none focus:border-amber-500 [appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
-                              />
-                              <span className="text-xs text-gray-500">/ {ammo.max}</span>
+                            <div className="flex flex-col gap-1.5 ml-5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-400">Magazine:</span>
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => setWeaponAmmo(def.id, ammo.current - 1)} disabled={ammo.current <= 0}
+                                    className="w-5 h-5 rounded bg-gray-700 hover:bg-red-900/50 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center" title="Fire">−</button>
+                                  <input
+                                    type="number"
+                                    value={ammo.current}
+                                    onChange={e => setWeaponAmmo(def.id, Math.round(Number(e.target.value)))}
+                                    className="w-10 bg-gray-900/60 border border-gray-700 rounded px-1.5 py-0.5 text-xs text-gray-200 text-center focus:outline-none focus:border-amber-500 [appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
+                                  />
+                                  <span className="text-xs text-gray-500">/ {ammo.max}</span>
+                                  <button onClick={() => reloadWeaponAmmo(def.id)} disabled={ammo.readied === 0 && ammo.stowed === 0}
+                                    className={`px-1.5 h-5 rounded text-xs transition-colors flex items-center justify-center ${(ammo.readied > 0 || ammo.stowed > 0) ? 'bg-gray-700 hover:bg-amber-900/50 text-gray-300' : 'bg-gray-800 opacity-40 text-gray-500'}`} title={ammo.readied > 0 || ammo.stowed > 0 ? 'Reload' : 'No ammo available'}>⟳</button>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 text-xs">
+                                {ammo.readied > 0 && (
+                                  <div className="flex items-center gap-0.5">
+                                    <span className="text-blue-400">r:{ammo.readied}</span>
+                                    <button onClick={() => {
+                                      const updated = ship.weaponAmmo.map(a => a.weaponId === def.id ? { ...a, readied: Math.max(0, a.readied - 1), stowed: a.stowed + 1 } : a);
+                                      onUpdate({ ...ship, weaponAmmo: updated });
+                                    }}
+                                      className="w-4 h-4 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs flex items-center justify-center" title="Stow 1">→</button>
+                                  </div>
+                                )}
+                                {ammo.stowed > 0 && (
+                                  <div className="flex items-center gap-0.5">
+                                    <button onClick={() => {
+                                      const updated = ship.weaponAmmo.map(a => a.weaponId === def.id ? { ...a, stowed: Math.max(0, a.stowed - 1), readied: a.readied + 1 } : a);
+                                      onUpdate({ ...ship, weaponAmmo: updated });
+                                    }}
+                                      className="w-4 h-4 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs flex items-center justify-center" title="Ready 1">←</button>
+                                    <span className="text-amber-600">s:{ammo.stowed}</span>
+                                  </div>
+                                )}
+                                {ammo.readied === 0 && ammo.stowed === 0 && (
+                                  <span className="text-red-500">no ammo</span>
+                                )}
+                              </div>
                             </div>
                           )}
                           {broken && (

@@ -14,6 +14,8 @@ export interface WeaponAmmo {
   weaponId: string;
   current: number;
   max: number;
+  readied: number;  // easily accessible ammo
+  stowed: number;   // in cargo/stores
 }
 
 export interface MechCarried {

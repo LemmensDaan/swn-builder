@@ -56,8 +56,9 @@ export interface WeaponEntry {
   attackBonus: number;
   shock?: string;
   notes?: string;
-  /** Live ammo tracking for play. max 0 / undefined = no magazine (melee, unlimited). */
-  ammo?: { current: number; max: number };
+  /** Live ammo tracking for play. max 0 / undefined = no magazine (melee, unlimited).
+   * readied = easily accessible ammo; stowed = in backpack. Reload only possible if readied > 0 || stowed > 0. */
+  ammo?: { current: number; max: number; readied: number; stowed: number };
   /** Encumbrance placement. undefined = Readied (default for weapons). */
   readied?: boolean;
   /** Left at ship/base — contributes zero encumbrance. */

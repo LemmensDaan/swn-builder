@@ -193,7 +193,7 @@ export default function Step8Equipment({ char, onChange, postCreation }: Props) 
       range: w.range,
       shock: w.shock,
       attackBonus: 0,
-      ammo: w.ammoMax ? { current: w.ammoMax, max: w.ammoMax } : undefined,
+      ammo: w.ammoMax ? { current: w.ammoMax, max: w.ammoMax, readied: 0, stowed: w.ammoMax * 3 } : undefined,
     }));
     const armor: Character['armor'] = pkg.armor.map(a => ({ name: a.name, ac: a.ac }));
     // Budget = leftover credits + cost of any package gear the cost-table recognises, so the
@@ -422,7 +422,7 @@ export default function Step8Equipment({ char, onChange, postCreation }: Props) 
                             const magMax = parseInt(w.magazine, 10);
                             addWeapon({
                               name: w.name, damage: w.damage, range: w.range + 'm', attackBonus: 0,
-                              ammo: Number.isFinite(magMax) && magMax > 0 ? { current: magMax, max: magMax } : undefined,
+                              ammo: Number.isFinite(magMax) && magMax > 0 ? { current: magMax, max: magMax, readied: 0, stowed: magMax * 3 } : undefined,
                             });
                           }
                         }}
@@ -494,7 +494,7 @@ export default function Step8Equipment({ char, onChange, postCreation }: Props) 
                               const magMax = parseInt(w.magazine, 10);
                               addWeapon({
                                 name: w.name, damage: w.damage, range: w.range + 'm', attackBonus: 0,
-                                ammo: Number.isFinite(magMax) && magMax > 0 ? { current: magMax, max: magMax } : undefined,
+                                ammo: Number.isFinite(magMax) && magMax > 0 ? { current: magMax, max: magMax, readied: 0, stowed: magMax * 3 } : undefined,
                               });
                             }
                           }}

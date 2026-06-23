@@ -108,17 +108,20 @@ function CameraIntroAnimator({
   introOpacityRef,
   onStarfieldOpacityChange,
   onDone,
+  isMobile,
 }: {
   camDistance: number;
   introOpacityRef: React.MutableRefObject<number>;
   onStarfieldOpacityChange: (opacity: number) => void;
   onDone: () => void;
+  isMobile: boolean;
 }) {
   const { camera } = useThree();
   const progress = useRef(0);
   const done = useRef(false);
 
-  const endPos = new THREE.Vector3(0, camDistance * 0.4 * 0.4, camDistance * 0.4);
+  const mobileMultiplier = isMobile ? 3 : 1;
+  const endPos = new THREE.Vector3(0, camDistance * 0.4 * 0.4 * mobileMultiplier, camDistance * 0.4 * mobileMultiplier);
   const startPos = endPos.clone().multiplyScalar(12);
 
   useFrame((_, delta) => {
@@ -224,7 +227,7 @@ export default function SystemViewer() {
       {/* 3D Canvas */}
       <div className="flex-1 min-w-0 relative" onContextMenu={e => e.preventDefault()}>
         <Canvas
-          camera={{ position: [0, camDistance * 0.4 * 0.4 * 12, camDistance * 0.4 * 12], fov: 60 }}
+          camera={{ position: [0, camDistance * 0.4 * 0.4 * 12 * (isMobile ? 1.2 : 1), camDistance * 0.4 * 12 * (isMobile ? 1.2 : 1)], fov: 60 }}
           dpr={[1, isMobile ? 1.5 : 2]}
           shadows
           gl={{ antialias: !isMobile, alpha: true }}
@@ -244,6 +247,7 @@ export default function SystemViewer() {
               introOpacityRef={introOpacityRef}
               onStarfieldOpacityChange={setStarfieldOpacity}
               onDone={() => setIntroComplete(true)}
+              isMobile={isMobile}
             />
           )}
           <SystemScene

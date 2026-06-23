@@ -7,7 +7,7 @@ export type ObjectType =
 
 export type PlanetType =
   | 'Terran' | 'Arid' | 'Ocean' | 'Ice'
-  | 'GasGiant' | 'Toxic' | 'Barren' | 'Volcanic' | 'TidallyLocked';
+  | 'GasGiant' | 'Toxic' | 'Barren' | 'Volcanic';
 
 export type NebulaShape = 'emission' | 'diffuse' | 'wall' | 'planetary' | 'supernova' | 'reflection' | 'bipolar0' | 'bipolar1' | 'bipolar2';
 
@@ -61,7 +61,6 @@ export interface SystemObject {
   planetType?: PlanetType;
   primaryColor?: string;
   secondaryColor?: string;
-  tertiaryColor?: string;
   iceCaps?: boolean;
   rings?: boolean;
   // Per-ring band configuration — the source of truth for ring rendering/editing.

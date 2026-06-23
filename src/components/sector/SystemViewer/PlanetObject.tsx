@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { SystemObject } from '../../../types/sector';
 import OrbitRing from './OrbitRing';
 import PlanetRings, { resolveRingBands } from './PlanetRings';
-import { generatePlanetGeometry, PLANET_PRESETS, mulberry32 } from './planetRenderer';
+import { generatePlanetGeometry, getPlanetLODDetail, PLANET_PRESETS, mulberry32 } from './planetRenderer';
 import { getOrbitPosition } from './orbitUtils';
 import PlanetPOIMarkers, { posToLatLon } from './PlanetPOIMarkers';
 import { useSafeSystemViewerContext } from './SystemViewerContext';
@@ -110,26 +110,22 @@ function makeGasGiantGlowTexture(): THREE.Texture {
   return new THREE.CanvasTexture(canvas);
 }
 
-function buildGeo(obj: SystemObject): THREE.BufferGeometry {
-  // Use planet type and colors from the object
+function buildGeo(obj: SystemObject, detailOverride?: number): THREE.BufferGeometry {
   const planetType = obj.planetType ?? 'Barren';
   const preset = PLANET_PRESETS[planetType];
   const seed = obj.seed ?? Math.abs((obj.name.charCodeAt(0) ?? 42) * 137 + (obj.sortOrder * 31));
 
-  // Prefer colors[] from color swatches, fall back to preset
   const primaryColor = obj.colors[0] ?? obj.primaryColor ?? preset.primaryColor;
   const secondaryColor = obj.colors[1] ?? obj.colors[0] ?? obj.secondaryColor ?? preset.secondaryColor;
-  const tertiaryColor = obj.tertiaryColor ?? preset.tertiaryColor;
 
   return generatePlanetGeometry(
     seed,
     planetType,
     primaryColor,
     secondaryColor,
-    tertiaryColor,
     obj.iceCaps ?? false,
     obj.size,
-    obj.inclination ?? 0,
+    detailOverride,
   );
 }
 
@@ -147,39 +143,47 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
   const axisGroupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh | null>(null);
   const [hovered, setHovered] = useState(false);
+  const [currentLODDetail, setCurrentLODDetail] = useState<number | null>(null);
   const systemViewerCtx = useSafeSystemViewerContext();
+  const { camera } = useThree();
   const isGasGiant = obj.planetType === 'GasGiant';
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const planetType = obj.planetType ?? 'Barren';
+  const baseDetail = PLANET_PRESETS[planetType].detail;
+
   const { mat: planetMat, uniforms: ringUniforms } = useMemo(() => buildPlanetMaterial(), []);
-  // Reusable vector for ring normal computation — avoids per-frame allocation.
   const ringNormTmp = useRef(new THREE.Vector3());
-
   const angleRef = useRef(mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2);
-
   const orbitSpeed = obj.orbitSpeed > 0 ? obj.orbitSpeed : (obj.orbitRadius > 0 ? 0.3 / Math.sqrt(obj.orbitRadius) : 0);
 
+  // Cache geometries for different detail levels to avoid regeneration
+  const geoCache = useRef<Map<number, THREE.BufferGeometry>>(new Map());
+
+  const getGeometryForDetail = (detail: number): THREE.BufferGeometry => {
+    if (!geoCache.current.has(detail)) {
+      geoCache.current.set(detail, buildGeo(obj, detail));
+    }
+    return geoCache.current.get(detail)!;
+  };
+
   const geo = useMemo(
-    () => buildGeo(obj),
+    () => getGeometryForDetail(currentLODDetail ?? baseDetail),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [obj.seed, obj.size, obj.planetType, obj.primaryColor, obj.secondaryColor, obj.iceCaps, obj.colors[0], obj.colors[1]],
+    [obj.seed, obj.size, obj.planetType, obj.primaryColor, obj.secondaryColor, obj.iceCaps, obj.colors[0], obj.colors[1], currentLODDetail],
   );
 
   const glowTex = useMemo(() => (isGasGiant && highQuality ? makeGasGiantGlowTexture() : null), [isGasGiant, highQuality]);
-
   const _worldPos = useMemo(() => new THREE.Vector3(), []);
-
-  const _toStar  = useRef(new THREE.Vector3());
-  const _upVec   = useRef(new THREE.Vector3(0, 1, 0));
-  const _rotAxis = useRef(new THREE.Vector3());
-  const _rotQuat = useRef(new THREE.Quaternion());
-
   const memoRingBands = useMemo(() => resolveRingBands(obj), [obj]);
 
   useEffect(() => () => { glowTex?.dispose(); }, [glowTex]);
-  useEffect(() => () => { geo.dispose(); }, [geo]);
+  useEffect(() => () => {
+    geoCache.current.forEach(g => g.dispose());
+    geoCache.current.clear();
+  }, []);
 
   useFrame((_, delta) => {
-    // Clamp delta to prevent animation lurches after tab backgrounding
     delta = Math.min(delta, 0.05);
 
     angleRef.current += delta * orbitSpeed;
@@ -189,6 +193,12 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
       groupRef.current.position.set(x, y, z);
       groupRef.current.getWorldPosition(_worldPos);
       onPositionUpdate?.([_worldPos.x, _worldPos.y, _worldPos.z]);
+
+      const cameraDistance = camera.position.distanceTo(_worldPos);
+      const lodDetail = getPlanetLODDetail(baseDetail, cameraDistance, isMobile);
+      if (lodDetail !== currentLODDetail) {
+        setCurrentLODDetail(lodDetail);
+      }
     }
 
     if (meshRef.current && axisGroupRef.current) {
@@ -197,21 +207,8 @@ export default function PlanetObject({ obj, children, onPositionUpdate, onClick,
         axisGroupRef.current.rotation.z = THREE.MathUtils.degToRad(obj.axisInclination);
       }
 
-      if (obj.planetType === 'TidallyLocked') {
-        _toStar.current.set(-x, -y, -z).normalize();
-        const dotProduct = _upVec.current.dot(_toStar.current);
-        if (Math.abs(dotProduct) < 0.999) {
-          _rotAxis.current.crossVectors(_upVec.current, _toStar.current).normalize();
-          const angle = Math.acos(Math.max(-1, Math.min(1, dotProduct)));
-          _rotQuat.current.setFromAxisAngle(_rotAxis.current, angle);
-          meshRef.current.quaternion.copy(_rotQuat.current);
-        } else {
-          meshRef.current.quaternion.identity();
-        }
-      } else {
-        // Normal rotation around the axis (which is tilted by axisInclination)
-        meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
-      }
+      // Normal rotation around the axis (which is tilted by axisInclination)
+      meshRef.current.rotation.y += delta * (obj.selfRotationSpeed || 0.15);
     }
 
     // Update analytic ring shadow uniforms every frame.

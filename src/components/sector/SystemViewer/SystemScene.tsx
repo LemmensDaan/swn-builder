@@ -22,9 +22,10 @@ interface Props {
   introOpacityRef?: React.MutableRefObject<number>;
   starfieldOpacity?: number;
   prefs?: SystemPrefs;
+  systemRadius?: number;
 }
 
-export default function SystemScene({ system, selectedObjectId: _selectedObjectId, onObjectClick, objectPositionsRef, previewMode, introOpacityRef, starfieldOpacity = 0.85, prefs }: Props) {
+export default function SystemScene({ system, selectedObjectId: _selectedObjectId, onObjectClick, objectPositionsRef, previewMode, introOpacityRef, starfieldOpacity = 0.85, prefs, systemRadius }: Props) {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const sorted = sortSystemObjects(system.objects);
   const STELLAR = ['Star', 'BlackHole', 'NeutronStar'];
@@ -87,6 +88,8 @@ export default function SystemScene({ system, selectedObjectId: _selectedObjectI
         onClick={onObjectClick}
         showOrbits={prefs?.showOrbits}
         highQuality={prefs?.highQuality ?? !isMobile}
+        systemRadius={systemRadius}
+        asteroidShadows={prefs?.asteroidShadows ?? false}
       >
         {children.map(c => renderObject(c))}
       </StarObject>

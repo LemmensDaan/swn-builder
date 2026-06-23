@@ -644,6 +644,8 @@ const JET_OFFSET = THREE.MathUtils.degToRad(14); // magnetic-axis offset from sp
 const JET_CONE   = THREE.MathUtils.degToRad(7);  // precession cone half-angle
 const JET_PRECESS_SPEED = 0.4; // rad/s — slow precession wobble (independent of spin)
 
+import { configureShadowLight } from './shadowUtils';
+
 interface Props {
   obj: SystemObject;
   children?: React.ReactNode;
@@ -652,12 +654,14 @@ interface Props {
   previewMode?: boolean;
   showOrbits?: boolean;
   highQuality?: boolean;
+  systemRadius?: number;
+  asteroidShadows?: boolean;
 }
 
-export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true, highQuality = true }: Props) {
-  // Cap shadow map on mobile (1024) to keep shadows affordable; desktop honours quality (2048 HQ / 512 LQ).
+export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true, highQuality = true, systemRadius = 50, asteroidShadows = false }: Props) {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  const shadowMapSize = isMobile ? 1024 : (highQuality ? 2048 : 512);
+  // Desktop: 2048px. Mobile: 1024px (2048 if asteroid shadows enabled).
+  const shadowMapSize = !isMobile || asteroidShadows ? 2048 : 1024;
   const groupRef        = useRef<THREE.Group>(null);
   const axisGroupRef    = useRef<THREE.Group>(null);
   const meshRef         = useRef<THREE.Mesh>(null);
@@ -669,6 +673,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
   const jetSpinRef      = useRef<THREE.Group>(null);
   const jetPrecessRef   = useRef<THREE.Group>(null);
   const localTimeRef    = useRef(0);
+  const lightRef        = useRef<THREE.PointLight>(null);
 
   const [hovered, setHovered] = useState(false);
   const color      = obj.colors[0] ?? '#FFF4C2';
@@ -799,6 +804,11 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
 
   useEffect(() => () => { nsGeo?.dispose(); }, [nsGeo]);
 
+  useEffect(() => {
+    if (previewMode || !lightRef.current) return;
+    configureShadowLight(lightRef.current, systemRadius, shadowMapSize);
+  }, [previewMode, systemRadius, shadowMapSize]);
+
   // Binary orbit - use phase offset for starting position (or default to opposite for primary)
   let initialAngle = obj.orbitPhaseOffset ?? (mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2);
   if (obj.sortOrder === 1 && !obj.orbitPhaseOffset) initialAngle += Math.PI;
@@ -890,6 +900,7 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
       <group ref={groupRef} name={obj.id}>
         {!previewMode && (
           <pointLight
+            ref={lightRef}
             color={color}
             intensity={isBlackHole ? 180 : isNeutron ? 350 : 250}
             distance={isBlackHole ? 400 : isNeutron ? 700 : 500}

@@ -302,20 +302,6 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
               />
             </label>
           ))}
-          {obj.planetType === 'TidallyLocked' && (
-            <label title="Twilight zone color" className="cursor-pointer">
-              <div
-                className="w-4 h-4 rounded-sm border border-gray-600 hover:scale-110 transition-transform"
-                style={{ background: obj.tertiaryColor ?? '#2d8d2d' }}
-              />
-              <input
-                type="color"
-                className="sr-only"
-                value={obj.tertiaryColor ?? '#2d8d2d'}
-                onChange={e => onChange({ tertiaryColor: e.target.value })}
-              />
-            </label>
-          )}
           {!isSingleColorType && obj.colors.length === 1 && (
             <button
               title="Add second color"
@@ -462,7 +448,6 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
                             <option value="Toxic">Toxic</option>
                             <option value="Barren">Barren</option>
                             <option value="Volcanic">Volcanic</option>
-                            <option value="TidallyLocked">Tidally Locked</option>
                           </select>
                         </label>
                       )}

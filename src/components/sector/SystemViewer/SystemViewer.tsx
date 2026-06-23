@@ -14,6 +14,7 @@ import { loadPrefs, savePrefs } from './systemPrefs';
 import type { SystemPrefs } from './systemPrefs';
 import { SystemViewerContext } from './SystemViewerContext';
 import { POI_COLORS, POI_LABELS } from './PlanetPOIMarkers';
+import { setupShadowFiltering } from './shadowUtils';
 
 
 function CameraFollower({ selectedObjectId, selectedObjectSize, objectPositionsRef, orbitControlsRef }: any) {
@@ -243,6 +244,7 @@ export default function SystemViewer() {
           shadows
           gl={{ antialias: !isMobile, alpha: true }}
           onCreated={({ gl }) => {
+            setupShadowFiltering(gl);
             // WebGL context loss recovery for mobile tab switching
             gl.domElement.addEventListener('webglcontextlost', (e) => {
               e.preventDefault();
@@ -269,6 +271,7 @@ export default function SystemViewer() {
             introOpacityRef={introComplete ? undefined : introOpacityRef}
             starfieldOpacity={starfieldOpacity}
             prefs={prefs}
+            systemRadius={furthestOrbit}
           />
           <CameraFollower selectedObjectId={selectedObjectId} selectedObjectSize={selectedObjectSize} objectPositionsRef={objectPositionsRef} orbitControlsRef={orbitControlsRef} />
           <OrbitControls

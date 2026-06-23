@@ -315,8 +315,9 @@ describe('All 6 psychic disciplines — Effort at level-0 and level-1', () => {
       expect(calcEffort({ [disc.skill]: 0 }, allTen)).toBe(1);
     });
 
-    it(`${disc.skill} level-1 + WIS 14: Effort = 3`, () => {
-      expect(calcEffort({ [disc.skill]: 1 }, { ...allTen, WIS: 14 })).toBe(3);
+    it(`${disc.skill} level-1 + WIS 14: Effort = ${disc.skill === 'Metapsionics' ? 4 : 3}`, () => {
+      // Metapsionics level-1 grants +1 Effort via Psychic Refinement (p.38).
+      expect(calcEffort({ [disc.skill]: 1 }, { ...allTen, WIS: 14 })).toBe(disc.skill === 'Metapsionics' ? 4 : 3);
     });
   }
 });

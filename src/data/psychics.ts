@@ -107,7 +107,7 @@ export const PSYCHIC_DISCIPLINES: PsychicDiscipline[] = [
     coreTechnique: {
       name: 'Telekinetic Manipulation',
       levels: [
-        'Level 0: Exert force as with one hand and your own strength.',
+        'Level 0: Main Action + Commit Effort for the scene. Move or manipulate an immobile unliving object up to 20 m/round with one hand\'s force; objects with HP take 1d6 per skill level per round.',
         'Level 1: Manipulate with both hands; lift up to 200 kilograms.',
         'Level 2: Lift/manipulate up to 400 kilograms; smash a human-sized hole in light wooden structures.',
         'Level 3: Lift/manipulate up to 800 kilograms; affect as many individual objects as you have Telekinesis skill levels.',

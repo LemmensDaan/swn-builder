@@ -142,12 +142,23 @@ export function calcSaves(attrs: Record<AttributeName, number>, level: number) {
   return { physical, evasion, mental };
 }
 
-export function calcEffort(skills: SkillLevels, attrs: Record<AttributeName, number>): number {
+export function calcEffort(
+  skills: SkillLevels,
+  attrs: Record<AttributeName, number>,
+  foci?: FocusSelection[],
+): number {
   const psychicSkills = ['Biopsionics', 'Metapsionics', 'Precognition', 'Telekinesis', 'Telepathy', 'Teleportation'];
   const highest = Math.max(...psychicSkills.map(s => skills[s as keyof SkillLevels] ?? -1));
   if (highest < 0) return 1;
   const attrBonus = Math.max(attrMod(attrs.WIS), attrMod(attrs.CON));
-  return Math.max(1, 1 + highest + attrBonus);
+  let effort = Math.max(1, 1 + highest + attrBonus);
+  // Metapsionics core "Psychic Refinement": +1 max Effort at skill 1, another +1 at skill 3 (p.38).
+  const meta = (skills['Metapsionics'] as number | undefined) ?? -1;
+  if (meta >= 1) effort += 1;
+  if (meta >= 3) effort += 1;
+  // Psychic Training focus: +1 max Effort (p.22).
+  if (foci?.some(f => f.name === 'Psychic Training')) effort += 1;
+  return effort;
 }
 
 export function calcAttackBonus(cls: ClassName, partials: AdventurerPartial[] | undefined, level: number): number {

@@ -53,9 +53,8 @@ export function generatePlanetGeometry(
   const detail = detailOverride ?? (PLANET_PRESETS[type]?.detail ?? 1);
 
   const base = new THREE.IcosahedronGeometry(size, detail);
-  const flat = base.toNonIndexed();
-  base.dispose();
-
+  const flat = base.index ? base.toNonIndexed() : base;
+  if (flat !== base) base.dispose();
   const positions = flat.getAttribute('position') as THREE.BufferAttribute;
   const colorData: number[] = [];
 

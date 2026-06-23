@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SystemObject, RingBand } from '../../../types/sector';
 import { mulberry32 } from './planetRenderer';
@@ -81,13 +81,15 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
   // Keep latest opacity accessible inside useFrame without stale closure.
   const opacityRef = useRef(opacity);
   opacityRef.current = opacity;
+  const { camera } = useThree();
 
   const baseColor = useMemo(() => ringColorFromHex(band.color), [band.color]);
   const incRad = THREE.MathUtils.degToRad(band.inclination);
   // Debris orbits within the ring's own plane — inner rings a touch faster (Keplerian-ish).
   const orbitSpeed = 0.12 / Math.sqrt(Math.max(0.5, band.size));
+  const grainMatRef = useRef<THREE.MeshLambertMaterial>(null);
 
-  useFrame(({ camera }, delta) => {
+  useFrame((_, delta) => {
     // Clamp delta to prevent animation lurches after tab backgrounding
     delta = Math.min(delta, 0.05);
 
@@ -95,11 +97,20 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
 
     // LOD: ramp disc opacity from 70 % (close) to 100 % (far) so rings read as
     // solid semi-transparent bands when zoomed out rather than sparse grains.
+    // On mobile, also fade the individual grain particles based on distance.
     if (discMatRef.current && spinRef.current) {
       spinRef.current.getWorldPosition(worldPosRef.current);
       const dist = camera.position.distanceTo(worldPosRef.current);
       const farFactor = THREE.MathUtils.smoothstep(dist, 10, 35);
       discMatRef.current.opacity = opacityRef.current * (0.7 + farFactor * 0.3);
+
+      if (grainMatRef.current && meshRef.current) {
+        const fadeStart = planetSize * 6;
+        const fadeEnd = planetSize * 10;
+        const grainFade = 1 - THREE.MathUtils.smoothstep(dist, fadeStart, fadeEnd);
+        grainMatRef.current.opacity = grainFade;
+        meshRef.current.visible = grainFade > 0.01;
+      }
     }
   });
 
@@ -114,7 +125,13 @@ function RingBandMesh({ band, planetSize, opacity, seed }: BandMeshProps) {
   );
 
   const geo = useMemo(() => new THREE.OctahedronGeometry(0.007, 0), []);
-  const mat = useMemo(() => new THREE.MeshLambertMaterial({ color: '#ffffff', flatShading: true }), []);
+  const mat = useMemo(() => new THREE.MeshLambertMaterial({ color: '#ffffff', flatShading: true, transparent: true, opacity: 1 }), []);
+
+  useEffect(() => {
+    if (!meshRef.current) return;
+    // Attach material ref for fade control
+    grainMatRef.current = meshRef.current.material as THREE.MeshLambertMaterial;
+  }, []);
 
   useEffect(() => {
     if (!meshRef.current) return;

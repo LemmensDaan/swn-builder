@@ -206,6 +206,9 @@ export default function SystemViewer() {
       setInfoPanelObjectId(null);
     }
     setInfoPanelTab('overview');
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
   }
 
   const selectedObjectSize = selectedObjectId
@@ -225,7 +228,15 @@ export default function SystemViewer() {
     <SystemViewerContext.Provider value={systemViewerCtxValue}>
     <div className="flex h-full relative">
       {/* 3D Canvas */}
-      <div className="flex-1 min-w-0 relative" onContextMenu={e => e.preventDefault()}>
+      <div
+        className="flex-1 min-w-0 relative"
+        onContextMenu={e => e.preventDefault()}
+        onClick={() => {
+          if (isMobile && sidebarOpen) {
+            setSidebarOpen(false);
+          }
+        }}
+      >
         <Canvas
           camera={{ position: [0, camDistance * 0.4 * 0.4 * 12 * (isMobile ? 1.2 : 1), camDistance * 0.4 * 12 * (isMobile ? 1.2 : 1)], fov: 60 }}
           dpr={[1, isMobile ? 1.5 : 2]}

@@ -658,7 +658,7 @@ interface Props {
 }
 
 export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true, highQuality = true, asteroidShadows: _asteroidShadows = false }: Props) {
-  const shadowMapSize = 2048;
+  const shadowMapSize = 4096;
   const groupRef        = useRef<THREE.Group>(null);
   const axisGroupRef    = useRef<THREE.Group>(null);
   const meshRef         = useRef<THREE.Mesh>(null);

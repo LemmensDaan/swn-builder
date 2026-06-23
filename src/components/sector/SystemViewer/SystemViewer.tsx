@@ -271,7 +271,6 @@ export default function SystemViewer() {
             introOpacityRef={introComplete ? undefined : introOpacityRef}
             starfieldOpacity={starfieldOpacity}
             prefs={prefs}
-            systemRadius={furthestOrbit}
           />
           <CameraFollower selectedObjectId={selectedObjectId} selectedObjectSize={selectedObjectSize} objectPositionsRef={objectPositionsRef} orbitControlsRef={orbitControlsRef} />
           <OrbitControls

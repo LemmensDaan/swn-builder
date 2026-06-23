@@ -654,14 +654,11 @@ interface Props {
   previewMode?: boolean;
   showOrbits?: boolean;
   highQuality?: boolean;
-  systemRadius?: number;
   asteroidShadows?: boolean;
 }
 
-export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true, highQuality = true, systemRadius = 50, asteroidShadows = false }: Props) {
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  // Desktop: 2048px. Mobile: 1024px (2048 if asteroid shadows enabled).
-  const shadowMapSize = !isMobile || asteroidShadows ? 2048 : 1024;
+export default function StarObject({ obj, children, onPositionUpdate, onClick, previewMode, showOrbits = true, highQuality = true, asteroidShadows: _asteroidShadows = false }: Props) {
+  const shadowMapSize = 2048;
   const groupRef        = useRef<THREE.Group>(null);
   const axisGroupRef    = useRef<THREE.Group>(null);
   const meshRef         = useRef<THREE.Mesh>(null);
@@ -806,8 +803,8 @@ export default function StarObject({ obj, children, onPositionUpdate, onClick, p
 
   useEffect(() => {
     if (previewMode || !lightRef.current) return;
-    configureShadowLight(lightRef.current, systemRadius, shadowMapSize);
-  }, [previewMode, systemRadius, shadowMapSize]);
+    configureShadowLight(lightRef.current);
+  }, [previewMode]);
 
   // Binary orbit - use phase offset for starting position (or default to opposite for primary)
   let initialAngle = obj.orbitPhaseOffset ?? (mulberry32(obj.seed ?? obj.sortOrder * 137)() * Math.PI * 2);

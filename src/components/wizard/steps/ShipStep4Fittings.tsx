@@ -37,9 +37,7 @@ function installedQty(list: InstalledItem[], id: string): number {
 // ── Budget bar ────────────────────────────────────────────────────────────────
 
 function BudgetBar({ derived }: { derived: DerivedShip }) {
-  const { powerUsed, massUsed, hull } = derived;
-  const powerTotal = hull.powerFree;
-  const massTotal = hull.massFree;
+  const { powerUsed, massUsed, powerTotal, massTotal } = derived;
   const overPower = powerUsed > powerTotal;
   const overMass = massUsed > massTotal;
 
@@ -307,7 +305,11 @@ export default function ShipStep4Fittings({ ship, derived, onChange }: Props) {
                 <div className="flex gap-3 mt-2 text-xs text-gray-500">
                   <span>Pwr {scaledPower > 0 ? <span className="text-sky-400 font-mono">{scaledPower}</span> : '—'}</span>
                   <span>Mass {scaledMass > 0 ? <span className="text-amber-400 font-mono">{scaledMass}</span> : '—'}</span>
-                  <span className="ml-auto">{scaledCost > 0 ? scaledCost.toLocaleString() + ' cr' : '—'}</span>
+                  <span className="ml-auto">
+                    {def.costSpecial
+                      ? <span className="text-violet-400 font-medium" title="Pretech relic — cost is GM-determined; not normally purchasable.">Special</span>
+                      : scaledCost > 0 ? scaledCost.toLocaleString() + ' cr' : '—'}
+                  </span>
                 </div>
               </div>
             );
@@ -358,7 +360,9 @@ export default function ShipStep4Fittings({ ship, derived, onChange }: Props) {
                       <span className={`font-mono text-xs ${scaledMass > 0 ? 'text-amber-400' : 'text-gray-600'}`}>{scaledMass > 0 ? scaledMass : '—'}</span>
                     </td>
                     <td className="py-2 pr-3 align-top text-right">
-                      <span className="font-mono text-xs text-gray-400">{scaledCost > 0 ? scaledCost.toLocaleString() + ' cr' : '—'}</span>
+                      {def.costSpecial
+                        ? <span className="text-violet-400 text-xs font-medium" title="Pretech relic — cost is GM-determined; not normally purchasable.">Special</span>
+                        : <span className="font-mono text-xs text-gray-400">{scaledCost > 0 ? scaledCost.toLocaleString() + ' cr' : '—'}</span>}
                     </td>
                     <td className="py-2 align-top">
                       <QtyControls id={def.id} qty={qty} repeatable={def.repeatable}

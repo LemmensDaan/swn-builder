@@ -62,6 +62,8 @@ export interface FittingDef {
   name: string;
   baseCost: number;
   costScaled: boolean;
+  /** True for rarely-purchasable pretech whose cost is GM-determined (not normally buyable). */
+  costSpecial?: boolean;
   power: number;
   powerScaled: boolean;
   mass: number;
@@ -105,8 +107,12 @@ export interface DerivedShip {
   // Resource usage
   powerUsed: number;
   powerFree: number;
+  /** Effective power capacity (hull base + System Drive bonus if installed). */
+  powerTotal: number;
   massUsed: number;
   massFree: number;
+  /** Effective mass capacity (hull base ×2 if System Drive installed). */
+  massTotal: number;
   hardpointsUsed: number;
   hardpointsFree: number;
 
@@ -130,6 +136,9 @@ export interface DerivedShip {
   fittingsCost: number;
   totalCost: number;
   maintenanceCost: number;  // 5% of totalCost per year
+
+  /** True when a System Drive fitting is installed (no interstellar drills; cost/power/mass adjusted). */
+  hasSystemDrive: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +193,29 @@ export function scalePowerMass(
 ): number {
   if (!scaled) return base;
   return Math.ceil(base * PM_MULT[hullClass]);
+}
+
+// ---------------------------------------------------------------------------
+// Weapon-quality helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract the base ammo count from an "Ammo N" quality string, or null if none.
+ * The actual capacity scales by hull class: base × PM_MULT[class].
+ */
+export function parseAmmoQuality(qualities: string[]): number | null {
+  for (const q of qualities) {
+    const m = q.match(/^Ammo\s+(\d+)$/i);
+    if (m) return parseInt(m[1], 10);
+  }
+  return null;
+}
+
+/** Actual ammo capacity for a weapon on a given hull class (base × PM_MULT[class]). */
+export function weaponAmmoCapacity(weapon: WeaponDef, hullClass: HullClass): number | null {
+  const base = parseAmmoQuality(weapon.qualities);
+  if (base === null) return null;
+  return base * PM_MULT[hullClass];
 }
 
 // ---------------------------------------------------------------------------
@@ -764,7 +796,7 @@ export const DEFENSES: DefenseDef[] = [
     acBonus: 2,
     hpBonus: 0,
     speedPenalty: 0,
-    description: '+2 AC for one round per activation; essentially unlimited uses.',
+    description: 'Ammo 5 per engagement (×2 Cruiser, ×3 Capital). Each activation grants +2 AC for one round.',
   },
   {
     id: 'grav-eddy-displacer',
@@ -1305,6 +1337,7 @@ export const FITTINGS: FittingDef[] = [
     name: 'Psionic Anchorpoint',
     baseCost: 0,
     costScaled: false,
+    costSpecial: true,
     power: 3,
     powerScaled: false,
     mass: 0,
@@ -1329,8 +1362,9 @@ export const FITTINGS: FittingDef[] = [
   {
     id: 'teleportation-pads',
     name: 'Teleportation Pads',
-    baseCost: 200_000,
+    baseCost: 0,
     costScaled: false,
+    costSpecial: true,
     power: 1,
     powerScaled: false,
     mass: 1,
@@ -1542,6 +1576,10 @@ export function deriveShip(ship: Ship): DerivedShip {
   const hull = HULL_TYPES.find((h) => h.id === ship.hullId) ?? HULL_TYPES[0];
   const hullClass = hull.class;
 
+  // ── System Drive ──────────────────────────────────────────────────────────
+  // Replaces the spike drive; −10% hull cost, +PM_MULT[class] free power, ×2 free mass.
+  const hasSystemDrive = ship.fittings.some(f => f.id === 'system-drive');
+
   // ── Drive ─────────────────────────────────────────────────────────────────
   let drivePower = 0;
   let driveMass = 0;
@@ -1610,11 +1648,15 @@ export function deriveShip(ship: Ship): DerivedShip {
   const powerUsed = drivePower + weaponPower + defensePower + fittingPower;
   const massUsed  = driveMass  + weaponMass  + defenseMass  + fittingMass;
 
-  const powerFree      = hull.powerFree - powerUsed;
-  const massFree       = hull.massFree  - massUsed;
+  // System Drive: −10% hull cost, +PM_MULT[class] free power, ×2 free mass.
+  const hullCostBase   = hasSystemDrive ? Math.round(hull.cost * 0.9) : hull.cost;
+  const powerTotal     = hull.powerFree + (hasSystemDrive ? PM_MULT[hullClass] : 0);
+  const massTotal      = hull.massFree  * (hasSystemDrive ? 2 : 1);
+  const powerFree      = powerTotal - powerUsed;
+  const massFree       = massTotal  - massUsed;
   const hardpointsFree = hull.hardpoints - hardpointsUsed;
 
-  const totalCost = hull.cost + driveCost + weaponsCost + defensesCost + fittingsCost;
+  const totalCost = hullCostBase + driveCost + weaponsCost + defensesCost + fittingsCost;
   const maintenanceCost = Math.round(totalCost * 0.05);
 
   // ── Derived combat stats ──────────────────────────────────────────────────
@@ -1660,13 +1702,18 @@ export function deriveShip(ship: Ship): DerivedShip {
   if (ship.currentCrew > hull.crewMax) {
     buildErrors.push(`Crew ${ship.currentCrew} exceeds the maximum of ${hull.crewMax} for this hull.`);
   }
+  if (hasSystemDrive && ship.driveRating >= 2) {
+    buildErrors.push('System Drive replaces the spike drive; drive upgrades (rating 2+) cannot be combined with it.');
+  }
 
   return {
     hull,
     powerUsed,
     powerFree,
+    powerTotal,
     massUsed,
     massFree,
+    massTotal,
     hardpointsUsed,
     hardpointsFree,
     overPower:      powerFree      < 0,
@@ -1676,12 +1723,13 @@ export function deriveShip(ship: Ship): DerivedShip {
     ac,
     hpMax,
     speed,
-    hullCost: hull.cost,
+    hullCost: hullCostBase,
     driveCost,
     weaponsCost,
     defensesCost,
     fittingsCost,
     totalCost,
     maintenanceCost,
+    hasSystemDrive,
   };
 }

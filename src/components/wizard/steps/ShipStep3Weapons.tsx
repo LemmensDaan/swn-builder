@@ -1,6 +1,6 @@
 import type { Ship } from '../../../types/ship';
 import type { DerivedShip, WeaponDef } from '../../../data/ships';
-import { WEAPONS, HULL_CLASS_ORDER } from '../../../data/ships';
+import { WEAPONS, HULL_CLASS_ORDER, parseAmmoQuality, PM_MULT } from '../../../data/ships';
 
 interface Props {
   ship: Ship;
@@ -35,16 +35,27 @@ interface QualityChipProps {
   label: string;
 }
 
+const QUALITY_DESCRIPTIONS: Record<string, string> = {
+  flak:   'Anti-fighter/missile: +2 to all defenses vs. strike fighters and incoming missiles when fired defensively.',
+  cloud:  'Fires in a spreading pattern — affects all targets in a zone rather than one specific ship.',
+  clumsy: 'Cannot target nimble fighters; minimum valid target is Frigate-class or larger.',
+};
+
 function QualityChip({ label }: QualityChipProps) {
   const lower = label.toLowerCase();
   let cls = 'bg-gray-700 text-gray-400 border-gray-600';
   if (lower.startsWith('ap')) cls = 'bg-blue-900/40 text-blue-300 border-blue-700/50';
+  else if (lower.startsWith('ammo')) cls = 'bg-amber-900/40 text-amber-300 border-amber-700/50';
   else if (lower === 'clumsy') cls = 'bg-orange-900/40 text-orange-300 border-orange-700/50';
   else if (lower === 'flak') cls = 'bg-green-900/40 text-green-300 border-green-700/50';
   else if (lower === 'cloud') cls = 'bg-purple-900/40 text-purple-300 border-purple-700/50';
 
+  const desc = QUALITY_DESCRIPTIONS[lower];
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs border ${cls}`}>
+    <span
+      title={desc}
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs border ${cls} ${desc ? 'cursor-help' : ''}`}
+    >
       {label}
     </span>
   );
@@ -64,13 +75,11 @@ function ApChip({ ap }: { ap: number }) {
 // ── Budget bar ────────────────────────────────────────────────────────────────
 
 function BudgetBar({ derived }: { derived: DerivedShip }) {
-  const { hardpointsUsed, hardpointsFree, hull, powerUsed, overHardpoints, overPower, overMass, massUsed } = derived;
+  const { hardpointsUsed, hardpointsFree, hull, powerUsed, overHardpoints, overPower, overMass, massUsed, powerTotal, massTotal } = derived;
   const totalHardpoints = hull.hardpoints;
-  const totalPower = hull.powerFree;
-  const totalMass = hull.massFree;
   const hpPct = totalHardpoints > 0 ? Math.min(100, (hardpointsUsed / totalHardpoints) * 100) : 0;
-  const pwrPct = totalPower > 0 ? Math.min(100, (powerUsed / totalPower) * 100) : 0;
-  const massPct = totalMass > 0 ? Math.min(100, (massUsed / totalMass) * 100) : 0;
+  const pwrPct = powerTotal > 0 ? Math.min(100, (powerUsed / powerTotal) * 100) : 0;
+  const massPct = massTotal > 0 ? Math.min(100, (massUsed / massTotal) * 100) : 0;
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-3">
@@ -98,7 +107,7 @@ function BudgetBar({ derived }: { derived: DerivedShip }) {
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-400 uppercase tracking-wide">Power</span>
             <span className={`font-mono font-semibold ${overPower ? 'text-red-400' : 'text-gray-200'}`}>
-              {powerUsed} / {totalPower}
+              {powerUsed} / {powerTotal}
             </span>
           </div>
           <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -116,7 +125,7 @@ function BudgetBar({ derived }: { derived: DerivedShip }) {
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-400 uppercase tracking-wide">Mass</span>
             <span className={`font-mono font-semibold ${overMass ? 'text-red-400' : 'text-gray-200'}`}>
-              {massUsed} / {totalMass}
+              {massUsed} / {massTotal}
             </span>
           </div>
           <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -263,6 +272,16 @@ export default function ShipStep3Weapons({ ship, derived, onChange }: Props) {
                     {weapon.ammoCost !== undefined && (
                       <span className="text-gray-600">+{weapon.ammoCost.toLocaleString()} cr/reload</span>
                     )}
+                    {(() => {
+                      const base = parseAmmoQuality(weapon.qualities);
+                      if (base === null) return null;
+                      const cap = base * PM_MULT[derived.hull.class];
+                      return (
+                        <span className="text-amber-300" title={`Base Ammo ${base}; ×${PM_MULT[derived.hull.class]} for ${derived.hull.class}. Includes 1 free unit on purchase.`}>
+                          {cap} shots/engagement
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* Over-budget warning */}

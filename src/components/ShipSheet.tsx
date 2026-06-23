@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BookOpen, HelpCircle, Pencil, Plus, X, Users, Swords, Dice6 } from 'lucide-react';
 import type { Ship, DepartmentName, ActiveCrisis } from '../types/ship';
-import { WEAPONS, DEFENSES, FITTINGS, SHIP_MODS, deriveShip } from '../data/ships';
+import { WEAPONS, DEFENSES, FITTINGS, SHIP_MODS, deriveShip, weaponAmmoCapacity } from '../data/ships';
 import type { DerivedShip } from '../data/ships';
 import { getModuleConsequence } from '../data/ship-modules';
 import type { Character } from '../types/character';
@@ -458,7 +458,7 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
 
   // ── Derived display values ─────────────────────────────────────────────────
 
-  const cargoCapacity = hull.massFree * (hull.class === 'Fighter' ? 2 : hull.class === 'Frigate' ? 20 : hull.class === 'Cruiser' ? 200 : 2000);
+  const cargoCapacity = derived.massTotal * (hull.class === 'Fighter' ? 2 : hull.class === 'Frigate' ? 20 : hull.class === 'Cruiser' ? 200 : 2000);
   const totalMechTonnage = ship.mechs.reduce((sum, m) => sum + m.tonnage, 0);
   const totalCargoUsed = ship.cargoWeight + totalMechTonnage;
   const cargoPercentage = cargoCapacity > 0 ? (totalCargoUsed / cargoCapacity) * 100 : 0;
@@ -601,9 +601,9 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
             {/* ── Resource Usage ─────────────────────────────────────────── */}
             <SheetSection title="Resource Usage">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <ResourceBar label="Power" used={derived.powerUsed} total={hull.powerFree} danger={derived.powerUsed > hull.powerFree} color="bg-yellow-500"/>
-                <ResourceBar label="Mass"  used={derived.massUsed}  total={hull.massFree}  danger={derived.massUsed  > hull.massFree}  color="bg-blue-500"/>
-                <ResourceBar label="Hardpoints" used={derived.hardpointsUsed} total={hull.hardpoints} danger={derived.hardpointsUsed > hull.hardpoints} color="bg-red-500"/>
+                <ResourceBar label="Power" used={derived.powerUsed} total={derived.powerTotal} danger={derived.overPower} color="bg-yellow-500"/>
+                <ResourceBar label="Mass"  used={derived.massUsed}  total={derived.massTotal}  danger={derived.overMass}  color="bg-blue-500"/>
+                <ResourceBar label="Hardpoints" used={derived.hardpointsUsed} total={hull.hardpoints} danger={derived.overHardpoints} color="bg-red-500"/>
               </div>
             </SheetSection>
 
@@ -1089,9 +1089,10 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
                     const wId = def.id;
                     const ammoEntry = ship.weaponAmmo.find(a => a.weaponId === wId);
                     const hasAmmo = def.ammoCost !== undefined;
+                    const ammoMax = weaponAmmoCapacity(def, hull.class) ?? 100;
 
                     if (hasAmmo && !ammoEntry) {
-                      initializeWeaponAmmo(wId, 100);
+                      initializeWeaponAmmo(wId, ammoMax);
                     }
 
                     const readied = ammoEntry?.readied ?? 0;

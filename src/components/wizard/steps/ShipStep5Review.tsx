@@ -134,13 +134,13 @@ export default function ShipStep5Review({ ship, derived, onGoToStep }: Props) {
           {
             label: 'Power',
             used: derived.powerUsed,
-            total: hull.powerFree,
+            total: derived.powerTotal,
             over: derived.overPower,
           },
           {
             label: 'Mass',
             used: derived.massUsed,
-            total: hull.massFree,
+            total: derived.massTotal,
             over: derived.overMass,
           },
           {

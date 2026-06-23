@@ -1,9 +1,8 @@
 # SWN Tool — Not Yet Implemented
 
 A running list of *Stars Without Number (Revised)* rulebook content that the tool
-does **not** yet model. Created alongside the `RULES_AUDIT.md` fixes (data
-corrections for backgrounds, foci, psionics, equipment, starships, and factions
-are **done**; the items below are deferred features, mostly new subsystems/UI).
+does **not** yet model. Created alongside the `RULES_AUDIT.md` fixes (all audit
+items are now fully implemented and RULES_AUDIT.md has been removed).
 
 Legend: 🟥 large subsystem · 🟧 medium feature · 🟨 small/polish
 
@@ -42,23 +41,14 @@ displayed. The faction *play loop* is not modeled:
 
 ## Starships
 
-Costs, drive scaling, weapon stats, the 7 missing fittings, and build-constraint
-checks (drive/fitting/weapon class + crew bounds) are now correct.
+Costs, drive scaling, weapon stats, the 7 missing fittings, build-constraint
+checks (drive/fitting/weapon class + crew bounds), System Drive bonuses, weapon
+ammo capacity scaling, quality mechanics, special-cost fitting flags, and ship
+combat (command points, departments, crisis table) are all now implemented.
 
-- 🟧 **Weapon-quality modeling** — no fields for ammo capacity scaling by hull
-  class, the included free ammo unit, or the Flak / Cloud / Clumsy combat
-  mechanics; Foxer Drones' "Ammo 5" is unmodeled. (Qualities are stored as
-  display strings only.)
-- 🟨 **System Drive bonuses** — modeled as a normal fitting; its actual effect
-  (−10% hull cost, +1/+2/+3/+4 power and ×2 free mass by class, no interstellar
-  drills) isn't applied to derived stats.
-- 🟨 **"Special"-cost fittings** (Psionic Anchorpoint, Teleportation Pads) are
-  given nominal/placeholder costs since the book lists them as rarely-purchasable.
-- 🟨 **Picker-level gating** — drive rating isn't disabled in the drive picker for
-  too-small hulls (the review step flags it via `buildErrors`).
-- 🟧 **Ship combat** — command points, gunnery, crisis resolution: the `Ship`
-  type has fields (`commandPoints`, `departments`, `activeCrises`) but no combat
-  loop drives them.
+- 🟨 **Foxer Drones ammo tracking** — description notes "Ammo 5 per engagement"
+  but the defense panel has no interactive ammo counter (defenses lack the ammo
+  tracking UI that weapons have).
 
 ## Character / Crew
 
@@ -98,5 +88,4 @@ checks (drive/fitting/weapon class + crew bounds) are now correct.
 
 ---
 
-*Maintenance note:* when one of these is implemented, delete its entry here and
-(if it was an audit item) update `RULES_AUDIT.md`.
+*Maintenance note:* when one of these is implemented, delete its entry here.

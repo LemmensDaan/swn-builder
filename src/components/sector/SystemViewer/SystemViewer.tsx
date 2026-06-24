@@ -239,7 +239,7 @@ export default function SystemViewer() {
         }}
       >
         <Canvas
-          camera={{ position: [0, camDistance * 0.4 * 0.4 * 12 * (isMobile ? 1.2 : 1), camDistance * 0.4 * 12 * (isMobile ? 1.2 : 1)], fov: 60 }}
+          camera={{ position: [0, camDistance * 0.4 * 0.4 * 12 * (isMobile ? 1.2 : 1), camDistance * 0.4 * 12 * (isMobile ? 1.2 : 1)], fov: 60, near: 0.0001, far: 100000 }}
           dpr={[1, isMobile ? 1.5 : 2]}
           shadows
           gl={{ antialias: !isMobile, alpha: true }}
@@ -279,7 +279,7 @@ export default function SystemViewer() {
             enablePan
             enableZoom
             enableRotate
-            minDistance={0.5}
+            minDistance={0.01}
             maxDistance={Math.max(800, camDistance * 5)}
           />
         </Canvas>

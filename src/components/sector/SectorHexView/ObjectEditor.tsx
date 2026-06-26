@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Trash2, Orbit, Earth, Plus, CircleDotDashed, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronRight, Trash2, Orbit, Earth, Plus, CircleDotDashed, Pencil } from 'lucide-react';
 import type { SystemObject, ObjectType, PlanetType, NebulaShape, RingBand } from '../../../types/sector';
 import { OBJECT_TYPE_DEFAULTS } from '../../../types/sector';
 import { PLANET_PRESETS } from '../SystemViewer/planetRenderer';
@@ -173,8 +173,8 @@ interface Props {
   allObjects: SystemObject[];
   onChange: (updates: Partial<SystemObject>) => void;
   onRemove: () => void;
-  draggable?: boolean;
-  onDragStart?: (e: React.DragEvent) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   expanded?: boolean;
   onExpandChange?: (id: string, expanded: boolean) => void;
 }
@@ -201,7 +201,7 @@ function calculateOrbitRadiusForParent(parentId: string | null, obj: SystemObjec
   return parentSize + objSize + CLEARANCE + 4;
 }
 
-export default function ObjectEditor({ obj, allObjects, onChange, onRemove, draggable = true, onDragStart, expanded: externalExpanded, onExpandChange }: Props) {
+export default function ObjectEditor({ obj, allObjects, onChange, onRemove, onMoveUp, onMoveDown, expanded: externalExpanded, onExpandChange }: Props) {
   const [expanded, setExpandedLocal] = useState(false);
   const expanded_ = externalExpanded !== undefined ? externalExpanded : expanded;
 
@@ -269,18 +269,33 @@ export default function ObjectEditor({ obj, allObjects, onChange, onRemove, drag
   );
 
   return (
-    <div data-drag-card className="rounded-lg bg-gray-800/60 border border-gray-700/50 overflow-hidden">
+    <div className="rounded-lg bg-gray-800/60 border border-gray-700/50 overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded_)}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700/40 transition-colors text-left"
       >
-        {/* Drag handle — only this element initiates drag, not the whole card */}
-        <span
-          draggable={draggable}
-          onDragStart={onDragStart}
+        {/* Up/Down reorder buttons */}
+        <div
+          className={`flex flex-col flex-shrink-0 ${!onMoveUp && !onMoveDown ? 'invisible' : ''}`}
           onClick={e => e.stopPropagation()}
-          className={`select-none text-xs ${draggable ? 'text-gray-600 cursor-grab active:cursor-grabbing' : 'text-gray-700 invisible'}`}
-        >⠿</span>
+        >
+          <button
+            disabled={!onMoveUp}
+            onClick={e => { e.stopPropagation(); onMoveUp?.(); }}
+            title="Move up"
+            className="text-gray-500 hover:text-gray-200 disabled:opacity-20 disabled:cursor-default leading-none h-3.5 flex items-center justify-center transition-colors"
+          >
+            <ChevronUp size={11} />
+          </button>
+          <button
+            disabled={!onMoveDown}
+            onClick={e => { e.stopPropagation(); onMoveDown?.(); }}
+            title="Move down"
+            className="text-gray-500 hover:text-gray-200 disabled:opacity-20 disabled:cursor-default leading-none h-3.5 flex items-center justify-center transition-colors"
+          >
+            <ChevronDown size={11} />
+          </button>
+        </div>
 
         {/* Color swatch */}
         <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>

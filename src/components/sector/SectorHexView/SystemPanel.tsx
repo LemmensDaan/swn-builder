@@ -63,7 +63,6 @@ interface Props {
   onDeleteSystem: () => void;
 }
 
-type DragPayload = { kind: 'tl' | 'child'; objId: string };
 type MainTab = 'system' | 'story';
 
 export default function SystemPanel({ system, sectorId, onClose, onViewSystem, onDeleteSystem }: Props) {
@@ -195,150 +194,6 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
     reorderObjects(system.id, buildAllIds(topLevelNonPrimary, newCMap), perObjectUpdates);
   }
 
-  /**
-   * Move obj to a new parent (or to top-level when newParentId is a primary or null).
-   * Assigns a sensible orbit radius and updates the full sorted order atomically.
-   */
-  function reparentTo(obj: SystemObject, newParentId: string | null) {
-    const wasTopLevel = isTopLevelNonPrimary(obj);
-    const willBeTopLevel = newParentId === null || primaryIds.has(newParentId ?? '');
-
-    // New TL order
-    const newTLOrder = wasTopLevel
-      ? topLevelNonPrimary.filter(o => o.id !== obj.id)
-      : [...topLevelNonPrimary];
-    if (willBeTopLevel) newTLOrder.push(obj);
-
-    // New children map: remove from old parent, add to new
-    const newCMap = new Map<string, SystemObject[]>();
-    childrenOf.forEach((children, pid) => {
-      newCMap.set(pid, children.filter(c => c.id !== obj.id));
-    });
-    if (!willBeTopLevel && newParentId) {
-      const existing = newCMap.get(newParentId) ?? [];
-      newCMap.set(newParentId, [...existing, obj]);
-    }
-
-    // Compute new orbit radius for the moved object
-    let newOrbitRadius: number;
-    if (willBeTopLevel) {
-      const otherRadii = newTLOrder.filter(o => o.id !== obj.id).map(o => o.orbitRadius);
-      newOrbitRadius = otherRadii.length > 0
-        ? Math.max(...otherRadii) + TL_SPACING
-        : TL_BASE_ORBIT;
-    } else {
-      const newParentObj = sorted.find(o => o.id === newParentId);
-      if (newParentObj?.type === 'AsteroidBelt') {
-        // Objects in a belt orbit at the belt's own radius and inclination so they
-        // appear embedded in the field rather than as a child offset from its center.
-        newOrbitRadius = newParentObj.orbitRadius;
-      } else {
-        const newSiblings = (newCMap.get(newParentId!) ?? []).filter(c => c.id !== obj.id);
-        newOrbitRadius = newSiblings.length > 0
-          ? Math.max(...newSiblings.map(s => s.orbitRadius)) + CHILD_SPACING
-          : CHILD_BASE_ORBIT;
-      }
-    }
-
-    const extraUpdates: Partial<SystemObject> =
-      (() => {
-        const newParentObj = !willBeTopLevel ? sorted.find(o => o.id === newParentId) : undefined;
-        const oldParentObj = sorted.find(o => o.id === obj.parentId);
-
-        // Moving TO a belt: inherit orbit properties
-        if (newParentObj?.type === 'AsteroidBelt') {
-          return { inclination: newParentObj.inclination, orbitSpeed: newParentObj.orbitSpeed };
-        }
-
-        // Moving AWAY from a belt: reset orbitSpeed to default
-        if (oldParentObj?.type === 'AsteroidBelt') {
-          return { orbitSpeed: 0.05 };
-        }
-
-        return {};
-      })();
-
-    reorderObjects(
-      system.id,
-      buildAllIds(newTLOrder, newCMap),
-      { [obj.id]: { parentId: newParentId, orbitRadius: newOrbitRadius, ...extraUpdates } }
-    );
-  }
-
-  // ── Unified drop handler ─────────────────────────────────────────────────
-
-  function onDragStart(e: React.DragEvent, obj: SystemObject) {
-    const kind: DragPayload['kind'] = isTopLevelNonPrimary(obj) ? 'tl' : 'child';
-    e.dataTransfer.setData('swn-drag', JSON.stringify({ kind, objId: obj.id } satisfies DragPayload));
-    e.dataTransfer.effectAllowed = 'move';
-    // Traverse up from the drag handle to the card root for the ghost image
-    const el = ((e.currentTarget as HTMLElement).closest('[data-drag-card]') ?? e.currentTarget) as HTMLElement;
-    const rect = el.getBoundingClientRect();
-    // Clone into body so the drag ghost isn't affected by the scrolled container's offset
-    const ghost = el.cloneNode(true) as HTMLElement;
-    ghost.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${rect.width}px;margin:0;pointer-events:none`;
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, e.clientX - rect.left, e.clientY - rect.top);
-    setTimeout(() => document.body.removeChild(ghost), 0);
-  }
-
-  function onDrop(e: React.DragEvent, targetObj: SystemObject) {
-    e.preventDefault();
-    const raw = e.dataTransfer.getData('swn-drag');
-    if (!raw) return;
-    let payload: DragPayload;
-    try { payload = JSON.parse(raw); } catch { return; }
-
-    const dragged = sorted.find(o => o.id === payload.objId);
-    if (!dragged || dragged.id === targetObj.id) return;
-    if (dragged.type === 'Nebula' || dragged.type === 'Comet') return;
-
-    const targetIsPrimary = primaryTypes.has(targetObj.type);
-    const targetIsTL = isTopLevelNonPrimary(targetObj);
-
-    // Resolve the belt the drop would end up in (if any) and validate the type
-    const wouldBeInBelt = (parentId: string | null | undefined) => {
-      const parent = parentId ? sorted.find(o => o.id === parentId) : undefined;
-      return parent?.type === 'AsteroidBelt';
-    };
-
-    if (payload.kind === 'tl') {
-      if (targetIsPrimary) return;
-      if (targetIsTL) {
-        // Dropping a belt-compatible type onto an asteroid belt embeds it in the belt
-        if (targetObj.type === 'AsteroidBelt' && BELT_ALLOWED_TYPES.has(dragged.type)) {
-          reparentTo(dragged, targetObj.id);
-        } else if (!!dragged.isDeepSpace !== !!targetObj.isDeepSpace) {
-          // Cross-zone drop: move to the target's zone
-          moveToZone(dragged, !!targetObj.isDeepSpace);
-        } else {
-          const fromTlIdx = topLevelNonPrimary.findIndex(o => o.id === dragged.id);
-          const toTlIdx = topLevelNonPrimary.findIndex(o => o.id === targetObj.id);
-          reorderTopLevel(fromTlIdx, toTlIdx);
-        }
-      } else {
-        // TL dropped onto a child → reparent TL under that child's parent
-        if (wouldBeInBelt(targetObj.parentId) && !BELT_ALLOWED_TYPES.has(dragged.type)) return;
-        reparentTo(dragged, targetObj.parentId);
-      }
-      return;
-    }
-
-    // kind === 'child'
-    if (targetIsPrimary) {
-      reparentTo(dragged, defaultTLParentId); // orbit star
-    } else if (targetIsTL) {
-      if (targetObj.type === 'AsteroidBelt' && !BELT_ALLOWED_TYPES.has(dragged.type)) return;
-      reparentTo(dragged, targetObj.id);      // orbit this planet / belt
-    } else if (dragged.parentId === targetObj.parentId) {
-      reorderSiblings(dragged, targetObj);    // swap within same parent
-    } else {
-      // Moving to a different parent's group — validate if that parent is a belt
-      if (wouldBeInBelt(targetObj.parentId) && !BELT_ALLOWED_TYPES.has(dragged.type)) return;
-      reparentTo(dragged, targetObj.parentId);
-    }
-  }
-
   // ── Recursive child renderer ─────────────────────────────────────────────
 
   function renderDescendants(parentId: string): React.ReactNode {
@@ -346,20 +201,16 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
     if (children.length === 0) return null;
     return (
       <div className="ml-3 border-l-2 border-gray-700/30 mt-1 space-y-1 pb-0.5">
-        {children.map(child => (
+        {children.map((child, childIdx) => (
           <div key={child.id}>
-            <div
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => onDrop(e, child)}
-              className="pl-2"
-            >
+            <div className="pl-2">
               <ObjectEditor
                 obj={child}
                 allObjects={system.objects}
                 onChange={updates => updateObject(system.id, child.id, updates)}
                 onRemove={() => removeObject(system.id, child.id)}
-                draggable={true}
-                onDragStart={e => onDragStart(e, child)}
+                onMoveUp={childIdx > 0 ? () => reorderSiblings(child, children[childIdx - 1]) : undefined}
+                onMoveDown={childIdx < children.length - 1 ? () => reorderSiblings(child, children[childIdx + 1]) : undefined}
                 expanded={expandedObjectId === child.id}
                 onExpandChange={handleObjectExpandChange}
               />
@@ -449,24 +300,17 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
               <p className="text-gray-600 text-xs text-center py-6">No objects yet. Add one below.</p>
             )}
 
-            {/* Primary objects — accept drops but not draggable */}
+            {/* Primary objects — not reorderable */}
             {primaryObjs.map(obj => (
-              <div
+              <ObjectEditor
                 key={obj.id}
-                onDragOver={e => e.preventDefault()}
-                onDrop={e => onDrop(e, obj)}
-                title="Drop here to make an object orbit the star"
-              >
-                <ObjectEditor
-                  obj={obj}
-                  allObjects={system.objects}
-                  onChange={updates => updateObject(system.id, obj.id, updates)}
-                  onRemove={() => removeObject(system.id, obj.id)}
-                  draggable={false}
-                  expanded={expandedObjectId === obj.id}
-                  onExpandChange={handleObjectExpandChange}
-                />
-              </div>
+                obj={obj}
+                allObjects={system.objects}
+                onChange={updates => updateObject(system.id, obj.id, updates)}
+                onRemove={() => removeObject(system.id, obj.id)}
+                expanded={expandedObjectId === obj.id}
+                onExpandChange={handleObjectExpandChange}
+              />
             ))}
 
             {/* Separator */}
@@ -474,72 +318,57 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
               <div className="border-t border-gray-700/40" />
             )}
 
-            {/* Top-level non-primary objects (draggable) with children nested below */}
+            {/* Top-level non-primary objects with children nested below */}
             {(() => {
               const sysZone = topLevelNonPrimary.filter(o => !o.isDeepSpace);
               const deepZone = topLevelNonPrimary.filter(o => o.isDeepSpace);
 
-              const renderObj = (obj: SystemObject) => {
-                if (obj.type === 'Nebula' || obj.type === 'Comet') return (
+              const renderObj = (obj: SystemObject, zoneArr: SystemObject[], zoneIdx: number, isDeepZone: boolean) => {
+                const canReorder = obj.type !== 'Nebula' && obj.type !== 'Comet';
+                const tlIdx = topLevelNonPrimary.findIndex(o => o.id === obj.id);
+
+                const moveUp = canReorder
+                  ? zoneIdx > 0
+                    ? () => reorderTopLevel(tlIdx, topLevelNonPrimary.findIndex(o => o.id === zoneArr[zoneIdx - 1].id))
+                    : isDeepZone && sysZone.length > 0
+                      ? () => moveToZone(obj, false)
+                      : undefined
+                  : undefined;
+
+                const moveDown = canReorder
+                  ? zoneIdx < zoneArr.length - 1
+                    ? () => reorderTopLevel(tlIdx, topLevelNonPrimary.findIndex(o => o.id === zoneArr[zoneIdx + 1].id))
+                    : !isDeepZone
+                      ? () => moveToZone(obj, true)
+                      : undefined
+                  : undefined;
+
+                return (
                   <div key={obj.id}>
                     <ObjectEditor
                       obj={obj}
                       allObjects={system.objects}
                       onChange={updates => updateObject(system.id, obj.id, updates)}
                       onRemove={() => removeObject(system.id, obj.id)}
-                      draggable={false}
+                      onMoveUp={moveUp}
+                      onMoveDown={moveDown}
                       expanded={expandedObjectId === obj.id}
                       onExpandChange={handleObjectExpandChange}
                     />
-                  </div>
-                );
-                return (
-                  <div key={obj.id}>
-                    <div
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={e => onDrop(e, obj)}
-                    >
-                      <ObjectEditor
-                        obj={obj}
-                        allObjects={system.objects}
-                        onChange={updates => updateObject(system.id, obj.id, updates)}
-                        onRemove={() => removeObject(system.id, obj.id)}
-                        draggable={true}
-                        onDragStart={e => onDragStart(e, obj)}
-                        expanded={expandedObjectId === obj.id}
-                        onExpandChange={handleObjectExpandChange}
-                      />
-                    </div>
                     {renderDescendants(obj.id)}
                   </div>
                 );
               };
 
-              const onDropSeparator = (e: React.DragEvent) => {
-                e.preventDefault();
-                const raw = e.dataTransfer.getData('swn-drag');
-                if (!raw) return;
-                let payload: DragPayload;
-                try { payload = JSON.parse(raw); } catch { return; }
-                const dragged = sorted.find(o => o.id === payload.objId);
-                if (!dragged || dragged.isDeepSpace) return;
-                moveToZone(dragged, true);
-              };
-
               return (
                 <>
-                  {sysZone.map(renderObj)}
-                  <div
-                    onDragOver={e => e.preventDefault()}
-                    onDrop={onDropSeparator}
-                    className="my-2 flex items-center gap-2 rounded py-0.5 transition-colors hover:bg-gray-700/20"
-                    title="Drop here to move to deep space"
-                  >
+                  {sysZone.map((obj, i) => renderObj(obj, sysZone, i, false))}
+                  <div className="my-2 flex items-center gap-2 rounded py-0.5">
                     <div className="flex-1 border-t border-gray-600/60" />
                     <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold select-none">Deep Space</span>
                     <div className="flex-1 border-t border-gray-600/60" />
                   </div>
-                  {deepZone.map(renderObj)}
+                  {deepZone.map((obj, i) => renderObj(obj, deepZone, i, true))}
                 </>
               );
             })()}

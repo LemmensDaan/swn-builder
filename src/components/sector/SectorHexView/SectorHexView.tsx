@@ -565,7 +565,7 @@ export default function SectorHexView() {
 
       {/* Right panel — absolute overlay so it never resizes the canvas */}
       {selectedRoute && !panelOpen ? (
-        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-80 flex flex-col border-l border-gray-700/60 bg-gray-900/95 backdrop-blur overflow-y-auto">
+        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-80 flex flex-col border-l border-gray-700/60 bg-gray-900 overflow-y-auto z-50">
           <RouteEditPanel
             route={selectedRoute}
             sector={sector}
@@ -580,7 +580,7 @@ export default function SectorHexView() {
           />
         </div>
       ) : panelOpen ? (
-        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-[480px] flex flex-col border-l border-gray-700/60 bg-gray-900/95 backdrop-blur">
+        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-[480px] flex flex-col border-l border-gray-700/60 bg-gray-900 z-50">
           {selectedSystem ? (
             <SystemPanel
               system={selectedSystem}
@@ -590,7 +590,7 @@ export default function SectorHexView() {
               onDeleteSystem={() => { handleClearHex(); handleClosePanel(); }}
             />
           ) : (
-            <div className="flex flex-col h-full bg-gray-900/95 backdrop-blur p-4">
+            <div className="flex flex-col h-full bg-gray-900 p-4">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-gray-400 text-sm font-medium">
                   Hex {String(selectedQ!).padStart(2,'0')}{String(selectedR!).padStart(2,'0')}

@@ -372,7 +372,7 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900/95 backdrop-blur border-l border-gray-700/60">
+    <div className="flex flex-col h-full bg-gray-900 border-l border-gray-700/60">
       {/* Header: name + close */}
       <div className="flex items-center gap-2 px-4 pt-3 pb-2">
         <input

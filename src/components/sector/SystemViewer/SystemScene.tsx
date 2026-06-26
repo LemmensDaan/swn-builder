@@ -1,6 +1,7 @@
-import { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useRef, useEffect } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { initModelLoader } from './modelLoader';
 import type { StarSystem } from '../../../types/sector';
 import { sortSystemObjects } from '../../../types/sector';
 import type { SystemPrefs } from './systemPrefs';
@@ -25,6 +26,9 @@ interface Props {
 }
 
 export default function SystemScene({ system, selectedObjectId: _selectedObjectId, onObjectClick, objectPositionsRef, previewMode, introOpacityRef, starfieldOpacity = 0.85, prefs }: Props) {
+  const { gl } = useThree();
+  useEffect(() => { initModelLoader(gl); }, [gl]);
+
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const sorted = sortSystemObjects(system.objects);
   const STELLAR = ['Star', 'BlackHole', 'NeutronStar'];

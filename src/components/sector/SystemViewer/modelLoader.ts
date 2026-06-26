@@ -1,8 +1,10 @@
 import * as THREE from 'three';
-// @ts-ignore - three loaders are available at runtime
+// @ts-ignore
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-// @ts-ignore - three loaders are available at runtime
+// @ts-ignore
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+// @ts-ignore
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 
 interface CachedModel {
   scene: THREE.Group;
@@ -12,6 +14,25 @@ interface CachedModel {
 const modelCache = new Map<string, CachedModel>();
 const gltfLoader = new GLTFLoader();
 const objLoader = new OBJLoader();
+
+/**
+ * Call this once inside the Canvas (where useThree is available) to enable
+ * KTX2/Basis Universal compressed texture support.
+ *
+ * Prerequisites:
+ *   1. Copy the transcoder files from node_modules/three/examples/jsm/libs/ to public/libs/basis/:
+ *        basis_transcoder.js
+ *        basis_transcoder.wasm
+ *   2. Convert your GLB textures with gltf-transform:
+ *        npx @gltf-transform/cli etc1s  input.glb output.glb   (smaller, mobile-safe)
+ *        npx @gltf-transform/cli uastc  input.glb output.glb   (higher quality)
+ */
+export function initModelLoader(renderer: THREE.WebGLRenderer): void {
+  const ktx2Loader = new KTX2Loader()
+    .setTranscoderPath('/libs/basis/')
+    .detectSupport(renderer);
+  gltfLoader.setKTX2Loader(ktx2Loader);
+}
 
 export async function loadModel(path: string): Promise<THREE.Group> {
   if (modelCache.has(path)) {

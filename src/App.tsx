@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useCharacters } from './store/useCharacters';
-import { normalizeAppData } from './store/useCharacters';
+import { useCharacters, normalizeAppData, normalizeCharacter, normalizeShipData } from './store/useCharacters';
 import HomeScreen from './components/HomeScreen';
 import CharacterWizard from './components/wizard/CharacterWizard';
 import CharacterSheet from './components/CharacterSheet';
@@ -10,7 +9,8 @@ import PDFViewer from './components/PDFViewer';
 import HelpPage from './components/HelpPage';
 import type { Character } from './types/character';
 import type { Ship } from './types/ship';
-import { CURRENT_VERSION } from './types/appData';
+import type { Sector, StarSystem } from './types/sector';
+import { EXPORT_VERSION } from './types/exportData';
 import SectorViewer from './components/sector/SectorViewer';
 import FactionSheet from './components/factions/FactionSheet';
 import { useSectorStore } from './store/useSectorStore';
@@ -27,6 +27,9 @@ type View =
 export default function App() {
   const { characters, upsert, remove, setAll, loaded, ships, upsertShip, removeShip, saveError, clearSaveError, saveWarning, clearSaveWarning } = useCharacters();
   const sectors = useSectorStore(s => s.sectors);
+  const systems = useSectorStore(s => s.systems);
+  const replaceSectorData = useSectorStore(s => s.replaceSectorData);
+  const importSingleSector = useSectorStore(s => s.importSingleSector);
   const [view, setView] = useState<View>({ type: 'home', activeTab: 'characters' });
   const [showRules, setShowRules] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -77,26 +80,87 @@ export default function App() {
     setView({ type: 'ship-sheet', id: ship.id });
   }
 
-  function handleExport() {
-    const appData = { version: CURRENT_VERSION, characters };
-    const json = JSON.stringify(appData, null, 2);
+  function downloadJson(data: object, filename: string) {
+    const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    // e.g. swn-builder-2026-06-05.json
-    a.download = `swn-builder-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 
+  function dateStr() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function slugify(name: string) {
+    return (name || 'unnamed').replace(/[^a-z0-9]/gi, '-').toLowerCase().replace(/-+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  function handleExportAll() {
+    downloadJson(
+      { version: EXPORT_VERSION, type: 'full', characters, ships, sectors, systems },
+      `swn-export-${dateStr()}.json`,
+    );
+  }
+
+  function handleExportCharacter(id: string) {
+    const char = characters.find(c => c.id === id);
+    if (!char) return;
+    downloadJson(
+      { version: EXPORT_VERSION, type: 'character', character: char },
+      `swn-character-${slugify(char.name)}-${dateStr()}.json`,
+    );
+  }
+
+  function handleExportShip(id: string) {
+    const ship = ships.find(s => s.id === id);
+    if (!ship) return;
+    downloadJson(
+      { version: EXPORT_VERSION, type: 'ship', ship },
+      `swn-ship-${slugify(ship.name)}-${dateStr()}.json`,
+    );
+  }
+
+  function handleExportSector(id: string) {
+    const sector = sectors.find(s => s.id === id);
+    if (!sector) return;
+    const sectorSystems: Record<string, StarSystem> = {};
+    Object.entries(systems).forEach(([sysId, sys]) => {
+      if (sys.sectorId === sector.id) sectorSystems[sysId] = sys;
+    });
+    downloadJson(
+      { version: EXPORT_VERSION, type: 'sector', sector, systems: sectorSystems },
+      `swn-sector-${slugify(sector.name)}-${dateStr()}.json`,
+    );
+  }
+
   async function handleImport(file: File): Promise<void> {
     const text = await file.text();
     const parsed = JSON.parse(text); // throws on invalid JSON — caught by HomeScreen
-    const appData = normalizeAppData(parsed);
-    setAll({ characters: appData.characters, ships: appData.ships });
+
+    if (parsed.type === 'character') {
+      const char: Character = { ...normalizeCharacter(parsed.character), id: crypto.randomUUID() };
+      upsert(char);
+    } else if (parsed.type === 'ship') {
+      const ship: Ship = { ...normalizeShipData(parsed.ship), id: crypto.randomUUID() };
+      upsertShip(ship);
+    } else if (parsed.type === 'sector') {
+      importSingleSector(parsed.sector as Sector, parsed.systems as Record<string, StarSystem>);
+    } else if (parsed.type === 'full') {
+      const data = normalizeAppData(parsed);
+      setAll({ characters: data.characters, ships: data.ships });
+      replaceSectorData(parsed.sectors ?? [], parsed.systems ?? {});
+    } else {
+      // legacy v1 format — characters + ships only
+      const data = normalizeAppData(parsed);
+      setAll({ characters: data.characters, ships: data.ships });
+    }
+
     setView({ type: 'home' });
   }
 
@@ -147,7 +211,11 @@ export default function App() {
             const char = characters.find(c => c.id === id);
             if (char) upsert({ ...char, image: dataUrl });
           }}
-          onExport={handleExport}
+          onExportAll={handleExportAll}
+          onExportCharacter={handleExportCharacter}
+          onExportShip={handleExportShip}
+          sectors={sectors}
+          onExportSector={handleExportSector}
           onImport={handleImport}
           onOpenRules={() => setShowRules(true)}
           onOpenHelp={() => setShowHelp(true)}

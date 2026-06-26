@@ -165,7 +165,7 @@ async function loadFromStorage(): Promise<AppData> {
   return data;
 }
 
-export { normalizeAppData };
+export { normalizeAppData, normalize as normalizeCharacter, normalizeShip as normalizeShipData };
 
 export function useCharacters() {
   const [characters, setCharacters] = useState<Character[]>([]);

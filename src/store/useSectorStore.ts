@@ -61,6 +61,8 @@ interface SectorActions {
   // Import / export
   exportSectorData: () => string;
   importSectorData: (json: string) => void;
+  replaceSectorData: (sectors: Sector[], systems: Record<string, StarSystem>) => void;
+  importSingleSector: (sector: Sector, systems: Record<string, StarSystem>) => void;
 }
 
 type SectorStore = SectorState & SectorActions;
@@ -537,6 +539,59 @@ export const useSectorStore = create<SectorStore>()(
         if (data.sectors && data.systems) {
           set({ sectors: data.sectors, systems: data.systems });
         }
+      },
+
+      replaceSectorData(newSectors, newSystems) {
+        set({ sectors: newSectors, systems: newSystems });
+      },
+
+      importSingleSector(sector, systemsMap) {
+        const newSectorId = crypto.randomUUID();
+        const factionIdMap: Record<string, string> = {};
+        sector.factions.forEach(f => { factionIdMap[f.id] = crypto.randomUUID(); });
+        const systemIdMap: Record<string, string> = {};
+        Object.keys(systemsMap).forEach(id => { systemIdMap[id] = crypto.randomUUID(); });
+
+        const usedIndices = new Set(get().sectors.map(s => s.triangleIndex));
+        const triangleIndex = pickTriangleIndex(usedIndices);
+
+        const newSector: Sector = {
+          ...sector,
+          id: newSectorId,
+          triangleIndex,
+          factions: sector.factions.map(f => ({ ...f, id: factionIdMap[f.id] })),
+          hexes: sector.hexes.map(hex => ({
+            ...hex,
+            systemId: hex.systemId ? (systemIdMap[hex.systemId] ?? null) : null,
+          })),
+        };
+
+        const newSystems: Record<string, StarSystem> = {};
+        Object.entries(systemsMap).forEach(([oldId, sys]) => {
+          const newId = systemIdMap[oldId];
+          const objIdMap: Record<string, string> = {};
+          sys.objects.forEach(obj => { objIdMap[obj.id] = crypto.randomUUID(); });
+
+          newSystems[newId] = {
+            ...sys,
+            id: newId,
+            sectorId: newSectorId,
+            factionId: sys.factionId ? (factionIdMap[sys.factionId] ?? null) : null,
+            contestedFactionIds: (sys.contestedFactionIds ?? []).map(fid => factionIdMap[fid] ?? fid),
+            objects: sys.objects.map(obj => ({
+              ...obj,
+              id: objIdMap[obj.id],
+              parentId: obj.parentId ? (objIdMap[obj.parentId] ?? null) : null,
+              factionId: obj.factionId ? (factionIdMap[obj.factionId] ?? null) : null,
+              contestedFactionIds: (obj.contestedFactionIds ?? []).map(fid => factionIdMap[fid] ?? fid),
+            })),
+          };
+        });
+
+        set(s => ({
+          sectors: [...s.sectors, newSector],
+          systems: { ...s.systems, ...newSystems },
+        }));
       },
     }),
     {

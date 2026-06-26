@@ -71,7 +71,6 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
   const [showToast, setShowToast] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const exportBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (showToast) {
@@ -86,17 +85,6 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
     }
   }, [showToast]);
 
-  useEffect(() => {
-    if (!showExportPanel) return;
-    function onClickOutside(e: MouseEvent) {
-      const panel = exportBtnRef.current?.closest('[data-export-panel]');
-      if (panel && !panel.contains(e.target as Node)) {
-        setShowExportPanel(false);
-      }
-    }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, [showExportPanel]);
 
   async function handleFileSelected(file: File) {
     setImportError(null);
@@ -137,93 +125,14 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
             <h1 className="text-xl font-bold text-amber-400 cursor-pointer" title="Daan's awesome SWN Full Toolset, you're welcome boys!" onClick={() => setShowToast(true)}>SWN Builder</h1>
           </div>
           <div className="flex gap-1 items-center">
-            {/* Export panel */}
-            <div className="relative" data-export-panel="">
-              <button
-                ref={exportBtnRef}
-                onClick={() => setShowExportPanel(v => !v)}
-                title="Export"
-                className={`w-9 h-9 rounded transition-colors flex items-center justify-center ${showExportPanel ? 'text-emerald-300 bg-gray-700' : 'text-gray-400 hover:text-emerald-300 hover:bg-gray-700'}`}
-              >
-                <Download size={18} />
-              </button>
-
-              {showExportPanel && (
-                <div className="absolute right-0 top-10 z-50 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-2 w-64 max-h-96 overflow-y-auto">
-                  <button
-                    onClick={() => { onExportAll(); setShowExportPanel(false); }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-emerald-900/30 text-emerald-300 font-semibold text-sm flex items-center gap-2 transition-colors"
-                  >
-                    <Download size={13} />
-                    Export Everything
-                  </button>
-
-                  {characters.length > 0 && (
-                    <>
-                      <div className="mt-2 mb-1 px-2 text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1.5">
-                        <PersonStanding size={10} /> Characters
-                      </div>
-                      {characters.map(c => (
-                        <button
-                          key={c.id}
-                          onClick={() => { onExportCharacter(c.id); setShowExportPanel(false); }}
-                          className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-gray-800 text-sm flex items-center justify-between gap-2 transition-colors"
-                        >
-                          <span className={`truncate ${c.retired ? 'text-gray-500' : 'text-gray-300'}`}>
-                            {c.name || '(unnamed)'}
-                            {c.retired && <span className="ml-1.5 text-xs text-gray-600">retired</span>}
-                          </span>
-                          <Download size={11} className="flex-shrink-0 text-gray-500" />
-                        </button>
-                      ))}
-                    </>
-                  )}
-
-                  {ships.length > 0 && (
-                    <>
-                      <div className="mt-2 mb-1 px-2 text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1.5">
-                        <Rocket size={10} /> Ships
-                      </div>
-                      {ships.map(s => (
-                        <button
-                          key={s.id}
-                          onClick={() => { onExportShip(s.id); setShowExportPanel(false); }}
-                          className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-gray-800 text-sm flex items-center justify-between gap-2 transition-colors"
-                        >
-                          <span className={`truncate ${s.retired ? 'text-gray-500' : 'text-gray-300'}`}>
-                            {s.name || '(unnamed)'}
-                            {s.retired && <span className="ml-1.5 text-xs text-gray-600">retired</span>}
-                          </span>
-                          <Download size={11} className="flex-shrink-0 text-gray-500" />
-                        </button>
-                      ))}
-                    </>
-                  )}
-
-                  {sectors.length > 0 && (
-                    <>
-                      <div className="mt-2 mb-1 px-2 text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1.5">
-                        <Globe size={10} /> Sectors
-                      </div>
-                      {sectors.map(s => (
-                        <button
-                          key={s.id}
-                          onClick={() => { onExportSector(s.id); setShowExportPanel(false); }}
-                          className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-gray-800 text-gray-300 text-sm flex items-center justify-between gap-2 transition-colors"
-                        >
-                          <span className="truncate">{s.name || '(unnamed)'}</span>
-                          <Download size={11} className="flex-shrink-0 text-gray-500" />
-                        </button>
-                      ))}
-                    </>
-                  )}
-
-                  {characters.length === 0 && ships.length === 0 && sectors.length === 0 && (
-                    <p className="px-3 py-2 text-xs text-gray-600">Nothing to export yet.</p>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* Export button */}
+            <button
+              onClick={() => setShowExportPanel(true)}
+              title="Export"
+              className="w-9 h-9 rounded transition-colors flex items-center justify-center text-gray-400 hover:text-emerald-300 hover:bg-gray-700"
+            >
+              <Download size={18} />
+            </button>
 
             <button
               onClick={() => importInputRef.current?.click()}
@@ -252,73 +161,6 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
             </button>
           </div>
 
-          {/* Import confirmation modal */}
-          {importPending && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { setImportPending(null); setImportError(null); }}>
-              <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 flex flex-col gap-4 shadow-2xl max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-                {importPending.type === 'unknown' ? (
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-gray-100 font-semibold">Unrecognised file</p>
-                      <p className="text-gray-400 text-sm mt-1">This doesn't look like a valid SWN Builder export.</p>
-                    </div>
-                  </div>
-                ) : importPending.type === 'full' || importPending.type === 'legacy' ? (
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle size={20} className="text-amber-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-gray-100 font-semibold">Import full backup?</p>
-                      <p className="text-gray-400 text-sm mt-1">
-                        This will <span className="text-amber-300 font-medium">replace all current data</span>
-                        {importPending.type === 'full' ? ' (characters, ships & sectors)' : ' (characters & ships)'} with:
-                      </p>
-                      <p className="text-gray-300 text-sm font-mono mt-1 truncate">{importPending.file.name}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start gap-3">
-                    <FolderOpen size={20} className="text-sky-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-gray-100 font-semibold">
-                        Import {importPending.type}?
-                      </p>
-                      <p className="text-gray-400 text-sm mt-1">
-                        {importPending.entityName
-                          ? <><span className="text-gray-200 font-medium">"{importPending.entityName}"</span> will be added as a new copy.</>
-                          : <>A new {importPending.type} will be added to your roster.</>}
-                      </p>
-                      <p className="text-gray-600 text-xs font-mono mt-1 truncate">{importPending.file.name}</p>
-                    </div>
-                  </div>
-                )}
-
-                {importError && (
-                  <p className="text-red-400 text-sm bg-red-900/20 border border-red-800/50 rounded-lg px-3 py-2">
-                    {importError}
-                  </p>
-                )}
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => { setImportPending(null); setImportError(null); }}
-                    className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  {importPending.type !== 'unknown' && (
-                    <button
-                      onClick={confirmImport}
-                      disabled={importing}
-                      className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors flex items-center gap-2"
-                    >
-                      <FolderOpen size={14} />
-                      {importing ? 'Importing…' : 'Import'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -474,6 +316,144 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
           </>
         )}
       </div>
+
+      {/* Export modal — rendered at root to escape header's backdrop-filter stacking context */}
+      {showExportPanel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowExportPanel(false)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm mx-4 flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-800 flex-shrink-0">
+              <h2 className="text-gray-100 font-semibold">Export</h2>
+              <button onClick={() => setShowExportPanel(false)} className="text-gray-500 hover:text-gray-300 transition-colors text-lg leading-none">✕</button>
+            </div>
+            <div className="overflow-y-auto p-3 flex flex-col gap-1">
+              <button
+                onClick={() => { onExportAll(); setShowExportPanel(false); }}
+                className="w-full text-left px-4 py-3 rounded-xl bg-emerald-900/20 hover:bg-emerald-900/40 border border-emerald-800/30 text-emerald-300 font-semibold text-sm flex items-center gap-3 transition-colors"
+              >
+                <Download size={15} />
+                Export Everything
+                <span className="ml-auto text-xs text-emerald-600 font-normal">all data</span>
+              </button>
+
+              {characters.length > 0 && (
+                <>
+                  <div className="mt-3 mb-1 px-1 text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1.5">
+                    <PersonStanding size={10} /> Characters
+                  </div>
+                  {characters.map(c => (
+                    <button key={c.id} onClick={() => { onExportCharacter(c.id); setShowExportPanel(false); }}
+                      className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-800 text-sm flex items-center justify-between gap-2 transition-colors"
+                    >
+                      <span className={`truncate ${c.retired ? 'text-gray-500' : 'text-gray-300'}`}>
+                        {c.name || '(unnamed)'}
+                        {c.retired && <span className="ml-1.5 text-xs text-gray-600">retired</span>}
+                      </span>
+                      <Download size={12} className="flex-shrink-0 text-gray-500" />
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {ships.length > 0 && (
+                <>
+                  <div className="mt-3 mb-1 px-1 text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1.5">
+                    <Rocket size={10} /> Ships
+                  </div>
+                  {ships.map(s => (
+                    <button key={s.id} onClick={() => { onExportShip(s.id); setShowExportPanel(false); }}
+                      className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-800 text-sm flex items-center justify-between gap-2 transition-colors"
+                    >
+                      <span className={`truncate ${s.retired ? 'text-gray-500' : 'text-gray-300'}`}>
+                        {s.name || '(unnamed)'}
+                        {s.retired && <span className="ml-1.5 text-xs text-gray-600">retired</span>}
+                      </span>
+                      <Download size={12} className="flex-shrink-0 text-gray-500" />
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {sectors.length > 0 && (
+                <>
+                  <div className="mt-3 mb-1 px-1 text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1.5">
+                    <Globe size={10} /> Sectors
+                  </div>
+                  {sectors.map(s => (
+                    <button key={s.id} onClick={() => { onExportSector(s.id); setShowExportPanel(false); }}
+                      className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-800 text-gray-300 text-sm flex items-center justify-between gap-2 transition-colors"
+                    >
+                      <span className="truncate">{s.name || '(unnamed)'}</span>
+                      <Download size={12} className="flex-shrink-0 text-gray-500" />
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {characters.length === 0 && ships.length === 0 && sectors.length === 0 && (
+                <p className="px-4 py-3 text-sm text-gray-600">Nothing to export yet.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import confirmation modal — also at root level */}
+      {importPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { setImportPending(null); setImportError(null); }}>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 flex flex-col gap-4 shadow-2xl max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            {importPending.type === 'unknown' ? (
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-gray-100 font-semibold">Unrecognised file</p>
+                  <p className="text-gray-400 text-sm mt-1">This doesn't look like a valid SWN Builder export.</p>
+                </div>
+              </div>
+            ) : importPending.type === 'full' || importPending.type === 'legacy' ? (
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-gray-100 font-semibold">Import full backup?</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    This will <span className="text-amber-300 font-medium">replace all current data</span>
+                    {importPending.type === 'full' ? ' (characters, ships & sectors)' : ' (characters & ships)'} with:
+                  </p>
+                  <p className="text-gray-300 text-sm font-mono mt-1 truncate">{importPending.file.name}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-3">
+                <FolderOpen size={20} className="text-sky-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-gray-100 font-semibold">Import {importPending.type}?</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    {importPending.entityName
+                      ? <><span className="text-gray-200 font-medium">"{importPending.entityName}"</span> will be added as a new copy.</>
+                      : <>A new {importPending.type} will be added to your roster.</>}
+                  </p>
+                  <p className="text-gray-600 text-xs font-mono mt-1 truncate">{importPending.file.name}</p>
+                </div>
+              </div>
+            )}
+            {importError && (
+              <p className="text-red-400 text-sm bg-red-900/20 border border-red-800/50 rounded-lg px-3 py-2">{importError}</p>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => { setImportPending(null); setImportError(null); }}
+                className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium transition-colors"
+              >Cancel</button>
+              {importPending.type !== 'unknown' && (
+                <button onClick={confirmImport} disabled={importing}
+                  className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+                >
+                  <FolderOpen size={14} />
+                  {importing ? 'Importing…' : 'Import'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showToast && (
         <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">

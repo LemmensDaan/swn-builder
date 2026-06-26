@@ -13,7 +13,7 @@ import type { Sector, StarSystem } from './types/sector';
 import { EXPORT_VERSION } from './types/exportData';
 import SectorViewer from './components/sector/SectorViewer';
 import FactionSheet from './components/factions/FactionSheet';
-import { useSectorStore } from './store/useSectorStore';
+import { useSectorStore, flushSectorSave } from './store/useSectorStore';
 
 type View =
   | { type: 'home'; activeTab?: 'characters' | 'ships' | 'factions' | 'sector' }
@@ -28,8 +28,6 @@ export default function App() {
   const { characters, upsert, remove, setAll, loaded, ships, upsertShip, removeShip, saveError, clearSaveError, saveWarning, clearSaveWarning } = useCharacters();
   const sectors = useSectorStore(s => s.sectors);
   const systems = useSectorStore(s => s.systems);
-  const replaceSectorData = useSectorStore(s => s.replaceSectorData);
-  const importSingleSector = useSectorStore(s => s.importSingleSector);
   const [view, setView] = useState<View>({ type: 'home', activeTab: 'characters' });
   const [showRules, setShowRules] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -143,25 +141,33 @@ export default function App() {
     const text = await file.text();
     const parsed = JSON.parse(text); // throws on invalid JSON — caught by HomeScreen
 
+    // Use getState() after the await to avoid stale closure on store actions
+    const sectorStore = useSectorStore.getState();
+
     if (parsed.type === 'character') {
       const char: Character = { ...normalizeCharacter(parsed.character), id: crypto.randomUUID() };
       upsert(char);
+      setView({ type: 'home', activeTab: 'characters' });
     } else if (parsed.type === 'ship') {
       const ship: Ship = { ...normalizeShipData(parsed.ship), id: crypto.randomUUID() };
       upsertShip(ship);
+      setView({ type: 'home', activeTab: 'ships' });
     } else if (parsed.type === 'sector') {
-      importSingleSector(parsed.sector as Sector, parsed.systems as Record<string, StarSystem>);
+      sectorStore.importSingleSector(parsed.sector as Sector, parsed.systems as Record<string, StarSystem>);
+      flushSectorSave();
+      setView({ type: 'sector' });
     } else if (parsed.type === 'full') {
       const data = normalizeAppData(parsed);
       setAll({ characters: data.characters, ships: data.ships });
-      replaceSectorData(parsed.sectors ?? [], parsed.systems ?? {});
+      sectorStore.replaceSectorData(parsed.sectors ?? [], parsed.systems ?? {});
+      flushSectorSave();
+      setView({ type: 'home', activeTab: 'characters' });
     } else {
       // legacy v1 format — characters + ships only
       const data = normalizeAppData(parsed);
       setAll({ characters: data.characters, ships: data.ships });
+      setView({ type: 'home', activeTab: 'characters' });
     }
-
-    setView({ type: 'home' });
   }
 
   return (

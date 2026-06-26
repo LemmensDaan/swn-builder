@@ -7,6 +7,16 @@ import { GALAXY_TRIANGLES } from '../components/sector/GalaxyView/galaxyData';
 import { randomizeSystem, randomizeSectorPlan } from '../components/sector/SystemViewer/systemRandomizer';
 
 let _sectorSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let _pendingSaveFn: (() => void) | null = null;
+
+export function flushSectorSave() {
+  if (_sectorSaveTimer !== null) {
+    clearTimeout(_sectorSaveTimer);
+    _sectorSaveTimer = null;
+    _pendingSaveFn?.();
+    _pendingSaveFn = null;
+  }
+}
 
 
 interface SectorState {
@@ -542,7 +552,7 @@ export const useSectorStore = create<SectorStore>()(
       },
 
       replaceSectorData(newSectors, newSystems) {
-        set({ sectors: newSectors, systems: newSystems });
+        set({ sectors: newSectors, systems: newSystems, layer: 'galaxy', activeSectorId: null, activeSystemId: null });
       },
 
       importSingleSector(sector, systemsMap) {
@@ -667,7 +677,8 @@ export const useSectorStore = create<SectorStore>()(
         getItem: async (name: string) => localforage.getItem<string>(name),
         setItem: (name: string, value: string) => {
           if (_sectorSaveTimer) clearTimeout(_sectorSaveTimer);
-          _sectorSaveTimer = setTimeout(() => localforage.setItem(name, value), 500);
+          _pendingSaveFn = () => localforage.setItem(name, value);
+          _sectorSaveTimer = setTimeout(() => { _pendingSaveFn?.(); _pendingSaveFn = null; _sectorSaveTimer = null; }, 500);
           return Promise.resolve();
         },
         removeItem: async (name: string) => { await localforage.removeItem(name); },

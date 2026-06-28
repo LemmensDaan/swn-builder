@@ -46,11 +46,6 @@ const DEEP_ORBIT_SPACING = 15;
 // Orbit radius increments when placing a reparented object
 const TL_BASE_ORBIT = 8;
 const TL_SPACING = 10;
-const CHILD_BASE_ORBIT = 1.5;
-const CHILD_SPACING = 0.8;
-
-// Only these types may orbit an asteroid belt
-const BELT_ALLOWED_TYPES = new Set<ObjectType>(['SpaceStation', 'JumpGate', 'Other']);
 
 // These object types cannot be assigned to a faction
 const NO_FACTION_TYPES = new Set<ObjectType>(['Star', 'BlackHole', 'NeutronStar', 'Nebula', 'AsteroidBelt', 'Comet']);
@@ -96,9 +91,6 @@ export default function SystemPanel({ system, sectorId, onClose, onViewSystem, o
   const primaryTypes = getPrimaryObjectTypes();
   const primaryObjs = sorted.filter(o => primaryTypes.has(o.type));
   const primaryIds = new Set(primaryObjs.map(o => o.id));
-
-  // parentId to assign when making an object orbit the star
-  const defaultTLParentId: string | null = primaryObjs.length === 1 ? primaryObjs[0].id : null;
 
   const isTopLevelNonPrimary = (o: SystemObject) =>
     !primaryTypes.has(o.type) && (o.parentId === null || primaryIds.has(o.parentId ?? ''));

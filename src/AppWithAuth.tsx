@@ -5,6 +5,22 @@ import LoginScreen from './components/LoginScreen';
 const isDev = import.meta.env.DEV;
 const DEV_PASSWORD = 'test'; // Change to your test password
 
+// Timing-safe password comparison
+function comparePasswords(input: string, expected: string): boolean {
+  const inputBytes = new TextEncoder().encode(input);
+  const expectedBytes = new TextEncoder().encode(expected);
+
+  if (inputBytes.length !== expectedBytes.length) {
+    return false;
+  }
+
+  let mismatch = 0;
+  for (let i = 0; i < inputBytes.length; i++) {
+    mismatch |= inputBytes[i] ^ expectedBytes[i];
+  }
+  return mismatch === 0;
+}
+
 export default function AppWithAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
@@ -16,7 +32,7 @@ export default function AppWithAuth() {
   const handleLogin = async (password: string): Promise<boolean> => {
     if (isDev) {
       // Local development: accept test password
-      if (password === DEV_PASSWORD) {
+      if (comparePasswords(password, DEV_PASSWORD)) {
         localStorage.setItem('swnauth', 'true');
         setIsAuthenticated(true);
         return true;

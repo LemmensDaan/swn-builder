@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Plus, Shield, Eye, DollarSign, Heart, Star, Target, BookOpen, Swords, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Shield, Eye, DollarSign, Heart, Star, Target, BookOpen, Swords, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { useSectorStore } from '../../store/useSectorStore';
 import ItemActions from '../ItemActions';
-import { factionMaxHp } from '../../data/faction-assets';
+import { factionMaxHp, FACTION_PRESETS, type FactionPreset } from '../../data/faction-assets';
+import { buildPresetAssets } from '../../data/faction-turn';
 import type { Faction, FactionAssetType } from '../../types/sector';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -244,16 +245,40 @@ export default function FactionScreen({ onOpen }: { onOpen: (factionId: string, 
   const { sectors, addFaction, updateFaction, removeFaction } = useSectorStore();
   const [filterSectorId, setFilterSectorId] = useState<string | null>(null);
   const [newFactionColor, setNewFactionColor] = useState('#e11d48');
+  const [presetForSector, setPresetForSector] = useState<string | null>(null);
 
   const displayedSectors = filterSectorId
     ? sectors.filter(s => s.id === filterSectorId)
     : sectors;
 
-  function handleAdd(sectorId: string) {
-    const faction = addFaction(sectorId, '', newFactionColor);
+  function nextColor() {
     const colors = ['#e11d48', '#2563eb', '#d97706', '#16a34a', '#7c3aed', '#db2777', '#0891b2'];
     const currentIdx = colors.indexOf(newFactionColor);
     setNewFactionColor(colors[(currentIdx + 1) % colors.length]);
+  }
+
+  function handleAdd(sectorId: string) {
+    // Offer the creation presets first; the modal calls createFromPreset / createBlank.
+    setPresetForSector(sectorId);
+  }
+
+  function createBlank(sectorId: string) {
+    const faction = addFaction(sectorId, '', newFactionColor);
+    nextColor();
+    setPresetForSector(null);
+    onOpen(faction.id, sectorId);
+  }
+
+  function createFromPreset(sectorId: string, preset: FactionPreset) {
+    const faction = addFaction(sectorId, '', newFactionColor);
+    nextColor();
+    const assets = buildPresetAssets(preset);
+    updateFaction(sectorId, faction.id, {
+      force: preset.force, cunning: preset.cunning, wealth: preset.wealth,
+      hp: factionMaxHp(preset.force, preset.cunning, preset.wealth),
+      assets,
+    });
+    setPresetForSector(null);
     onOpen(faction.id, sectorId);
   }
 
@@ -325,6 +350,41 @@ export default function FactionScreen({ onOpen }: { onOpen: (factionId: string, 
           />
         ))}
       </div>
+
+      {presetForSector && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setPresetForSector(null)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+              <h3 className="text-gray-100 font-semibold text-lg">New Faction</h3>
+              <button onClick={() => setPresetForSector(null)} className="text-gray-400 hover:text-gray-200"><X size={20} /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-4 space-y-2">
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Start from a creation preset (p.226)</p>
+              {FACTION_PRESETS.map(preset => (
+                <button
+                  key={preset.name}
+                  onClick={() => createFromPreset(presetForSector, preset)}
+                  className="w-full text-left rounded-lg border border-amber-800/40 bg-amber-900/10 hover:bg-amber-900/25 px-4 py-3 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm text-amber-300">{preset.name}</span>
+                    <span className="text-xs text-gray-400 font-mono">F{preset.force}/C{preset.cunning}/W{preset.wealth}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">{preset.description}</p>
+                </button>
+              ))}
+              <div className="pt-3 mt-2 border-t border-gray-800">
+                <button
+                  onClick={() => createBlank(presetForSector)}
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800/40 hover:bg-gray-800 px-4 py-3 text-sm text-gray-300 transition-colors"
+                >
+                  Blank faction (1/1/1, no assets)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

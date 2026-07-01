@@ -127,6 +127,24 @@ export interface FactionAsset {
   maintenance?: number;  // FacCreds/turn upkeep
   note?: string;         // P / A / S footnote codes
   special?: string;      // special ability text
+  // ── Play-loop state (p.213–219) ──
+  /** World (StarSystem id) where the asset sits. null = faction homeworld / unplaced. */
+  locationSystemId?: string | null;
+  /** Stealthed assets can't be targeted until detected (Cunning Stealth quality / Secretive). */
+  stealthed?: boolean;
+  /** Base of Influence flag — HP equals bought HP; damage also hits faction HP. */
+  isBaseOfInfluence?: boolean;
+  /** Just bought/refitted — can't attack, defend, or grant abilities until next turn. */
+  notReady?: boolean;
+  /** Consecutive turns maintenance went unpaid. 1 = unusable this turn, 2 = lost. */
+  unpaidTurns?: number;
+}
+
+/** One entry in a faction's turn/action log (p.216). */
+export interface FactionTurnLogEntry {
+  id: string;
+  turn: number;
+  text: string;
 }
 
 export interface FactionGoal {
@@ -152,6 +170,17 @@ export interface Faction {
   goals: FactionGoal[];
   timeline: TimelineEvent[];
   retired?: boolean;
+  // ── Play-loop state (p.213–219) ──
+  /** FacCred treasury. */
+  facCreds?: number;
+  /** Faction homeworld (StarSystem id). Assets/actions are always allowed here. */
+  homeworldSystemId?: string | null;
+  /** Current faction-turn number (increments each processed turn). */
+  turn?: number;
+  /** Rolling log of turn income/maintenance/actions. */
+  turnLog?: FactionTurnLogEntry[];
+  /** Turns the faction has held a contested world for a Seize Planet action, keyed by system id. */
+  seizeProgress?: Record<string, number>;
 }
 
 export type RouteCategory = 'known' | 'experimental' | 'crew-traveled' | 'crew-discovered' | 'hazardous';

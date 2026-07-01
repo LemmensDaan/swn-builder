@@ -1,10 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ArrowLeft, Skull,
   Plus, X, Check, Heart, Target, Swords, Shield, Eye, DollarSign,
+  Coins, ChevronsUp, Home, Sparkles, MapPin, EyeOff, Play, Zap,
 } from 'lucide-react';
 import { useSectorStore } from '../../store/useSectorStore';
-import { REFERENCE_ASSETS, FACTION_TAGS, FACTION_GOALS, factionMaxHp } from '../../data/faction-assets';
+import { REFERENCE_ASSETS, FACTION_TAGS, FACTION_TAGS_FULL, FACTION_GOALS, factionMaxHp } from '../../data/faction-assets';
+import {
+  factionIncome, factionMaintenance, xpToRaise, assetCap, assetsOfType,
+  GENGINEERED_SLAVES, runAssetAbility, hasAutomatableAbility,
+  getAbilityKind, buysStealthed, tagBuyCost, type AbilityKind,
+} from '../../data/faction-turn';
+import AttackResolver from './AttackResolver';
+import AbilityModal from './AbilityModal';
 import type { Faction, FactionAsset, FactionGoal, FactionAssetType, TimelineEvent } from '../../types/sector';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -86,12 +94,14 @@ function StatSpinner({
 // ─── asset picker modal ───────────────────────────────────────────────────────
 
 function AssetPickerModal({
-  factionForce, factionCunning, factionWealth,
+  factionForce, factionCunning, factionWealth, factionTags, facCreds,
   onPick, onClose,
 }: {
   factionForce: number;
   factionCunning: number;
   factionWealth: number;
+  factionTags: string[];
+  facCreds: number;
   onPick: (asset: FactionAsset) => void;
   onClose: () => void;
 }) {
@@ -103,7 +113,12 @@ function AssetPickerModal({
     Wealth:  factionWealth,
   };
 
-  const filtered = REFERENCE_ASSETS.filter(a =>
+  // Eugenics Cult unlocks the tag-gated Gengineered Slaves asset (p.224).
+  const pool = factionTags.includes('Eugenics Cult')
+    ? [GENGINEERED_SLAVES, ...REFERENCE_ASSETS]
+    : REFERENCE_ASSETS;
+
+  const filtered = pool.filter(a =>
     filter === 'all' ? true : a.type === filter
   );
 
@@ -185,7 +200,7 @@ function AssetPickerModal({
                     <span className={`font-semibold text-sm ${unlocked ? '' : 'text-gray-600'}`}>{ref.name}</span>
                   </div>
                   <div className="flex items-center gap-3 text-xs">
-                    <span className={unlocked ? 'text-amber-400' : 'text-gray-700'}>{ref.cost} FC</span>
+                    <span className={!unlocked ? 'text-gray-700' : ref.cost > facCreds ? 'text-red-400' : 'text-amber-400'} title={unlocked && ref.cost > facCreds ? 'Not enough FacCreds' : undefined}>{ref.cost} FC</span>
                     <span className={unlocked ? 'text-gray-400' : 'text-gray-700'}>HP {ref.maxHp || '—'}</span>
                     <span className={unlocked ? 'text-gray-400' : 'text-gray-700'}>TL{ref.tl}</span>
                   </div>
@@ -330,10 +345,16 @@ interface Props {
 }
 
 export default function FactionSheet({ faction, sectorId, sectorName, onBack }: Props) {
-  const { updateFaction } = useSectorStore();
+  const {
+    updateFaction, factionRaiseStat,
+    factionAdjustFacCreds, factionProcessTurnStart, factionLog,
+    systems, sectors,
+  } = useSectorStore();
   const [local, setLocal] = useState<Faction>({ ...faction });
   const [showAssetPicker, setShowAssetPicker] = useState(false);
   const [showGoalPicker, setShowGoalPicker] = useState(false);
+  const [showAttack, setShowAttack] = useState(false);
+  const [abilityFor, setAbilityFor] = useState<{ asset: FactionAsset; kind: AbilityKind } | null>(null);
   const [newTagInput, setNewTagInput] = useState('');
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [tlDate, setTlDate] = useState('');
@@ -341,6 +362,20 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
 
   const maxHp = derivedMaxHp(local.force, local.cunning, local.wealth);
   const retired = local.retired ?? false;
+  const facCreds = local.facCreds ?? 0;
+  const income = factionIncome(local);
+  const maintenance = factionMaintenance(local);
+  const turn = local.turn ?? 0;
+
+  // Systems in this sector — for homeworld / asset-location pickers.
+  const sectorSystems = Object.values(systems).filter(sys => sys.sectorId === sectorId);
+  // Live faction from the store (so the attack resolver sees applied damage immediately).
+  const liveFaction = sectors.find(s => s.id === sectorId)?.factions.find(f => f.id === faction.id) ?? local;
+  const rivals = (sectors.find(s => s.id === sectorId)?.factions ?? []).filter(f => f.id !== faction.id && !(f.retired ?? false));
+
+  // Keep the local mirror in sync with store-driven actions (turn processing, attacks,
+  // XP raises). liveFaction is the stored object reference, stable between real updates.
+  useEffect(() => { setLocal({ ...liveFaction }); }, [liveFaction]);
 
   function patch(updates: Partial<Faction>) {
     const next = { ...local, ...updates };
@@ -393,7 +428,17 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
   }
 
   function addAsset(asset: FactionAsset) {
-    patch({ assets: [...local.assets, asset] });
+    // Preceptor Archive discounts TL4+ assets; Secretive buys them Stealthed.
+    const cost = tagBuyCost(local, { cost: asset.cost ?? 0, tl: asset.tl ?? 0 });
+    const stealthed = buysStealthed(local) ? true : asset.stealthed;
+    // Bought assets can't act until next turn; default their location to the homeworld.
+    patch({
+      assets: [...local.assets, { ...asset, stealthed, notReady: true, locationSystemId: local.homeworldSystemId ?? null }],
+      facCreds: Math.max(0, facCreds - cost),
+    });
+    if (cost > 0 || stealthed) {
+      factionLog(sectorId, faction.id, `Bought ${asset.name} (−${cost} FC)${stealthed ? ', begins Stealthed' : ''}.`);
+    }
     setShowAssetPicker(false);
   }
 
@@ -403,6 +448,55 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
 
   function removeAsset(id: string) {
     patch({ assets: local.assets.filter(a => a.id !== id) });
+  }
+
+  // Sell Asset action (p.215): gain half the FacCred cost, rounded down.
+  function sellAsset(asset: FactionAsset) {
+    const gain = Math.floor((asset.cost ?? 0) / 2);
+    patch({ assets: local.assets.filter(a => a.id !== asset.id), facCreds: facCreds + gain });
+    factionLog(sectorId, faction.id, `Sold ${asset.name} (+${gain} FC).`);
+  }
+
+  // Repair Asset action (p.215): for 1 FacCred, heal points equal to the faction's
+  // score in the asset's ruling attribute (single repair shown; escalates if repeated).
+  function repairAsset(asset: FactionAsset) {
+    const rating = asset.type === 'Force' ? local.force : asset.type === 'Cunning' ? local.cunning : local.wealth;
+    const heal = Math.min(rating, asset.maxHp - asset.hp);
+    if (heal <= 0 || facCreds < 1) return;
+    patch({
+      assets: local.assets.map(a => a.id === asset.id ? { ...a, hp: a.hp + heal } : a),
+      facCreds: facCreds - 1,
+    });
+    factionLog(sectorId, faction.id, `Repaired ${asset.name} +${heal} HP (−1 FC).`);
+  }
+
+  // Use Asset Ability action (p.215). FacCred abilities resolve inline; move/reveal
+  // abilities open a small targeting modal.
+  function useAbility(asset: FactionAsset) {
+    const kind = getAbilityKind(asset);
+    if (kind === 'faccred') {
+      const res = runAssetAbility(asset);
+      if (!res) return;
+      const assets = res.selfDestroyed ? local.assets.filter(a => a.id !== asset.id) : local.assets;
+      patch({ assets, facCreds: Math.max(0, facCreds + res.facCredDelta) });
+      factionLog(sectorId, faction.id, res.log);
+    } else if (kind === 'move' || kind === 'reveal') {
+      setAbilityFor({ asset, kind });
+    }
+  }
+
+  // Expand Influence (p.214): buy a Base of Influence with N HP at 1 FC/HP, up to faction max HP.
+  function buyBaseOfInfluence() {
+    const hp = Math.min(maxHp, Math.max(1, Number(prompt(`Base of Influence — how many HP? (1 FC each, max ${maxHp})`, '1')) || 0));
+    if (hp <= 0) return;
+    const boi: FactionAsset = {
+      id: crypto.randomUUID(), name: 'Base of Influence', type: 'Cunning', rating: 1,
+      hp, maxHp: hp, attack: '—', counter: '—', notes: '', cost: hp, tl: 0,
+      category: 'Special', isBaseOfInfluence: true, notReady: true,
+      locationSystemId: local.homeworldSystemId ?? null,
+    };
+    patch({ assets: [...local.assets, boi], facCreds: Math.max(0, facCreds - hp) });
+    factionLog(sectorId, faction.id, `Expand Influence: bought a ${hp} HP Base of Influence (−${hp} FC).`);
   }
 
   function addGoal(goal: FactionGoal) {
@@ -631,6 +725,116 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
             </SheetSection>
           </div>
 
+          {/* ── Faction Turn & Economy ─────────────────────────────────────── */}
+          <SheetSection
+            title={`Faction Turn ${turn > 0 ? `· Turn ${turn}` : ''}`}
+            action={
+              <button
+                onClick={() => { factionProcessTurnStart(sectorId, faction.id); }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-700/80 hover:bg-emerald-600 text-emerald-50 text-xs font-semibold transition-colors"
+                title="Collect income, pay maintenance, ready assets, advance the turn"
+              >
+                <Play size={11} /> Start Turn
+              </button>
+            }
+          >
+            <div className="space-y-4">
+              {/* Treasury + income/maintenance */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <div className="flex items-center gap-1.5 text-amber-400 mb-1"><Coins size={13} /><span className="text-xs uppercase tracking-wider">FacCreds</span></div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => factionAdjustFacCreds(sectorId, faction.id, -1)} className="w-5 h-5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold">−</button>
+                    <input
+                      type="number" min={0} value={facCreds}
+                      onChange={e => patch({ facCreds: Math.max(0, Number(e.target.value)) })}
+                      className="w-12 bg-transparent text-center text-lg font-bold text-amber-300 focus:outline-none"
+                    />
+                    <button onClick={() => factionAdjustFacCreds(sectorId, faction.id, 1)} className="w-5 h-5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold">+</button>
+                  </div>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <span className="text-xs uppercase tracking-wider text-gray-500 block mb-1">Income / turn</span>
+                  <span className="text-lg font-bold text-emerald-400">+{income}</span>
+                  <span className="text-[10px] text-gray-600 block">⌈W/2⌉+⌊(F+C)/4⌋</span>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <span className="text-xs uppercase tracking-wider text-gray-500 block mb-1">Upkeep / turn</span>
+                  <span className={`text-lg font-bold ${maintenance > income ? 'text-red-400' : 'text-orange-300'}`}>−{maintenance}</span>
+                  <span className="text-[10px] text-gray-600 block">incl. over-cap</span>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <span className="text-xs uppercase tracking-wider text-gray-500 block mb-1">Net / turn</span>
+                  <span className={`text-lg font-bold ${income - maintenance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{income - maintenance >= 0 ? '+' : ''}{income - maintenance}</span>
+                </div>
+              </div>
+
+              {/* Asset caps by rating */}
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                {(['Force', 'Cunning', 'Wealth'] as FactionAssetType[]).map(t => {
+                  const used = assetsOfType(local, t);
+                  const cap = assetCap(local, t);
+                  return (
+                    <span key={t} className={`px-2 py-0.5 rounded-full border ${used > cap ? 'border-red-700 bg-red-900/20 text-red-300' : 'border-gray-700 bg-gray-800/50 text-gray-400'}`}>
+                      {t}: {used}/{cap} assets{used > cap ? ` (+${used - cap} FC upkeep)` : ''}
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* XP rating raises */}
+              <div>
+                <span className="text-xs uppercase tracking-wider text-gray-500 flex items-center gap-1.5 mb-2"><ChevronsUp size={12} /> Raise rating (spend XP — {local.xp} available)</span>
+                <div className="flex flex-wrap gap-2">
+                  {(['force', 'cunning', 'wealth'] as const).map(stat => {
+                    const cost = xpToRaise(local[stat]);
+                    const can = cost !== null && local.xp >= cost;
+                    return (
+                      <button
+                        key={stat}
+                        disabled={!can}
+                        onClick={() => factionRaiseStat(sectorId, faction.id, stat)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${can ? 'border-amber-700 bg-amber-900/20 text-amber-300 hover:bg-amber-900/40' : 'border-gray-800 bg-gray-800/30 text-gray-600 cursor-not-allowed'}`}
+                      >
+                        {stat[0].toUpperCase()}{stat.slice(1)} → {local[stat] + 1} {cost === null ? '(max)' : `(${cost} XP)`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Homeworld + actions */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1.5 mb-1"><Home size={12} /> Homeworld</label>
+                  <select
+                    className="input text-sm"
+                    value={local.homeworldSystemId ?? ''}
+                    onChange={e => patch({ homeworldSystemId: e.target.value || null })}
+                  >
+                    <option value="">— none —</option>
+                    {sectorSystems.map(sys => <option key={sys.id} value={sys.id}>{sys.name}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-end gap-2">
+                  <button
+                    onClick={() => setShowAttack(true)}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-rose-800/70 hover:bg-rose-700 text-rose-50 text-xs font-semibold transition-colors"
+                  >
+                    <Swords size={13} /> Attack
+                  </button>
+                  <button
+                    onClick={buyBaseOfInfluence}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-violet-800/70 hover:bg-violet-700 text-violet-50 text-xs font-semibold transition-colors"
+                    title="Expand Influence — buy a Base of Influence (1 FC / HP)"
+                  >
+                    <Sparkles size={13} /> Expand Influence
+                  </button>
+                </div>
+              </div>
+            </div>
+          </SheetSection>
+
           {/* Assets */}
           <SheetSection
             title={`Assets (${local.assets.length})`}
@@ -658,6 +862,10 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
                           {asset.type[0]}{asset.rating}
                         </span>
                         <span className="font-semibold text-sm truncate">{asset.name}</span>
+                        {asset.isBaseOfInfluence && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-900/50 text-violet-300 border border-violet-800/50 flex-shrink-0">BoI</span>}
+                        {asset.notReady && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-900/40 text-yellow-300 border border-yellow-800/50 flex-shrink-0" title="Bought/refitted — can't act until next turn">not ready</span>}
+                        {asset.stealthed && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-300 border border-gray-600 flex-shrink-0 flex items-center gap-0.5"><EyeOff size={9} /> stealth</span>}
+                        {(asset.unpaidTurns ?? 0) >= 1 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-900/40 text-red-300 border border-red-800/50 flex-shrink-0" title="Maintenance unpaid — unusable">unpaid</span>}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <div className="flex items-center gap-1 text-xs text-gray-400">
@@ -693,6 +901,53 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
                     {asset.special && (
                       <p className="text-xs text-gray-500 mt-1 italic">{asset.special}</p>
                     )}
+                    {/* Play-loop controls: location, stealth, abilities, sell */}
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <label className="flex items-center gap-1 text-[11px] text-gray-500">
+                        <MapPin size={11} />
+                        <select
+                          className="bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 text-[11px] text-gray-300 focus:outline-none focus:border-amber-500"
+                          value={asset.locationSystemId ?? ''}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => updateAsset(asset.id, { locationSystemId: e.target.value || null })}
+                        >
+                          <option value="">unplaced</option>
+                          {sectorSystems.map(sys => <option key={sys.id} value={sys.id}>{sys.name}</option>)}
+                        </select>
+                      </label>
+                      <button
+                        onClick={() => updateAsset(asset.id, { stealthed: !asset.stealthed })}
+                        className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border transition-colors ${asset.stealthed ? 'border-gray-500 bg-gray-700 text-gray-200' : 'border-gray-700 bg-gray-800/50 text-gray-500 hover:text-gray-300'}`}
+                      >
+                        {asset.stealthed ? <EyeOff size={10} /> : <Eye size={10} />} {asset.stealthed ? 'Stealthed' : 'Stealth'}
+                      </button>
+                      {hasAutomatableAbility(asset) && (asset.unpaidTurns ?? 0) < 1 && !asset.notReady && (
+                        <button
+                          onClick={() => useAbility(asset)}
+                          className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border border-emerald-800/60 bg-emerald-900/20 text-emerald-300 hover:bg-emerald-900/40 transition-colors"
+                          title="Use Asset Ability"
+                        >
+                          <Zap size={10} /> Use Ability
+                        </button>
+                      )}
+                      {asset.hp < asset.maxHp && (
+                        <button
+                          onClick={() => repairAsset(asset)}
+                          disabled={facCreds < 1}
+                          className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border border-sky-800/60 bg-sky-900/20 text-sky-300 hover:bg-sky-900/40 disabled:opacity-40 transition-colors"
+                          title={`Repair +${asset.type === 'Force' ? local.force : asset.type === 'Cunning' ? local.cunning : local.wealth} HP for 1 FC`}
+                        >
+                          <Heart size={10} /> Repair (−1)
+                        </button>
+                      )}
+                      <button
+                        onClick={() => sellAsset(asset)}
+                        className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border border-gray-700 bg-gray-800/50 text-gray-500 hover:text-amber-300 transition-colors ml-auto"
+                        title={`Sell for ${Math.floor((asset.cost ?? 0) / 2)} FC`}
+                      >
+                        <Coins size={10} /> Sell (+{Math.floor((asset.cost ?? 0) / 2)})
+                      </button>
+                    </div>
                     <input
                       className="mt-2 w-full bg-transparent border-b border-gray-700 text-xs text-gray-400 placeholder-gray-700 focus:outline-none focus:border-amber-500"
                       placeholder="Notes…"
@@ -833,6 +1088,52 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
             </div>
           </SheetSection>
 
+          {/* Tag Effects */}
+          {(() => {
+            const tagged = FACTION_TAGS_FULL.filter(t => local.tags.includes(t.name));
+            if (tagged.length === 0) return null;
+            return (
+              <SheetSection title={`Tag Effects (${tagged.length})`}>
+                <div className="space-y-2">
+                  {tagged.map(t => (
+                    <div key={t.name} className="rounded-lg border border-gray-700 bg-gray-800/30 px-3 py-2">
+                      <span className="text-sm font-semibold text-amber-300">{t.name}</span>
+                      <p className="text-xs text-gray-400 mt-0.5">{t.effect}</p>
+                    </div>
+                  ))}
+                  <p className="text-[11px] text-gray-600 italic pt-1">
+                    Bonus/penalty dice from Warlike, Machiavellian, Plutocratic, Theocratic, Exchange Consulate,
+                    Deep Rooted, Fanatical and Eugenics Cult are applied automatically in the Attack resolver.
+                  </p>
+                </div>
+              </SheetSection>
+            );
+          })()}
+
+          {/* Turn Log */}
+          {(local.turnLog ?? []).length > 0 && (
+            <SheetSection
+              title={`Turn Log (${(local.turnLog ?? []).length})`}
+              action={
+                <button
+                  onClick={() => patch({ turnLog: [] })}
+                  className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+                >
+                  Clear
+                </button>
+              }
+            >
+              <div className="space-y-1 max-h-60 overflow-y-auto">
+                {(local.turnLog ?? []).map(entry => (
+                  <div key={entry.id} className="flex gap-2 text-xs">
+                    <span className="text-amber-600/80 font-mono flex-shrink-0">T{entry.turn}</span>
+                    <span className="text-gray-400">{entry.text}</span>
+                  </div>
+                ))}
+              </div>
+            </SheetSection>
+          )}
+
           {/* Notes */}
           <SheetSection title="Notes">
             <textarea
@@ -865,8 +1166,30 @@ export default function FactionSheet({ faction, sectorId, sectorName, onBack }: 
           factionForce={local.force}
           factionCunning={local.cunning}
           factionWealth={local.wealth}
+          factionTags={local.tags}
+          facCreds={facCreds}
           onPick={addAsset}
           onClose={() => setShowAssetPicker(false)}
+        />
+      )}
+
+      {showAttack && (
+        <AttackResolver
+          sectorId={sectorId}
+          attacker={liveFaction}
+          rivals={rivals}
+          onClose={() => setShowAttack(false)}
+        />
+      )}
+
+      {abilityFor && (
+        <AbilityModal
+          sectorId={sectorId}
+          faction={liveFaction}
+          asset={abilityFor.asset}
+          kind={abilityFor.kind}
+          rivals={rivals}
+          onClose={() => setAbilityFor(null)}
         />
       )}
 

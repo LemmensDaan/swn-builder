@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import localforage from 'localforage';
-import type { Sector, StarSystem, SystemObject, Faction, HexCell, NebulaShape, SpikeRoute, RouteCategory, PlanetPOI } from '../types/sector';
+import type { Sector, StarSystem, SystemObject, Faction, FactionAsset, FactionTurnLogEntry, HexCell, NebulaShape, SpikeRoute, RouteCategory, PlanetPOI } from '../types/sector';
 import { makeEmptyHexGrid, OBJECT_TYPE_DEFAULTS } from '../types/sector';
+import { factionMaxHp } from '../data/faction-assets';
+import { factionIncome, factionMaintenance, xpToRaise, assetCap } from '../data/faction-turn';
 import { GALAXY_TRIANGLES } from '../components/sector/GalaxyView/galaxyData';
 import { randomizeSystem, randomizeSectorPlan } from '../components/sector/SystemViewer/systemRandomizer';
 
@@ -67,6 +69,14 @@ interface SectorActions {
   addFaction: (sectorId: string, name: string, color: string) => Faction;
   updateFaction: (sectorId: string, factionId: string, updates: Partial<Omit<Faction, 'id'>>) => void;
   removeFaction: (sectorId: string, factionId: string) => void;
+
+  // Faction play loop
+  updateFactionAsset: (sectorId: string, factionId: string, assetId: string, updates: Partial<FactionAsset>) => void;
+  factionRaiseStat: (sectorId: string, factionId: string, stat: 'force' | 'cunning' | 'wealth') => boolean;
+  factionAdjustFacCreds: (sectorId: string, factionId: string, delta: number) => void;
+  factionLog: (sectorId: string, factionId: string, text: string) => void;
+  /** Process start-of-turn: collect income, pay maintenance, ready assets, advance the turn. */
+  factionProcessTurnStart: (sectorId: string, factionId: string) => void;
 
   // Import / export
   exportSectorData: () => string;
@@ -510,6 +520,7 @@ export const useSectorStore = create<SectorStore>()(
         const faction: Faction = {
           id: crypto.randomUUID(), name, color, notes: '',
           force: 1, cunning: 1, wealth: 1, hp: 6, xp: 0, tags: [], assets: [], goals: [], timeline: [],
+          facCreds: 0, homeworldSystemId: null, turn: 0, turnLog: [], seizeProgress: {},
         };
         set(s => ({
           sectors: s.sectors.map(sec =>
@@ -539,6 +550,95 @@ export const useSectorStore = create<SectorStore>()(
         }));
       },
 
+      updateFactionAsset(sectorId, factionId, assetId, updates) {
+        set(s => ({
+          sectors: s.sectors.map(sec =>
+            sec.id === sectorId
+              ? { ...sec, factions: sec.factions.map(f => f.id === factionId
+                  ? { ...f, assets: f.assets.map(a => a.id === assetId ? { ...a, ...updates } : a) }
+                  : f) }
+              : sec
+          ),
+        }));
+      },
+
+      factionRaiseStat(sectorId, factionId, stat) {
+        const sector = get().sectors.find(s => s.id === sectorId);
+        const faction = sector?.factions.find(f => f.id === factionId);
+        if (!faction) return false;
+        const cost = xpToRaise(faction[stat]);
+        if (cost === null || faction.xp < cost) return false;
+        const next = { ...faction, [stat]: faction[stat] + 1, xp: faction.xp - cost };
+        const newMax = factionMaxHp(next.force, next.cunning, next.wealth);
+        get().updateFaction(sectorId, factionId, {
+          [stat]: next[stat],
+          xp: next.xp,
+          hp: Math.min(faction.hp, newMax),
+        });
+        get().factionLog(sectorId, factionId, `Raised ${stat[0].toUpperCase()}${stat.slice(1)} to ${next[stat]} (−${cost} XP).`);
+        return true;
+      },
+
+      factionAdjustFacCreds(sectorId, factionId, delta) {
+        const sector = get().sectors.find(s => s.id === sectorId);
+        const faction = sector?.factions.find(f => f.id === factionId);
+        if (!faction) return;
+        get().updateFaction(sectorId, factionId, { facCreds: Math.max(0, (faction.facCreds ?? 0) + delta) });
+      },
+
+      factionLog(sectorId, factionId, text) {
+        const sector = get().sectors.find(s => s.id === sectorId);
+        const faction = sector?.factions.find(f => f.id === factionId);
+        if (!faction) return;
+        const entry: FactionTurnLogEntry = { id: crypto.randomUUID(), turn: faction.turn ?? 0, text };
+        get().updateFaction(sectorId, factionId, { turnLog: [entry, ...(faction.turnLog ?? [])].slice(0, 100) });
+      },
+
+      factionProcessTurnStart(sectorId, factionId) {
+        const sector = get().sectors.find(s => s.id === sectorId);
+        const faction = sector?.factions.find(f => f.id === factionId);
+        if (!faction) return;
+
+        const turn = (faction.turn ?? 0) + 1;
+        const income = factionIncome(faction);
+        const maintenance = factionMaintenance(faction);
+        let treasury = (faction.facCreds ?? 0) + income;
+        const logLines: string[] = [`+${income} FC income`];
+
+        let assets = faction.assets.map(a => ({ ...a, notReady: false }));
+        if (maintenance > 0) {
+          if (treasury >= maintenance) {
+            treasury -= maintenance;
+            assets = assets.map(a => ({ ...a, unpaidTurns: 0 }));
+            logLines.push(`−${maintenance} FC maintenance`);
+          } else {
+            // Can't fully maintain: assets fall into arrears; 2nd consecutive unpaid turn = lost.
+            // Both upkeep-costing assets AND the assets over the per-type rating cap go unpaid.
+            const available = treasury;
+            treasury = 0;
+            const overCapIds = new Set<string>();
+            for (const t of ['Force', 'Cunning', 'Wealth'] as const) {
+              const ofType = assets.filter(a => a.type === t && !a.isBaseOfInfluence);
+              ofType.slice(assetCap(faction, t)).forEach(a => overCapIds.add(a.id));
+            }
+            assets = assets
+              .map(a => ((a.maintenance ?? 0) > 0 || overCapIds.has(a.id)) ? { ...a, unpaidTurns: (a.unpaidTurns ?? 0) + 1 } : a)
+              .filter(a => (a.unpaidTurns ?? 0) < 2);
+            const lost = faction.assets.length - assets.length;
+            // Scavengers tag: gain 1 FacCred for each asset lost (p.225).
+            if (lost > 0 && faction.tags.includes('Scavengers')) treasury += lost;
+            logLines.push(`maintenance shortfall (${available}/${maintenance} FC)${lost ? `, ${lost} asset(s) lost` : ', assets unusable'}`);
+          }
+        }
+
+        get().updateFaction(sectorId, factionId, {
+          turn,
+          facCreds: treasury,
+          assets,
+        });
+        get().factionLog(sectorId, factionId, `Turn ${turn} begins: ${logLines.join('; ')}. Treasury ${treasury} FC.`);
+      },
+
       exportSectorData() {
         const { sectors, systems } = get();
         return JSON.stringify({ version: 1, sectors, systems }, null, 2);
@@ -565,11 +665,25 @@ export const useSectorStore = create<SectorStore>()(
         const usedIndices = new Set(get().sectors.map(s => s.triangleIndex));
         const triangleIndex = pickTriangleIndex(usedIndices);
 
+        const mapSys = (id: string | null | undefined) => (id ? (systemIdMap[id] ?? null) : null);
+
         const newSector: Sector = {
           ...sector,
           id: newSectorId,
           triangleIndex,
-          factions: sector.factions.map(f => ({ ...f, id: factionIdMap[f.id] })),
+          factions: sector.factions.map(f => ({
+            ...f,
+            id: factionIdMap[f.id],
+            // Remap the play-loop's system-id references onto the freshly-generated systems.
+            homeworldSystemId: mapSys(f.homeworldSystemId),
+            assets: f.assets.map(a => ({ ...a, locationSystemId: mapSys(a.locationSystemId) })),
+            seizeProgress: f.seizeProgress
+              ? Object.fromEntries(Object.entries(f.seizeProgress).flatMap(([sid, v]) => {
+                  const mapped = systemIdMap[sid];
+                  return mapped ? [[mapped, v]] : [];
+                }))
+              : undefined,
+          })),
           hexes: sector.hexes.map(hex => ({
             ...hex,
             systemId: hex.systemId ? (systemIdMap[hex.systemId] ?? null) : null,
@@ -606,7 +720,7 @@ export const useSectorStore = create<SectorStore>()(
     }),
     {
       name: 'swn-sector-data',
-      version: 6,
+      version: 7,
       migrate(persistedState, version) {
         const state = persistedState as { sectors: Sector[]; systems: Record<string, StarSystem> };
         if (version < 1) {
@@ -670,6 +784,20 @@ export const useSectorStore = create<SectorStore>()(
               pois: Array.isArray(o.pois) ? o.pois : [],
             }));
           });
+        }
+        if (version < 7) {
+          // Faction play-loop fields: treasury, homeworld, turn counter, log.
+          state.sectors = state.sectors.map((s: any) => ({
+            ...s,
+            factions: (s.factions ?? []).map((f: any) => ({
+              ...f,
+              facCreds: typeof f.facCreds === 'number' ? f.facCreds : 0,
+              homeworldSystemId: f.homeworldSystemId ?? null,
+              turn: typeof f.turn === 'number' ? f.turn : 0,
+              turnLog: Array.isArray(f.turnLog) ? f.turnLog : [],
+              seizeProgress: f.seizeProgress ?? {},
+            })),
+          }));
         }
         return state;
       },

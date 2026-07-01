@@ -42,6 +42,7 @@ function normalize(raw: Partial<Character>): Character {
     retired:             raw.retired             ?? false,
     image:               raw.image               ?? undefined,
     assignedShipIds:     raw.assignedShipIds      ?? (legacyId ? [legacyId] : []),
+    cyberware:           raw.cyberware            ?? [],
   } as Character;
 }
 

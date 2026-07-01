@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Banknote, BookOpen, HelpCircle, LockKeyhole, Orbit, Package, FileText } from 'lucide-react';
-import type { Character } from '../types/character';
+import type { Character, CyberwareEntry } from '../types/character';
 import { attrMod } from '../types/character';
 import type { Ship as ShipType } from '../types/ship';
 import { HULL_TYPES } from '../data/ships';
 import { ARMOR_TABLE, RANGED_WEAPONS, HEAVY_WEAPONS, MELEE_WEAPONS, GENERAL_EQUIPMENT } from '../data/equipment';
 import { SKILLS } from '../data/skills';
 import { FOCI } from '../data/foci';
+import { CYBERWARE } from '../data/cyberware';
 import { xpForLevel } from '../data/leveling';
 import { effectiveSkills, psychicSkillLevels, deriveAC, deriveEffort, computeEncumbrance } from '../data/derivation';
 import LevelUp from './LevelUp';
@@ -80,10 +81,20 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
   const [detailed, setDetailed] = useState(false);
   const [confirmEdit, setConfirmEdit] = useState(false);
   const [showGear, setShowGear] = useState(false);
+  const [showCyberware, setShowCyberware] = useState(false);
   const [earnings, setEarnings] = useState('');
   const [showPdf, setShowPdf] = useState(false);
   const [showShipPicker, setShowShipPicker] = useState(false);
   const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  // Cyberware: permanent System Strain reduction from installed implants (p.82–85)
+  const installedCyberware = (char.cyberware ?? []).filter(c => c.installed);
+  const cyberwareStrainCost = installedCyberware.reduce((sum, c) => {
+    const def = CYBERWARE.find(cw => cw.name === c.name);
+    return sum + (def?.strain ?? 0);
+  }, 0);
+  // Effective max strain = base max - permanent cyberware strain reduction
+  const effectiveMaxStrain = Math.max(0, char.systemStrain.max - cyberwareStrainCost);
 
   const nextLevelXp = xpForLevel(char.level + 1);
   const canLevelUp = char.xp >= nextLevelXp && char.level < 20;
@@ -408,16 +419,19 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
                     <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">ATK</div>
                     <div className="text-xl font-bold text-gray-100">+{char.baseAttackBonus}</div>
                   </div>
-                  {/* System Strain — interactive, danger when full */}
+                  {/* System Strain — interactive, danger when full.
+                      Cyberware permanently reduces max strain (p.82). */}
                   <div className="glass rounded-lg p-2 text-center">
-                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Strain</div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">
+                      Strain{cyberwareStrainCost > 0 && <span className="text-violet-400 ml-1">({cyberwareStrainCost} cyber)</span>}
+                    </div>
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => onUpdate({ ...char, systemStrain: { ...char.systemStrain, current: Math.max(0, char.systemStrain.current - 1) } })} disabled={char.systemStrain.current <= 0}
                         className="w-5 h-5 rounded bg-gray-700/80 hover:bg-red-900/60 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center">−</button>
-                      <span className={`font-bold tabular-nums text-sm w-12 text-center ${char.systemStrain.current >= char.systemStrain.max ? 'text-red-400' : 'text-gray-100'}`}>
-                        {char.systemStrain.current}/{char.systemStrain.max}
+                      <span className={`font-bold tabular-nums text-sm w-12 text-center ${char.systemStrain.current >= effectiveMaxStrain ? 'text-red-400' : 'text-gray-100'}`}>
+                        {char.systemStrain.current}/{effectiveMaxStrain}
                       </span>
-                      <button onClick={() => onUpdate({ ...char, systemStrain: { ...char.systemStrain, current: Math.min(char.systemStrain.max, char.systemStrain.current + 1) } })} disabled={char.systemStrain.current >= char.systemStrain.max}
+                      <button onClick={() => onUpdate({ ...char, systemStrain: { ...char.systemStrain, current: Math.min(effectiveMaxStrain, char.systemStrain.current + 1) } })} disabled={char.systemStrain.current >= effectiveMaxStrain}
                         className="w-5 h-5 rounded bg-gray-700/80 hover:bg-green-900/60 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center">+</button>
                     </div>
                   </div>
@@ -739,6 +753,60 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
           </div>
         </SheetSection>
 
+        {/* Cyberware — installs, removes, shows permanent strain cost (p.82–85) */}
+        <SheetSection
+          title={`Cyberware${installedCyberware.length > 0 ? ` (${cyberwareStrainCost} Strain)` : ''}`}
+          action={
+            <button
+              onClick={() => setShowCyberware(true)}
+              className="px-2.5 py-1 rounded bg-gray-700 hover:bg-violet-900/40 text-gray-300 hover:text-violet-300 text-xs font-medium transition-colors"
+            >
+              + Manage
+            </button>
+          }
+        >
+          {installedCyberware.length === 0 ? (
+            <p className="text-gray-600 text-sm italic">No implants installed. Use "Manage" to add cyberware.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {installedCyberware.map(c => {
+                const def = CYBERWARE.find(cw => cw.name === c.name);
+                return (
+                  <div key={c.id} className="flex items-start gap-2 bg-gray-900/50 rounded px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-violet-300">{c.name}</span>
+                        <span className="text-xs bg-violet-900/40 text-violet-400 px-1.5 py-0.5 rounded flex-shrink-0">
+                          Strain -{def?.strain ?? '?'}
+                        </span>
+                        {def?.techLevel && (
+                          <span className="text-xs text-gray-600">TL{def.techLevel}</span>
+                        )}
+                      </div>
+                      {def?.effect && (
+                        <p className="text-xs text-gray-500 mt-0.5">{def.effect}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => onUpdate({
+                        ...char,
+                        cyberware: (char.cyberware ?? []).filter(x => x.id !== c.id),
+                      })}
+                      className="text-gray-600 hover:text-red-400 text-xs transition-colors flex-shrink-0 mt-0.5"
+                      title="Remove implant"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+              <p className="text-xs text-gray-600 pt-1">
+                Permanent strain reduction: <span className="text-violet-400 font-medium">{cyberwareStrainCost}</span> of {char.systemStrain.max} (CON) max Strain used by cyberware.
+              </p>
+            </div>
+          )}
+        </SheetSection>
+
         {/* Level history */}
         {char.levelHistory.length > 0 && (
           <SheetSection title="Advancement History">
@@ -925,6 +993,16 @@ export default function CharacterSheet({ char, ships, onEdit, onBack, onOpenRule
         <GearEditor char={char} onUpdate={onUpdate} onClose={() => setShowGear(false)} />
       )}
 
+      {/* Cyberware manager modal */}
+      {showCyberware && (
+        <CyberwareManager
+          char={char}
+          onUpdate={onUpdate}
+          onClose={() => setShowCyberware(false)}
+          effectiveMaxStrain={effectiveMaxStrain}
+        />
+      )}
+
       {/* PDF viewer modal */}
       {showPdf && char.pdfAttachment?.data && (
         <CharacterPDFViewer
@@ -998,6 +1076,113 @@ function GearEditor({ char, onUpdate, onClose }: { char: Character; onUpdate: (c
         <div className="max-w-4xl mx-auto px-4 py-6">
           {/* postCreation hides the package/roll-credits starting-method tab */}
           <Step8Equipment char={char} onChange={patch => onUpdate({ ...char, ...patch })} postCreation />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CyberwareManager({
+  char, onUpdate, onClose, effectiveMaxStrain,
+}: {
+  char: Character;
+  onUpdate: (c: Character) => void;
+  onClose: () => void;
+  effectiveMaxStrain: number;
+}) {
+  useLockBodyScroll();
+  const installed = new Set((char.cyberware ?? []).filter(c => c.installed).map(c => c.name));
+
+  function toggleImplant(name: string) {
+    const def = CYBERWARE.find(cw => cw.name === name);
+    const cost = def?.cost ?? 0;
+    const existing = (char.cyberware ?? []).find(c => c.name === name);
+    if (existing) {
+      // Remove it entirely and refund its cost (keeps the budget consistent while configuring).
+      onUpdate({ ...char, cyberware: (char.cyberware ?? []).filter(c => c.name !== name), credits: char.credits + cost });
+    } else {
+      // Install it — costs credits; blocked if unaffordable.
+      if (cost > char.credits) return;
+      const entry: CyberwareEntry = { id: crypto.randomUUID(), name, installed: true };
+      onUpdate({ ...char, cyberware: [...(char.cyberware ?? []), entry], credits: Math.max(0, char.credits - cost) });
+    }
+  }
+
+  const totalInstalled = (char.cyberware ?? []).filter(c => c.installed).reduce((sum, c) => {
+    const def = CYBERWARE.find(cw => cw.name === c.name);
+    return sum + (def?.strain ?? 0);
+  }, 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-gray-950">
+      <div className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div>
+          <span className="text-violet-300 font-semibold">Cyberware — {char.name}</span>
+          <span className="text-xs text-gray-500 ml-3">
+            Strain capacity: <span className={totalInstalled > 0 ? 'text-violet-400 font-medium' : 'text-gray-400'}>{totalInstalled}</span>/{char.systemStrain.max} (CON) · Effective max strain: <span className="text-amber-300">{effectiveMaxStrain}</span> · Credits: <span className={char.credits > 0 ? 'text-emerald-300' : 'text-red-400'}>{char.credits.toLocaleString()}</span>
+          </span>
+        </div>
+        <button onClick={onClose} className="px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium">
+          Done
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <p className="text-xs text-gray-500 mb-4">
+            Each implant permanently reduces your max System Strain by its Strain cost (p.82). Click an item to install or remove it.
+            Your base max Strain equals your Constitution score ({char.systemStrain.max}).
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {CYBERWARE.map(cw => {
+              const isInstalled = installed.has(cw.name);
+              const projectedTotal = isInstalled
+                ? totalInstalled
+                : totalInstalled + cw.strain;
+              const wouldExceed = !isInstalled && projectedTotal > char.systemStrain.max;
+              const cantAfford = !isInstalled && cw.cost > char.credits;
+              return (
+                <button
+                  key={cw.name}
+                  onClick={() => toggleImplant(cw.name)}
+                  disabled={wouldExceed || cantAfford}
+                  className={`text-left p-4 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    isInstalled
+                      ? 'border-violet-500 bg-violet-900/20'
+                      : 'border-gray-700 bg-gray-800 hover:border-violet-600/50 hover:bg-violet-900/10'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <span className={`font-semibold text-sm ${isInstalled ? 'text-violet-300' : 'text-gray-200'}`}>
+                      {cw.name}
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${isInstalled ? 'bg-violet-900/60 text-violet-300' : 'bg-gray-700 text-gray-400'}`}>
+                        -{cw.strain} Strain
+                      </span>
+                      <span className="text-xs text-gray-600">TL{cw.techLevel}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-1">{cw.effect}</p>
+                  <p className="text-xs text-gray-600 leading-relaxed">{cw.description}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-gray-600">{cw.cost.toLocaleString()} credits</span>
+                    {cw.activationStrain && (
+                      <span className="text-xs text-amber-600">+{cw.activationStrain} Strain per use</span>
+                    )}
+                    {isInstalled && (
+                      <span className="text-xs text-violet-400 font-medium">Installed</span>
+                    )}
+                    {wouldExceed && (
+                      <span className="text-xs text-red-500">Exceeds CON limit</span>
+                    )}
+                    {cantAfford && !wouldExceed && (
+                      <span className="text-xs text-red-500">Can't afford</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

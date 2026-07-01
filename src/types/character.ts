@@ -74,6 +74,12 @@ export interface ArmorEntry {
   notCarried?: boolean;
 }
 
+export interface CyberwareEntry {
+  id: string;
+  name: string;
+  installed: boolean;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -119,6 +125,13 @@ export interface Character {
 
   assignedShipIds?: string[];
   pdfAttachment?: { name: string; data?: string };
+  cyberware?: CyberwareEntry[];
+
+  /**
+   * SP spent on psychic techniques at character creation (book p.34: 1 SP per technique level).
+   * Separate from level-up SP spend tracked in levelHistory. Optional; defaults to 0.
+   */
+  creationTechniquesSP?: number;
 
   // Advancement history — one record per level gained after level 1
   levelHistory: LevelRecord[];
@@ -227,5 +240,6 @@ export function emptyCharacter(): Character {
     notes: '',
     levelHistory: [],
     creationSkills: {},
+    cyberware: [],
   };
 }

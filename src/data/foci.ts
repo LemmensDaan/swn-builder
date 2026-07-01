@@ -243,4 +243,64 @@ export const FOCI: Focus[] = [
       { description: 'Your maximum Effort becomes 2. Pick a second ability following the same guidelines. The second doesn\'t need to be standalone if it augments the power you chose at level 1.' },
     ],
   },
+  {
+    name: 'Android',
+    description: 'You were built as an android, a robot indistinguishable from a human without medical-grade inspection.',
+    isCombat: false,
+    isOrigin: true,
+    levels: [
+      { description: 'Gain a bonus skill related to your intended function. You have all the usual traits and abilities of a VI robot: no need for sleep/food/drink (1 Type B cell/week), immune to vacuum, poison, and disease, cannot be a Psychic, can be healed with Fix skill and spare parts instead of medicine, and cannot use cyberware.' },
+      { description: 'Your android nature is fully developed. Cosmetic alterations can be made to your chassis; built-in equipment costs twice as much but takes up to half your CON score in encumbrance points.' },
+    ],
+  },
+  {
+    name: 'VI Worker Bot',
+    description: 'You were built for industrial or technical labor, where a human face was an unnecessary luxury.',
+    isCombat: false,
+    isOrigin: true,
+    levels: [
+      { description: 'Gain a bonus skill related to your intended function. Choose an attribute associated with your work and gain a +1 bonus to its modifier (max +2). You have all the usual VI robot traits: no need for sleep/food/drink (1 Type B cell/week), immune to vacuum, poison, and disease, cannot be a Psychic, healed with Fix skill + spare parts, cannot use cyberware.' },
+      { description: 'Your robust construction allows for greater hardware integration. Built-in equipment costs twice as much but takes up to half your CON score in encumbrance points.' },
+    ],
+  },
+  {
+    name: 'VI Vehicle Bot',
+    description: 'Some VIs were instantiated in actual vehicles rather than conventional humanoid bodies.',
+    isCombat: false,
+    isOrigin: true,
+    levels: [
+      { description: 'Gain Pilot as a bonus skill. You become a drone, hoverbike, gravcar, or other vehicle acceptable to the GM, retaining your usual attributes but gaining the vehicle\'s Armor score. You retain AC 10 modified by Dexterity. You can pilot a single surrogate body remotely as your Main Action. You have all the usual VI robot traits: no sleep/food/drink, immune to vacuum, poison, and disease, cannot be a Psychic, healed with Fix skill + spare parts, cannot use cyberware.', bonusSkill: 'Pilot' },
+      { description: 'A tech can improve your Armor Class by up to 3× their Fix skill (1,000 credits/point). You can control your surrogate body as long as there is no ECM jamming.' },
+    ],
+  },
+  {
+    name: 'Alien: Strong Species',
+    description: 'Your species is tougher and stronger than baseline human, with natural physical advantages.',
+    isCombat: false,
+    isOrigin: true,
+    levels: [
+      { description: 'Gain a bonus skill appropriate to your species. Your maximum hit points always count the first die as maximum (Warrior starts at 8; further dice that roll a 1 are rerolled). Your species has a +1 bonus to one attribute modifier of your choice (max +3).' },
+      { description: 'Your species\' toughness is fully expressed. You gain a natural AC of 15 plus half character level if unarmored, or an innate ability equivalent to 2–3 pieces of equipment from the cyberware/gear list.' },
+    ],
+  },
+  {
+    name: 'Alien: Psychically Gifted',
+    description: 'Your species has an innate psychic aptitude, all members born with limited MES sensitivity.',
+    isCombat: false,
+    isOrigin: true,
+    levels: [
+      { description: 'You must be a Psychic or take the Partial Psychic class option. Your maximum Effort is increased by 1. Gain a bonus psychic or non-psychic skill appropriate to your species.' },
+      { description: 'Your psychic gift deepens. You may use one innate psychic technique from your discipline without spending Effort once per scene.' },
+    ],
+  },
+  {
+    name: 'Alien: Warrior Species',
+    description: 'Your species is naturally aggressive and combat-capable, all members being trained fighters.',
+    isCombat: false,
+    isOrigin: true,
+    levels: [
+      { description: 'Gain a combat bonus skill (Stab, Shoot, or Punch as appropriate). You gain a +1 bonus to your normal attack bonus. Your species also has a natural defense or innate ability — work with your GM to define it.' },
+      { description: 'Your warrior nature is fully developed. Your natural weapons (claws, fangs, etc.) count as TL4 melee weapons. You may have a natural AC improvement or an unusual movement mode (e.g., wall-climbing, short teleportation hops) — work with your GM.' },
+    ],
+  },
 ];

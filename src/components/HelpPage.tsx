@@ -126,6 +126,25 @@ export default function HelpPage({ onClose }: Props) {
             </Example>
           </Section>
 
+          {/* ── Speculative trade ───────────────────────────────────── */}
+          <Section title="Speculative Trade" page="pp.237–238">
+            <p className="text-sm mb-3">
+              Buy a cargo of trade goods on one world and sell it on another for a profit. The interactive
+              calculator lives under <strong className="text-gray-200">GM Tools → Trade</strong>; this is the rules summary.
+            </p>
+            <ul className="text-sm list-disc pl-5 space-y-1">
+              <li><strong className="text-gray-200">Goods tiers</strong> (price per ton multiplier): Bulk ×10, Finished ×100, Expensive ×1,000.</li>
+              <li><strong className="text-gray-200">Buy price</strong>: roll 2d6 × the tier multiplier (per ton).</li>
+              <li><strong className="text-gray-200">Sell price</strong>: roll (2d6 + 1) × the tier multiplier (per ton).</li>
+              <li><strong className="text-gray-200">Bargaining</strong>: a successful Trade/Connect check shifts the price ±10% per skill level in your favour.</li>
+              <li><strong className="text-gray-200">Cargo loss</strong>: after buying and again after selling, roll 1d6 (−1 if you bargained); on a 1 or less the cargo is lost to mishap or a glutted market.</li>
+            </ul>
+            <Example>
+              <strong className="text-gray-300">Example.</strong> 10 tons of Finished goods: buy roll 6 → 600 cr/ton (6,000 cr).
+              At the destination a sell roll of 9 → (9+1)×100 = 1,000 cr/ton (10,000 cr): a 4,000 cr profit before fuel and docking fees.
+            </Example>
+          </Section>
+
           {/* ── Core stats ──────────────────────────────────────────── */}
           <Section title="Core Calculations">
             <ul className="text-sm list-disc pl-5 space-y-1">

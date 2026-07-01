@@ -218,6 +218,16 @@ export function weaponAmmoCapacity(weapon: WeaponDef, hullClass: HullClass): num
   return base * PM_MULT[hullClass];
 }
 
+/**
+ * Returns the per-engagement ammo capacity for Foxer Drones (p.99/similar).
+ * Base 5 shots; ×2 for Cruiser, ×3 for Capital.
+ */
+export function foxerDronesAmmoMax(hullClass: HullClass): number {
+  if (hullClass === 'Capital') return 15;
+  if (hullClass === 'Cruiser') return 10;
+  return 5; // base (Foxer Drones require a Cruiser-class or larger hull)
+}
+
 // ---------------------------------------------------------------------------
 // Hull Types
 // ---------------------------------------------------------------------------
@@ -700,7 +710,7 @@ export const WEAPONS: WeaponDef[] = [
     name: 'Lightning Charge Mantle',
     cost: 4_000_000,
     damage: '1d20',
-    power: 10,
+    power: 15,
     mass: 5,
     hardpoints: 2,
     minClass: 'Capital',
@@ -852,7 +862,7 @@ export const DEFENSES: DefenseDef[] = [
     acBonus: 2,
     hpBonus: 0,
     speedPenalty: 0,
-    description: '+2 AC vs torpedo and charge weapons; detonates incoming munitions.',
+    description: '+2 AC vs any weapon that uses ammo; detonates incoming munitions.',
   },
 ];
 
@@ -1178,7 +1188,7 @@ export const FITTINGS: FittingDef[] = [
   {
     id: 'sensor-mask',
     name: 'Sensor Mask',
-    baseCost: 100_000,
+    baseCost: 10_000,
     costScaled: true,
     power: 1,
     powerScaled: false,

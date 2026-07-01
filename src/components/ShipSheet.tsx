@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { BookOpen, HelpCircle, Pencil, Plus, X, Users, Swords, Dice6 } from 'lucide-react';
-import type { Ship, DepartmentName, ActiveCrisis } from '../types/ship';
-import { WEAPONS, DEFENSES, FITTINGS, SHIP_MODS, deriveShip, weaponAmmoCapacity } from '../data/ships';
+import { BookOpen, HelpCircle, Pencil, Plus, X, Users, Swords, Dice6, Rocket } from 'lucide-react';
+import type { Ship, DepartmentName, ActiveCrisis, DefenseAmmo } from '../types/ship';
+import { WEAPONS, DEFENSES, FITTINGS, SHIP_MODS, deriveShip, weaponAmmoCapacity, foxerDronesAmmoMax } from '../data/ships';
 import type { DerivedShip } from '../data/ships';
 import { getModuleConsequence } from '../data/ship-modules';
 import type { Character } from '../types/character';
 import { attrMod, calcAttackBonus } from '../types/character';
+import SpikeTravelCalculator from './sector/tools/SpikeTravelCalculator';
 
 interface Props {
   ship: Ship;
@@ -263,7 +264,7 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
   const derived: DerivedShip = deriveShip(ship);
   const hull = derived.hull;
 
-  const [activeTab, setActiveTab] = useState<'general' | 'combat'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'combat' | 'travel'>('general');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [cargoAmount, setCargoAmount] = useState('');
   const [mechName, setMechName] = useState('');
@@ -369,6 +370,40 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
       a.weaponId === weaponId ? { ...a, readied: newReadied, stowed: newStowed } : a
     );
     onUpdate({ ...ship, weaponAmmo: updated });
+  }
+
+  // ── Defense ammo (Foxer Drones) ───────────────────────────────────────────
+
+  function getDefenseAmmo(): DefenseAmmo[] {
+    return ship.defenseAmmo ?? [];
+  }
+
+  function setDefenseAmmo(defenseId: string, current: number) {
+    const arr = getDefenseAmmo();
+    const existing = arr.find(a => a.defenseId === defenseId);
+    let updated: DefenseAmmo[];
+    if (existing) {
+      updated = arr.map(a =>
+        a.defenseId === defenseId ? { ...a, current: Math.max(0, Math.min(a.max, current)) } : a
+      );
+    } else {
+      updated = [...arr, { defenseId, current: Math.max(0, current), max: current }];
+    }
+    onUpdate({ ...ship, defenseAmmo: updated });
+  }
+
+  function initializeDefenseAmmo(defenseId: string, max: number) {
+    const arr = getDefenseAmmo();
+    if (!arr.find(a => a.defenseId === defenseId)) {
+      onUpdate({ ...ship, defenseAmmo: [...arr, { defenseId, current: max, max }] });
+    }
+  }
+
+  function resetDefenseAmmo(defenseId: string, max: number) {
+    const arr = getDefenseAmmo();
+    const updated = arr.map(a => a.defenseId === defenseId ? { ...a, current: max } : a);
+    const hasEntry = arr.some(a => a.defenseId === defenseId);
+    onUpdate({ ...ship, defenseAmmo: hasEntry ? updated : [...arr, { defenseId, current: max, max }] });
   }
 
   function addMech(name: string, tonnage: number) {
@@ -535,7 +570,7 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
 
         {/* ── Tabs ───────────────────────────────────────────────────────── */}
         <div className="flex border-b border-gray-700 bg-gray-900/70 flex-shrink-0">
-          {(['general', 'combat'] as const).map(tab => (
+          {(['general', 'combat', 'travel'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -546,6 +581,7 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
               }`}
             >
               {tab === 'combat' && <Swords size={13} className="inline mr-1.5 -mt-0.5" />}
+              {tab === 'travel' && <Rocket size={13} className="inline mr-1.5 -mt-0.5" />}
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
@@ -630,16 +666,42 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
                   })}
                   {installedDefenses.map(({ def, qty }) => {
                     const broken = ship.brokenModules.some(m => m.type === 'defense' && m.id === def.id);
+                    const isFoxer = def.id === 'foxer-drones';
+                    const foxerMax = isFoxer ? foxerDronesAmmoMax(hull.class) : 0;
+                    const defAmmoArr = getDefenseAmmo();
+                    const foxerEntry = isFoxer ? defAmmoArr.find(a => a.defenseId === def.id) : undefined;
+                    if (isFoxer && !foxerEntry) {
+                      initializeDefenseAmmo(def.id, foxerMax);
+                    }
                     return (
-                      <div key={def.id} className={`flex items-center justify-between gap-3 p-2 rounded border ${broken ? 'border-red-800 bg-red-900/10' : 'border-gray-700/60'}`}>
-                        <div className="flex-1 min-w-0">
-                          <span className={`text-sm font-medium ${broken ? 'text-red-300 line-through' : 'text-gray-200'}`}>{def.name}</span>
-                          {qty > 1 && <span className="text-xs text-gray-500 ml-1">×{qty}</span>}
+                      <div key={def.id} className={`p-2 rounded border ${broken ? 'border-red-800 bg-red-900/10' : 'border-gray-700/60'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-sm font-medium ${broken ? 'text-red-300 line-through' : 'text-gray-200'}`}>{def.name}</span>
+                            {qty > 1 && <span className="text-xs text-gray-500 ml-1">×{qty}</span>}
+                          </div>
+                          <button onClick={() => toggleModuleBroken('defense', def.id)}
+                            className={`px-2 py-1 rounded text-xs font-medium flex-shrink-0 transition-colors ${broken ? 'bg-red-900/50 text-red-300 hover:bg-red-900' : 'bg-green-700 text-green-100 hover:bg-green-600'}`}>
+                            {broken ? '⚠ Broken' : 'Operational'}
+                          </button>
                         </div>
-                        <button onClick={() => toggleModuleBroken('defense', def.id)}
-                          className={`px-2 py-1 rounded text-xs font-medium flex-shrink-0 transition-colors ${broken ? 'bg-red-900/50 text-red-300 hover:bg-red-900' : 'bg-green-700 text-green-100 hover:bg-green-600'}`}>
-                          {broken ? '⚠ Broken' : 'Operational'}
-                        </button>
+                        {isFoxer && foxerEntry && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="text-[10px] text-gray-500 uppercase tracking-wide">Ammo</span>
+                            <button onClick={() => setDefenseAmmo(def.id, foxerEntry.current - 1)} disabled={foxerEntry.current <= 0 || broken}
+                              className="w-5 h-5 rounded bg-gray-700 hover:bg-red-900/60 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center">−</button>
+                            <span className={`text-sm font-mono font-bold w-12 text-center tabular-nums ${foxerEntry.current === 0 ? 'text-red-400' : 'text-amber-300'}`}>
+                              {foxerEntry.current}/{foxerEntry.max}
+                            </span>
+                            <button onClick={() => setDefenseAmmo(def.id, foxerEntry.current + 1)} disabled={foxerEntry.current >= foxerEntry.max || broken}
+                              className="w-5 h-5 rounded bg-gray-700 hover:bg-green-900/60 disabled:opacity-20 text-gray-300 text-xs flex items-center justify-center">+</button>
+                            <button onClick={() => resetDefenseAmmo(def.id, foxerMax)} disabled={foxerEntry.current >= foxerEntry.max || broken}
+                              className="px-2 py-0.5 rounded text-xs bg-sky-900/50 text-sky-300 hover:bg-sky-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                              Reset
+                            </button>
+                            <span className="text-[10px] text-gray-600">per engagement</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -909,6 +971,37 @@ export default function ShipSheet({ ship, characters, onEdit, onBack, onUpdate, 
                     </button>
                   </div>
                 </div>
+              </div>
+            </SheetSection>
+          </>}
+
+          {/* ══════════════════════════════════════════════════════════════
+              TRAVEL TAB
+              ══════════════════════════════════════════════════════════ */}
+          {activeTab === 'travel' && <>
+            <SheetSection title="Spike Travel & Fuel">
+              <SpikeTravelCalculator
+                initialDriveRating={ship.currentDriveRating || ship.driveRating}
+                fuel={ship.fuelLoads ?? { current: 1, max: 1 }}
+                onDrill={() => {
+                  const f = ship.fuelLoads ?? { current: 1, max: 1 };
+                  onUpdate({ ...ship, fuelLoads: { ...f, current: Math.max(0, f.current - 1) } });
+                }}
+                onRefuel={() => {
+                  const f = ship.fuelLoads ?? { current: 1, max: 1 };
+                  onUpdate({ ...ship, fuelLoads: { ...f, current: f.max } });
+                }}
+              />
+              <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+                <span>Max fuel loads:</span>
+                <button
+                  onClick={() => { const f = ship.fuelLoads ?? { current: 1, max: 1 }; const max = Math.max(1, f.max - 1); onUpdate({ ...ship, fuelLoads: { max, current: Math.min(f.current, max) } }); }}
+                  className="w-5 h-5 rounded bg-gray-700/80 hover:bg-gray-600 text-gray-300 text-xs flex items-center justify-center">−</button>
+                <span className="tabular-nums text-gray-300">{(ship.fuelLoads ?? { max: 1 }).max}</span>
+                <button
+                  onClick={() => { const f = ship.fuelLoads ?? { current: 1, max: 1 }; onUpdate({ ...ship, fuelLoads: { max: f.max + 1, current: f.current } }); }}
+                  className="w-5 h-5 rounded bg-gray-700/80 hover:bg-gray-600 text-gray-300 text-xs flex items-center justify-center">+</button>
+                <span className="text-gray-600">— fuel bunkers / scoop fittings raise this</span>
               </div>
             </SheetSection>
           </>}

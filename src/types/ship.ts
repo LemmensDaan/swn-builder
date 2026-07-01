@@ -18,6 +18,13 @@ export interface WeaponAmmo {
   stowed: number;   // in cargo/stores
 }
 
+/** Per-engagement ammo for defenses that have ammo (e.g. Foxer Drones). */
+export interface DefenseAmmo {
+  defenseId: string;
+  current: number;
+  max: number;
+}
+
 export interface MechCarried {
   id: string;
   name: string;
@@ -71,6 +78,9 @@ export interface Ship {
   brokenModules: BrokenModule[];
   cargoWeight: number;
   weaponAmmo: WeaponAmmo[];
+  defenseAmmo?: DefenseAmmo[];
+  /** Spike-drive fuel loads (most hulls hold 1; fuel bunkers raise the max). */
+  fuelLoads?: { current: number; max: number };
   mechs: MechCarried[];
   // Combat tracking
   currentDriveRating: number;   // can degrade from targeted shots
@@ -107,6 +117,8 @@ export function emptyShip(): Ship {
     brokenModules: [],
     cargoWeight: 0,
     weaponAmmo: [],
+    defenseAmmo: [],
+    fuelLoads: { current: 1, max: 1 },
     mechs: [],
     currentDriveRating: 1,
     commandPoints: 0,

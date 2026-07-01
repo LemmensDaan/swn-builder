@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Wand2 } from 'lucide-react';
 import { useSectorStore } from '../../store/useSectorStore';
 import GalaxyView from './GalaxyView/GalaxyView';
 import SectorHexView from './SectorHexView/SectorHexView';
 import SystemViewer from './SystemViewer/SystemViewer';
+import SectorToolsModal from './tools/SectorToolsModal';
 
 interface Props {
   onBack: () => void;
@@ -11,6 +12,7 @@ interface Props {
 
 export default function SectorViewer({ onBack }: Props) {
   const { layer } = useSectorStore();
+  const [showTools, setShowTools] = useState(false);
 
   // Keep SystemViewer mounted briefly after navigating away so the CSS fade-out plays
   const [systemMounted, setSystemMounted] = useState(layer === 'system');
@@ -43,7 +45,17 @@ export default function SectorViewer({ onBack }: Props) {
         </button>
         <div className="w-px h-4 bg-gray-700" />
         <Breadcrumb />
+        <button
+          onClick={() => setShowTools(true)}
+          className="ml-auto flex items-center gap-1.5 text-gray-400 hover:text-amber-300 text-sm transition-colors"
+          title="World generator & spike-travel calculator"
+        >
+          <Wand2 size={15} />
+          <span className="hidden sm:inline">Tools</span>
+        </button>
       </div>
+
+      {showTools && <SectorToolsModal onClose={() => setShowTools(false)} />}
 
       {/* Layer content */}
       <div className="relative flex-1 min-h-0" style={{ background: '#080c14' }}>

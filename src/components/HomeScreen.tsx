@@ -9,6 +9,10 @@ import { HULL_TYPES } from '../data/ships';
 import PortraitEditor from './PortraitEditor';
 import ItemActions from './ItemActions';
 import FactionScreen from './factions/FactionScreen';
+import VehicleReference from './vehicles/VehicleReference';
+import GMTools from './gm/GMTools';
+
+export type HomeTab = 'characters' | 'ships' | 'factions' | 'sector' | 'vehicles' | 'gmtools';
 
 // Side-profile ship silhouette — represents the specific hull model/design
 function HullNameIcon({ size = 14, className = '' }: { size?: number; className?: string }) {
@@ -57,8 +61,8 @@ interface Props {
   onUnretireShip: (id: string) => void;
   onCopyShip: (id: string) => void;
   onShipImageChange: (id: string, dataUrl: string) => void;
-  initialActiveTab?: 'characters' | 'ships' | 'factions' | 'sector';
-  onTabChange: (tab: 'characters' | 'ships' | 'factions' | 'sector') => void;
+  initialActiveTab?: HomeTab;
+  onTabChange: (tab: HomeTab) => void;
   onOpenFaction: (factionId: string, sectorId: string) => void;
 }
 
@@ -67,7 +71,7 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
   const [importPending, setImportPending] = useState<ImportPreview | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'characters' | 'ships' | 'factions' | 'sector'>(initialActiveTab);
+  const [activeTab, setActiveTab] = useState<HomeTab>(initialActiveTab);
   const [showToast, setShowToast] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -170,6 +174,8 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
           <Tab label="Ships" active={activeTab === 'ships'} onClick={() => { setActiveTab('ships'); onTabChange('ships'); }} />
           <Tab label="Factions" active={activeTab === 'factions'} onClick={() => { setActiveTab('factions'); onTabChange('factions'); }} />
           <Tab label="Sector" active={activeTab === 'sector'} onClick={() => { setActiveTab('sector'); onTabChange('sector'); }} />
+          <Tab label="Vehicles" active={activeTab === 'vehicles'} onClick={() => { setActiveTab('vehicles'); onTabChange('vehicles'); }} />
+          <Tab label="GM Tools" active={activeTab === 'gmtools'} onClick={() => { setActiveTab('gmtools'); onTabChange('gmtools'); }} />
         </div>
 
         {activeTab === 'characters' && (
@@ -315,6 +321,9 @@ export default function HomeScreen({ characters, onNew, onOpen, onDelete, onReti
             )}
           </>
         )}
+
+        {activeTab === 'vehicles' && <VehicleReference />}
+        {activeTab === 'gmtools' && <GMTools />}
       </div>
 
       {/* Export modal — rendered at root to escape header's backdrop-filter stacking context */}

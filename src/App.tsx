@@ -13,14 +13,15 @@ import type { Sector, StarSystem } from './types/sector';
 import { EXPORT_VERSION } from './types/exportData';
 import SectorViewer from './components/sector/SectorViewer';
 import FactionSheet from './components/factions/FactionSheet';
+import type { HomeTab } from './components/HomeScreen';
 import { useSectorStore, flushSectorSave } from './store/useSectorStore';
 
 type View =
-  | { type: 'home'; activeTab?: 'characters' | 'ships' | 'factions' | 'sector' }
+  | { type: 'home'; activeTab?: HomeTab }
   | { type: 'wizard'; editId?: string }
   | { type: 'sheet'; id: string }
   | { type: 'ship-wizard'; editId?: string }
-  | { type: 'ship-sheet'; id: string; activeTab?: 'characters' | 'ships' | 'factions' | 'sector' }
+  | { type: 'ship-sheet'; id: string; activeTab?: HomeTab }
   | { type: 'sector' }
   | { type: 'faction-sheet'; factionId: string; sectorId: string };
 
@@ -248,7 +249,7 @@ export default function App() {
           initialActiveTab={view.activeTab}
           onTabChange={tab => {
             if (tab === 'sector') { setView({ type: 'sector' }); return; }
-            setView({ ...view, type: 'home', activeTab: tab as 'characters' | 'ships' | 'factions' });
+            setView({ ...view, type: 'home', activeTab: tab });
           }}
           onOpenFaction={(factionId, sectorId) => setView({ type: 'faction-sheet', factionId, sectorId })}
         />
